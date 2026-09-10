@@ -174,11 +174,16 @@
 
   var q = document.getElementById("q");
   var out = document.getElementById("results");
-  var idx = null;
+  var idx = window.__SEARCH__ || null;
   if (q && out) {
-    fetch("search.json").then(function (r) { return r.json(); })
-      .then(function (j) { idx = j; })
-      .catch(function () {});
+    if (!idx) {
+      fetch("search.json").then(function (r) { return r.json(); })
+        .then(function (j) { idx = j; })
+        .catch(function () {
+          q.placeholder = "Search needs the hosted version";
+          q.disabled = true;
+        });
+    }
     q.addEventListener("input", function () {
       var term = q.value.trim().toLowerCase();
       out.innerHTML = "";

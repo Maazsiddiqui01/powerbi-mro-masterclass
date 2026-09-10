@@ -1,5 +1,5 @@
 /* Data Modelling for Power BI, offline cache. Generated, do not edit by hand. */
-var CACHE = "pbi-mc-46f41150de";
+var CACHE = "pbi-mc-0390a621e8";
 var ASSETS = [
   "./index.html",
   "./search.json",
