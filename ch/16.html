@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Grain mismatch: headers, lines and monthly plans</title>
+</head>
+<body data-ch="16">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">16</span><span class="tb-title">Grain mismatch: headers, lines and monthly plans</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-16">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 5 . Hard modelling cases</div>
+    <h2 class="chapter-title"><span class="chapter-num">16</span>Grain mismatch: headers, lines and monthly plans</h2>
+    <p class="chapter-lede">After this chapter you can decide which table a measure belongs on. You will put header level and line level figures side by side in one visual without inflating either. You will also handle a monthly capacity plan against daily labor without shipping a utilisation figure that is quietly wrong.</p>
+  </div>
+
+  <p>The finance manager wants one number for the quarter. What did Meridian quote, and what did the work actually cost? You build the table in ten minutes and hand it over. Quoted comes back as 46,600 against a true 38,100, and two work orders have dropped out of the report altogether. Every figure in the source tables is correct as typed. The model answered a question about work orders by counting labor lines, and the rest of this chapter is about that difference.</p>
+
+  <p class="lead">Grain is the single most useful word in this course. It means: what does one row of this table represent? Answer that for every table before you write a measure and most of the hard problems in Power BI stop being hard. Get it wrong and the model still refreshes, the visuals still render, and the numbers are still wrong.</p>
+
+  <dl class="defs">
+    <dt>Grain</dt><dd>The business event that one row of a table stands for. <code>FactLabor</code> is one technician on one work order on one day. <code>FactWorkOrder</code> is one work order.</dd>
+    <dt>Header grain</dt><dd>The coarser of two related fact tables. Meridian's header is the work order.</dd>
+    <dt>Line grain</dt><dd>The finer table that hangs off the header. Meridian has two of them, labor and parts, and they are not at the same grain as each other either.</dd>
+    <dt>Fan-out</dt><dd>What happens to a header value when the engine joins it to the lines. One row becomes many, and the header value is repeated on every one of them.</dd>
+  </dl>
+
+  <p>Meridian gives you both classic mismatches in one small model. Header against line: <span class="fact-tag">Fact</span> <code>FactWorkOrder</code> holds <code>QuotedAmount</code> at work order grain, while <code>FactLabor</code> and <code>FactParts</code> hold cost at line grain. Plan against actual: <code>FactCapacity</code> is planned at station and month, while <code>FactLabor</code> is recorded at station and day. Both mismatches are facts about the source systems. No relationship you add will remove either one, and the job is to build a model that tells the truth in spite of them.</p>
+
+  <h3>Mismatch one: one work order, two labor lines</h3>
+
+  <p>Take WO-1001. It is one row in <code>FactWorkOrder</code>: tail N771QR, station MSP, scheduled work, quoted at 3,000. It is two rows in <code>FactLabor</code>: L-501, TECH-02, 7.5 hours at 95, and L-502, TECH-04, 6.0 hours at 110. It is one row in <code>FactParts</code>: P-9001, four units of BRK-2210 at 310. Three tables, three different row counts, one work order.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 380" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><text x="30.0" y="24.0" class="d-t" fill="#AE4419">Header grain</text><text x="430.0" y="24.0" class="d-t" fill="#AE4419">Line grain</text><rect x="30.0" y="44.0" width="250.0" height="116.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.4"/><text x="42.0" y="62.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="30" y1="70" x2="280" y2="70" stroke="#AE4419" stroke-width="1"/><text x="42.0" y="90.0" class="d-m">WO-1001</text><text x="268.0" y="90.0" class="d-m" text-anchor="end">3,000</text><text x="42.0" y="120.0" class="d-m">WO-1002</text><text x="268.0" y="120.0" class="d-m" text-anchor="end">3,200</text><text x="42.0" y="150.0" class="d-m">WO-1003</text><text x="268.0" y="150.0" class="d-m" text-anchor="end">12,500</text><rect x="430.0" y="44.0" width="300.0" height="176.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.4"/><text x="442.0" y="62.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="430" y1="70" x2="730" y2="70" stroke="#AE4419" stroke-width="1"/><text x="442.0" y="90.0" class="d-m">L-501</text><text x="540.0" y="90.0" class="d-m" fill="#77746B">WO-1001</text><text x="718.0" y="90.0" class="d-m" text-anchor="end">7.5</text><path d="M280,85.0 C350,85.0 370,85.0 430,85.0" class="d-line-hot" fill="none"/><text x="442.0" y="120.0" class="d-m">L-502</text><text x="540.0" y="120.0" class="d-m" fill="#77746B">WO-1001</text><text x="718.0" y="120.0" class="d-m" text-anchor="end">6.0</text><path d="M280,85.0 C350,85.0 370,115.0 430,115.0" class="d-line-hot" fill="none"/><text x="442.0" y="150.0" class="d-m">L-503</text><text x="540.0" y="150.0" class="d-m" fill="#77746B">WO-1002</text><text x="718.0" y="150.0" class="d-m" text-anchor="end">9.0</text><path d="M280,115.0 C350,115.0 370,145.0 430,145.0" class="d-line-hot" fill="none"/><text x="442.0" y="180.0" class="d-m">L-504</text><text x="540.0" y="180.0" class="d-m" fill="#77746B">WO-1003</text><text x="718.0" y="180.0" class="d-m" text-anchor="end">8.0</text><path d="M280,145.0 C350,145.0 370,175.0 430,175.0" class="d-line-hot" fill="none"/><text x="442.0" y="210.0" class="d-m">L-505</text><text x="540.0" y="210.0" class="d-m" fill="#77746B">WO-1003</text><text x="718.0" y="210.0" class="d-m" text-anchor="end">4.5</text><path d="M280,145.0 C350,145.0 370,205.0 430,205.0" class="d-line-hot" fill="none"/><text x="300.0" y="218.0" class="d-lbl" fill="#77746B">one header row</text><text x="300.0" y="232.0" class="d-lbl" fill="#77746B">fans out to many</text><text x="300.0" y="246.0" class="d-lbl" fill="#77746B">line rows</text><rect x="30.0" y="250.0" width="360.0" height="108.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="44.0" y="272.0" class="d-t" fill="#98281E">Pull QuotedAmount down to line grain</text><text x="44.0" y="292.0" class="d-m">3,000 + 3,000 + 3,200 + 12,500 + 12,500</text><text x="44.0" y="310.0" class="d-s">WO-1001 and WO-1003 counted twice.</text><text x="44.0" y="328.0" class="d-s">Work orders with no labor line vanish entirely.</text><text x="44.0" y="348.0" class="d-s" font-style="italic">Two independent errors in one column.</text><rect x="430.0" y="250.0" width="440.0" height="108.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="444.0" y="272.0" class="d-t" fill="#2B6140">Keep each measure at its own grain</text><text x="444.0" y="292.0" class="d-m">Quoted Amount  =  SUM ( FactWorkOrder[QuotedAmount] )   38,100</text><text x="444.0" y="310.0" class="d-m">Labor Cost     =  SUMX ( FactLabor, ... )                6,326.50</text><text x="444.0" y="328.0" class="d-s">The model joins them at the visual, not in a column.</text><text x="444.0" y="348.0" class="d-s" font-style="italic">If a measure needs DISTINCT to stop double counting, it is on the wrong table.</text></svg></div><figcaption><span class="fig-num">Figure 16.1</span>Header grain fans out to line grain, and header values duplicate when they follow.</figcaption></figure>
+
+  <p>You have met this picture twice already, in <a class="xref" href="#ch-01">Chapter 1</a> and again in <a class="xref" href="#ch-10">Chapter 10</a>. Come back to it here for one thing only, the direction the value travels. Follow the curved terracotta lines running left to right out of WO-1001. They lead from the three orders drawn on the header side to the five labor lines on the right. Parts is missing from the drawing, so keep P-9001 in your head. <code>FactWorkOrder[WorkOrderID]</code> to <code>FactLabor[WorkOrderID]</code> is one to many, so the filter flows from the header across to the lines and the rows multiply. Each of the two labor lines can now see the whole 3,000. Any expression that reads it once per line reads it twice. That is the sum the red card prints, with 3,000 and 12,500 each appearing twice. Underneath, the card names a second error: work orders with no labor line vanish entirely. The green card is where this chapter is going. Quoted reads 38,100 from <code>FactWorkOrder</code>, labor cost reads 6,326.50 from <code>FactLabor</code>, and each measure stays on the table that records it once.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 16.1</span> The join result for WO-1001. Storage holds the quoted amount once, and every row context an iterator over <code>FactLabor</code> creates holds it again.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Work order</th>
+            <th scope="col" class="num">Quoted</th>
+            <th scope="col">Labor line</th>
+            <th scope="col" class="num">Hours</th>
+            <th scope="col" class="num">Labor cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">WO-1001</td><td class="num cell-bad">3,000</td><td class="key">L-501</td><td class="num">7.5</td><td class="num">712.50</td></tr>
+          <tr><td class="key">WO-1001</td><td class="num cell-bad">3,000</td><td class="key">L-502</td><td class="num">6.0</td><td class="num">660.00</td></tr>
+          <tr class="row-total"><td>Read from this shape</td><td class="num cell-bad">6,000</td><td></td><td class="num">13.5</td><td class="num">1,372.50</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Hours and labor cost are correct in that total because they are recorded at line grain, once per row. Quoted is wrong because it is recorded at header grain, once per work order, and the shape of the join has shown it to you twice. Nothing in the interface warns you. The column populates, the currency formats, the card renders.</p>
+
+  <p>This is the 46,600 the finance manager was handed. In <a class="xref" href="#ch-10">Chapter 10</a> we pulled <code>QuotedAmount</code> down to <code>FactLabor</code> with a calculated column and summed it. Restated in one line: 3,000 twice, 3,200 once, 12,500 twice, 4,000, 7,500 and 900 gives 46,600. WO-1005 and WO-1008 contribute nothing, because they have no labor rows at all. Two orders were double counted for 15,500 and two vanished for 7,000. The two errors pointed opposite ways and partly cancelled, which left a net of 8,500. That net is the least useful figure on the page, because it hides both mistakes underneath it.</p>
+
+  <h3>The correct pattern: leave each measure where its grain lives</h3>
+
+  <p>The fix is to stop moving data between grains at all. No clever DAX is involved. Write each measure against the table that records its value once, and let the model do the combining at the moment the visual asks for a number.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">One measure per grain</span></div>
+    <pre><code><span class="c">// header grain, one row per work order</span>
+<span class="col">Quoted Amount</span> <span class="op">=</span>
+<span class="k">SUM</span> ( <span class="t">FactWorkOrder</span><span class="col">[QuotedAmount]</span> )
+
+<span class="c">// line grain, one row per tech per WO per day</span>
+<span class="col">Labor Hours</span> <span class="op">=</span>
+<span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )
+
+<span class="col">Labor Cost</span> <span class="op">=</span>
+<span class="k">SUMX</span> ( <span class="t">FactLabor</span>, <span class="t">FactLabor</span><span class="col">[Hours]</span> <span class="op">*</span> <span class="t">FactLabor</span><span class="col">[HourlyRate]</span> )
+
+<span class="c">// line grain, one row per stores issue</span>
+<span class="col">Parts Cost</span> <span class="op">=</span>
+<span class="k">SUMX</span> ( <span class="t">FactParts</span>, <span class="t">FactParts</span><span class="col">[Qty]</span> <span class="op">*</span> <span class="t">FactParts</span><span class="col">[UnitCost]</span> )
+
+<span class="c">// composed, no grain of its own</span>
+<span class="col">Actual Cost</span> <span class="op">=</span>
+<span class="col">[Labor Cost]</span> <span class="op">+</span> <span class="col">[Parts Cost]</span>
+
+<span class="col">Variance</span> <span class="op">=</span>
+<span class="col">[Quoted Amount]</span> <span class="op">-</span> <span class="col">[Actual Cost]</span></code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Quoted Amount</div><div class="linex-v"><code>SUM</code> and not <code>SUMX</code> because <code>QuotedAmount</code> is already a stored column at exactly the grain we want. <code>SUMX</code> would open a row context over eight rows to read a column it could have read directly, which buys nothing and hides the intent.</div></div>
+    <div class="linex-row"><div class="linex-k">Labor Cost</div><div class="linex-v"><code>SUMX</code> and not <code>SUM</code> because <code>Hours * HourlyRate</code> does not exist as a column. The product has to be formed row by row before it is added up. Summing the two columns separately and multiplying the totals gives 62.0 times 808, which is the sum of the eight hourly rates, and the answer is 50,096. That number describes nothing.</div></div>
+    <div class="linex-row"><div class="linex-k">Actual Cost</div><div class="linex-v">Built by adding two finished measures together. Each half has already been evaluated at its own grain, so the addition happens after both have collapsed to a single number. There is no table left to fan out at this point. Write it instead as one expression over a joined table and the fan-out comes straight back.</div></div>
+    <div class="linex-row"><div class="linex-k">Variance</div><div class="linex-v">Sign convention: positive means the job came in under quote. State that in the measure description, because half your audience will assume the opposite.</div></div>
+  </div>
+
+  <p>Put quoted, labor cost, parts cost, actual and variance on a table visual with <code>FactWorkOrder[WorkOrderID]</code> on rows. Each measure evaluates on its own inside the filter context of its row. Filter context means the set of filters in force at the moment a measure is calculated. On the WO-1001 row that context is one work order and nothing else. <code>Quoted Amount</code> scans one work order row. <code>Labor Cost</code> follows the relationship down to whatever labor lines that order has, which may be two, one or none. Nothing is duplicated because nothing was moved.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 16.2</span> Quoted against actual for all eight work orders. Every column is a measure on its own table. Variance is quoted minus actual, so positive is under quote.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Work order</th>
+            <th scope="col" class="num">Quoted</th>
+            <th scope="col" class="num">Labor cost</th>
+            <th scope="col" class="num">Parts cost</th>
+            <th scope="col" class="num">Actual</th>
+            <th scope="col" class="num">Variance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row" class="key">WO-1001</th><td class="num">3,000</td><td class="num">1,372.50</td><td class="num">1,240</td><td class="num">2,612.50</td><td class="num">387.50</td></tr>
+          <tr><th scope="row" class="key">WO-1002</th><td class="num">3,200</td><td class="num">855.00</td><td class="num">2,450</td><td class="num">3,305.00</td><td class="num cell-bad">-105.00</td></tr>
+          <tr><th scope="row" class="key">WO-1003</th><td class="num">12,500</td><td class="num">1,199.00</td><td class="num">12,680</td><td class="num">13,879.00</td><td class="num cell-bad">-1,379.00</td></tr>
+          <tr><th scope="row" class="key">WO-1004</th><td class="num">4,000</td><td class="num">1,020.00</td><td class="num muted">0</td><td class="num">1,020.00</td><td class="num">2,980.00</td></tr>
+          <tr><th scope="row" class="key">WO-1005</th><td class="num">2,000</td><td class="num muted">0.00</td><td class="num">1,875</td><td class="num">1,875.00</td><td class="num">125.00</td></tr>
+          <tr><th scope="row" class="key">WO-1006</th><td class="num">7,500</td><td class="num">1,440.00</td><td class="num">5,100</td><td class="num">6,540.00</td><td class="num">960.00</td></tr>
+          <tr><th scope="row" class="key">WO-1007</th><td class="num">900</td><td class="num">440.00</td><td class="num muted">0</td><td class="num">440.00</td><td class="num">460.00</td></tr>
+          <tr><th scope="row" class="key">WO-1008</th><td class="num">5,000</td><td class="num muted">0.00</td><td class="num muted">0</td><td class="num muted">0.00</td><td class="num">5,000.00</td></tr>
+          <tr class="row-total"><td>Eight named work orders</td><td class="num">38,100</td><td class="num">6,326.50</td><td class="num">23,345</td><td class="num">29,671.50</td><td class="num">8,428.50</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>That table is the finance manager's answer. Quoted totals 38,100, which matches the eight source rows added by hand. Three more things in it are worth naming out loud before the number leaves your desk.</p>
+
+  <p>Parts cost across the eight named rows totals 23,345. All seven rows of <code>FactParts</code> add to 28,245. The gap is P-9007, which points at WO-1009, and WO-1009 has no row in <code>FactWorkOrder</code>. A key that points at a row which does not exist is an orphan key. That 4,900 is real money and it does not vanish. <code>FactWorkOrder</code> sits on the one side of the header to line relationship, so Power BI gives it a blank member. Your visual prints a ninth row labelled (Blank) holding 4,900 of parts cost, 4,900 of actual and a variance of -4,900. Read down the eight named orders and you get the figures above. Read the visual's own total row and you get 28,245 of parts against 34,571.50 of actual, exactly as in <a class="xref" href="#ch-10">Chapter 10</a>. Decide which of the two the page is showing and say so in the title.</p>
+
+  <p>The variance column is derived here and sits in no source table, so check it by hand. WO-1004 is 4,000 minus 1,020.00, which is 2,980.00. WO-1008 is 5,000 minus zero, which is 5,000.00. Those two open orders contribute 7,980 of the 8,428.50 total variance. The headline "we are 8,428.50 under quote" is therefore mostly an artefact of work that has not been done yet, and the finance manager should hear that sentence out loud before the figure reaches a slide.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>A measure belongs to the table at the grain where its value is recorded once. If you find yourself reaching for <code>DISTINCT</code>, <code>VALUES</code> or a <code>MAX</code> to stop a number double counting, stop and look at which table the measure is written against. The workaround is a symptom. The measure is on the wrong table.</p>
+  </aside>
+
+  <p>Apply that test literally. Somebody has already copied the quote down to the line table with a calculated column: <code>FactLabor[WOQuoted] = RELATED ( FactWorkOrder[QuotedAmount] )</code>. To stop it double counting, they reach next for <code>SUMX ( VALUES ( FactLabor[WorkOrderID] ), CALCULATE ( MAX ( FactLabor[WOQuoted] ) ) )</code>. That is a de-duplication routine, written to undo damage caused by starting from the wrong table, and it does not even finish the job. The <code>CALCULATE</code> triggers context transition, which means the current row of the iteration is turned into a filter. <code>FactLabor</code> is filtered to one work order, <code>MAX</code> reads the repeated header value once, and the six orders that have labor lines come out right. The total reads 31,100. WO-1005 and WO-1008 vanish, because a measure that iterates the line table cannot see a work order that has no lines.</p>
+
+  <p>Now watch the same expression fail a second way. Skip the calculated column and write <code>CALCULATE ( MAX ( FactWorkOrder[QuotedAmount] ) )</code> inside that iterator instead. The relationship runs from <code>FactWorkOrder</code> down to <code>FactLabor</code>, single direction, one to many. A filter placed on <code>FactLabor[WorkOrderID]</code> by context transition does not travel back up it. So <code>MAX</code> sees the whole of <code>FactWorkOrder</code> on every iteration, returns 12,500 six times, and the measure totals 75,000. It fails loudly enough that somebody would catch it, which makes it the less dangerous of the two. <code>SUM ( FactWorkOrder[QuotedAmount] )</code> returns 38,100, runs faster, and reads like what it means.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Building the header value as a calculated column on the line table because the table preview looks right. <code>FactLabor[WOQuoted] = RELATED ( FactWorkOrder[QuotedAmount] )</code> displays 3,000 next to both WO-1001 rows, which is exactly what you asked for and exactly what the data view shows you. The error only appears in a total, and a total is the last place anyone checks. This is the same failure as the 46,600 column in <a class="xref" href="#ch-10">Chapter 10</a>, and it survives review because the intermediate step looks correct.</p>
+  </aside>
+
+  <h3>The exception: when you genuinely need the header value at line grain</h3>
+
+  <p>The shift supervisor stops at your desk with a different question. He wants to see, per technician, how much quoted revenue that person's time was working against. He has two names in mind and a whiteboard he trusts. The question is a fair one. Answering it does require the 3,000 on WO-1001 to reach both L-501 and L-502, because a technician cannot own the whole quote when somebody else worked the same order.</p>
+
+  <p>The word doing the work is <em>split</em>. You are dividing the header value, not copying it down, and every division needs a denominator you can defend to the person reading the report.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Allocated Quote by Line</span></div>
+    <pre><code><span class="col">Lines on Order</span> <span class="op">=</span>
+<span class="k">CALCULATE</span> (
+    <span class="k">COUNTROWS</span> ( <span class="t">FactLabor</span> ),
+    <span class="k">ALLEXCEPT</span> ( <span class="t">FactLabor</span>, <span class="t">FactLabor</span><span class="col">[WorkOrderID]</span> )
+)
+
+<span class="col">Allocated Quote by Line</span> <span class="op">=</span>
+<span class="k">SUMX</span> (
+    <span class="t">FactLabor</span>,
+    <span class="k">DIVIDE</span> (
+        <span class="k">RELATED</span> ( <span class="t">FactWorkOrder</span><span class="col">[QuotedAmount]</span> ),
+        <span class="col">[Lines on Order]</span>
+    )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines on Order</div><div class="linex-v"><code>COUNTROWS</code> and not <code>DISTINCTCOUNT ( FactLabor[LaborID] )</code> because the question is how many rows exist, not how many distinct keys. They agree here only because <code>LaborID</code> happens to be unique. <code>COUNTROWS</code> counts rows directly instead of building the distinct set of a column and hashing it, which is less work for the same answer.</div></div>
+    <div class="linex-row"><div class="linex-k">ALLEXCEPT</div><div class="linex-v"><code>ALLEXCEPT</code> and not <code>REMOVEFILTERS ( FactLabor[WorkDate] )</code> because you want the denominator pinned to the whole work order regardless of what else is filtering. <code>REMOVEFILTERS</code> on one column only clears that column and leaves you guessing about the next slicer somebody adds. <code>ALLEXCEPT</code> also clears filters arriving from the expanded table, so a date or technician slicer does not shrink the denominator and inflate each share.</div></div>
+    <div class="linex-row"><div class="linex-k">SUMX over FactLabor</div><div class="linex-v">Iterating the line table is the point. Each iteration is one labor row, so each row gets its own share and the shares add up naturally at any level the visual asks for.</div></div>
+    <div class="linex-row"><div class="linex-k">RELATED</div><div class="linex-v"><code>RELATED</code> and not <code>LOOKUPVALUE</code> because a many to one relationship already exists from <code>FactLabor</code> to <code>FactWorkOrder</code>. <code>RELATED</code> resolves through that relationship as a column lookup. <code>LOOKUPVALUE</code> works without a relationship but performs a filtered scan for every row and returns blank without complaint if two rows match. A duplicate header key would stay buried instead of surfacing.</div></div>
+    <div class="linex-row"><div class="linex-k">DIVIDE</div><div class="linex-v"><code>DIVIDE</code> and not the <code>/</code> operator. Be honest about this one: inside this <code>SUMX</code> the denominator can never be zero, because the current row is itself a line on that order, so the count is at least one. <code>DIVIDE</code> here is a habit. It becomes necessary in the utilisation measure later in this chapter, where a blank denominator is a common case.</div></div>
+    <div class="linex-row"><div class="linex-k">[Lines on Order]</div><div class="linex-v">Referencing a measure inside <code>SUMX</code> triggers context transition: the current labor row becomes a filter, so <code>ALLEXCEPT</code> receives that row's <code>WorkOrderID</code> and keeps it while dropping everything else. Writing the <code>CALCULATE</code> inline would behave identically. The named measure makes the transition visible to the next person.</div></div>
+  </div>
+
+  <p>For WO-1001 that gives 3,000 divided by 2, which is 1,500 on L-501 and 1,500 on L-502. Both lines now carry a revenue figure, the two add back to 3,000, and TECH-02 and TECH-04 each get credited with 1,500.</p>
+
+  <p>Look at what that assumes. TECH-02 worked 7.5 hours and TECH-04 worked 6.0. An even split says a six hour shift and a seven and a half hour shift are worth the same share of the quote, which nobody in the shop believes. The allocation basis is a business decision, not a technical one, and the person whose numbers these are should sign it off. Line count is what you reach for when you have nothing better. Here you do have something better, because hours are recorded on every line.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Allocated Quote by Hours</span></div>
+    <pre><code><span class="col">Hours on Order</span> <span class="op">=</span>
+<span class="k">CALCULATE</span> (
+    <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ),
+    <span class="k">ALLEXCEPT</span> ( <span class="t">FactLabor</span>, <span class="t">FactLabor</span><span class="col">[WorkOrderID]</span> )
+)
+
+<span class="col">Allocated Quote by Hours</span> <span class="op">=</span>
+<span class="k">SUMX</span> (
+    <span class="t">FactLabor</span>,
+    <span class="k">DIVIDE</span> (
+        <span class="k">RELATED</span> ( <span class="t">FactWorkOrder</span><span class="col">[QuotedAmount]</span> )
+            <span class="op">*</span> <span class="t">FactLabor</span><span class="col">[Hours]</span>,
+        <span class="col">[Hours on Order]</span>
+    )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Hours on Order</div><div class="linex-v">Same <code>ALLEXCEPT</code> pattern, different aggregate. <code>SUM</code> and not <code>SUMX</code> because <code>Hours</code> is stored and no per-row arithmetic is needed to build the denominator.</div></div>
+    <div class="linex-row"><div class="linex-k">Numerator</div><div class="linex-v">Quote times this row's hours, divided by total hours on the order. Writing it the other way round gives the same algebra: quote times the row's share of hours. It will not always give the same last cent. The share is a recurring fraction, and it gets stored to finite precision before it is scaled. Neither ordering is exact. Pick one, write it down, and use it everywhere, so two reports built by two people do not disagree by a penny that nobody can explain.</div></div>
+    <div class="linex-row"><div class="linex-k">DIVIDE, again</div><div class="linex-v">Here the denominator genuinely can be zero if a timesheet correction leaves a line at 0.0 hours on an order where every line is 0.0. <code>DIVIDE</code> returns blank instead of raising an error that stops the whole visual rendering.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 16.3</span> Two allocation bases for the 3,000 quoted on WO-1001. Both reconcile back to the header value. Only one of them is defensible in front of the shift supervisor.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Basis</th>
+            <th scope="col">L-501, TECH-02, 7.5 h</th>
+            <th scope="col">L-502, TECH-04, 6.0 h</th>
+            <th scope="col" class="num">Sum</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-bad"><th scope="row">Line count</th><td class="num">1,500.00</td><td class="num">1,500.00</td><td class="num">3,000.00</td></tr>
+          <tr class="row-good"><th scope="row">Hours weighted</th><td class="num">1,666.67</td><td class="num">1,333.33</td><td class="num">3,000.00</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Take the hours weighted row back to the shift supervisor and it survives the whiteboard. TECH-02 carries 1,666.67 on WO-1001 and TECH-04 carries 1,333.33, in the same proportion as the 7.5 and 6.0 hours he already knows about. The line count row gives both men 1,500.00, and he will spot that in a second.</p>
+
+  <details class="expand" open>
+    <summary>Verify the hours weighted split by hand</summary>
+    <div class="expand-body">
+      <p>WO-1001 has two labor lines, 7.5 hours and 6.0 hours, so <code>[Hours on Order]</code> returns 13.5 for both rows.</p>
+      <p>L-501: 3,000 times 7.5 is 22,500. 22,500 divided by 13.5 is 1,666.6666 recurring, which displays as 1,666.67.</p>
+      <p>L-502: 3,000 times 6.0 is 18,000. 18,000 divided by 13.5 is 1,333.3333 recurring, which displays as 1,333.33.</p>
+      <p>Check the reconciliation: 1,666.67 plus 1,333.33 is 3,000.00 exactly. That is luck, not a guarantee. The stored values are 1,666.666... and 1,333.333..., and they add to a clean 3,000.00 after rounding only because the two recurring tails happen to complete each other. On other splits the rounded shares will miss the header by a cent. If finance reconciles allocated revenue to quoted revenue to the penny, you owe them a rounding rule agreed in advance. Do not discover this during month end close.</p>
+      <p>One more limitation. The allocation only distributes the quote across lines that exist. WO-1005 and WO-1008 have no labor rows, so their 2,000 and 5,000 go nowhere and never appear in a technician level view. The allocated total across all technicians is therefore 31,100, not 38,100. Both figures are correct. They answer different questions, and the report has to say which one it is showing.</p>
+    </div>
+  </details>
+
+  <h3>Mismatch two: a monthly plan against a daily actual</h3>
+
+  <p>The production controller wants to know how busy TUS was on 20 January. You have labor hours in the model and you have the capacity plan, so you build the card in about a minute. Labor hours reads 8.0, which is correct. Utilisation reads blank on one version of the measure and Infinity on another, and neither cell explains itself.</p>
+
+  <p><span class="derived-tag">Built</span> <code>FactCapacity</code> comes out of the planning workbook after an unpivot: 28 rows, one per station per month per trade. It has no work order key, no technician key and no day. <code>FactLabor</code> is at day grain. Utilisation is labor hours divided by planned hours, and those two figures live at grains that do not line up.</p>
+
+  <p><code>FactCapacity</code> carries both <code>MonthKey</code> and <code>MonthStart</code>, and <code>MonthStart</code> is a real date, so the obvious move is to drag it onto <code>DimDate</code> and carry on. Notice which column <code>DimDate</code> can offer on the one side of that relationship. Only <code>DimDate[Date]</code> is unique. <code>DimDate[MonthStart]</code> repeats on all 31 rows of January, so it cannot be the one side of a one to many relationship. What you end up building, whatever you intended, is <code>DimDate[Date]</code> to <code>FactCapacity[MonthStart]</code>: a date-grain key matched against a month-grain key.</p>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <p>Relate <code>DimDate[Date]</code> to <code>FactCapacity[MonthStart]</code> and write utilisation as hours over planned hours. It validates. It refreshes. At month level it is even correct.</p>
+      <p>The capacity row for TUS in January carries <code>MonthStart</code> of 2025-01-01. It matches exactly one row of <code>DimDate</code>, the first of the month. Every other January date matches nothing.</p>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <p>Stop pretending the capacity fact has a date. Either give it one properly in Power Query, or filter it on the key it actually has, which is the month, and refuse to answer when the report asks a question finer than that.</p>
+      <p>Four ways are set out below. Three change what the model returns, one stops it returning anything at all. Choosing between them is a conversation with the planners, not a technical decision.</p>
+    </div>
+  </div>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>Filter to 2025-01-20 and slice by station. TUS shows 8.0 labor hours, because L-504 put TECH-05 on WO-1003 for eight hours that day. Planned hours is blank, because 2025-01-20 is not 2025-01-01. Utilisation written with <code>DIVIDE</code> returns blank, so the row looks like a station with no plan. Utilisation written with the <code>/</code> operator returns Infinity, which formats as a very confident looking cell. Neither cell carries a warning, and the labor hours next to it are correct, which is what makes the row believable.</p>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 16.4</span> One day filter, three answers. The filter is <code>DimDate[Date]</code> equals 2025-01-20, station TUS.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Measure</th><th scope="col" class="num">Value</th><th scope="col">Why</th></tr>
+        </thead>
+        <tbody>
+          <tr class="row-good"><th scope="row">Labor Hours</th><td class="num">8.0</td><td>L-504 is a real row on that date. Correct.</td></tr>
+          <tr class="row-bad"><th scope="row">Planned Hours</th><td class="num">(blank)</td><td>No <code>FactCapacity</code> row has <code>MonthStart</code> of 2025-01-20.</td></tr>
+          <tr class="row-bad"><th scope="row">Utilisation, DIVIDE</th><td class="num">(blank)</td><td>Reads as "no plan exists". A plan does exist.</td></tr>
+          <tr class="row-bad"><th scope="row">Utilisation, / operator</th><td class="num">Infinity</td><td>Reads as a value. It is a division by nothing.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h3>Four ways out, with the price of each</h3>
+
+  <h4>1. A DimMonth dimension, and accept the snowflake</h4>
+
+  <p>Build <span class="dim-tag">Dimension</span> <code>DimMonth</code> with three rows for Q1 2025, keyed on <code>MonthKey</code>. Relate <code>DimMonth[MonthKey]</code> to <code>FactCapacity[MonthKey]</code> and to <code>DimDate[MonthKey]</code>, and drop the <code>DimDate</code> to <code>FactCapacity</code> relationship entirely. This works, and it is a snowflake: a dimension that filters another dimension, with no fact in between.</p>
+
+  <p>There is a catch. Filter propagation runs from the one side to the many side, so <code>DimMonth</code> filters <code>DimDate</code> but a slicer on <code>DimDate[Date]</code> does not filter <code>DimMonth</code>. Slice to 2025-01-20 and capacity comes back as all three months, which is worse than blank. To get the intended behaviour you must set the <code>DimMonth</code> to <code>DimDate</code> relationship to filter both ways, or tell users to slice only on <code>DimMonth</code>. Bidirectional filtering between two dimensions is far less dangerous than bidirectional filtering into a fact, but it is still a path you have to hold in your head every time you debug a visual.</p>
+
+  <p>With that link in place, filtering to 2025-01-20 filters January, and January returns the whole month: 25 planned hours for TUS against the 8.0 hours of labor on that one day, and 8.0 divided by 25 is 32.0 per cent. Arguably correct, because the plan is a monthly commitment and one day of it cannot be isolated. Arguably misleading, because it will be read as "TUS used 32 per cent of its capacity on the twentieth", which is not what it says.</p>
+
+  <h4>2. TREATAS inside the measure</h4>
+
+  <p>Leave <code>FactCapacity</code> with no relationship to <code>DimDate</code> at all and build the join at query time, on the month key, inside the measure that needs it.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Planned Hours, virtual month join</span></div>
+    <pre><code><span class="col">Planned Hours</span> <span class="op">=</span>
+<span class="k">CALCULATE</span> (
+    <span class="k">SUM</span> ( <span class="t">FactCapacity</span><span class="col">[PlannedHours]</span> ),
+    <span class="k">TREATAS</span> (
+        <span class="k">VALUES</span> ( <span class="t">DimDate</span><span class="col">[MonthKey]</span> ),
+        <span class="t">FactCapacity</span><span class="col">[MonthKey]</span>
+    )
+)
+
+<span class="col">Utilisation</span> <span class="op">=</span>
+<span class="k">DIVIDE</span> ( <span class="col">[Labor Hours]</span>, <span class="col">[Planned Hours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">VALUES</div><div class="linex-v"><code>VALUES</code> and not a hardcoded list of months. The whole point is that the set responds to the filter context: whatever months the visual is showing are the months whose capacity gets summed. Against <code>DISTINCT</code> the choice is narrower than it looks. Both return the month keys visible right now, and in this model they return the same three values. They differ over exactly one row: when a fact carries a date outside <code>DimDate</code> the engine adds a blank row to the calendar, and <code>VALUES</code> hands that blank across while <code>DISTINCT</code> drops it. A filter argument that quietly loses a member is a poor habit to carry into a model where the calendar is not guaranteed complete.</div></div>
+    <div class="linex-row"><div class="linex-k">TREATAS</div><div class="linex-v"><code>TREATAS</code> and not <code>INTERSECT</code> or a <code>FILTER</code> over the fact. <code>TREATAS</code> takes a table of values and applies them as a filter on a named column, which the storage engine can push down as a column filter. <code>INTERSECT</code> returns a table of matching rows and is a set operation, so you would still need to convert it into a filter. A <code>FILTER ( FactCapacity, ... )</code> version forces a row by row scan of the fact instead.</div></div>
+    <div class="linex-row"><div class="linex-k">CALCULATE</div><div class="linex-v"><code>CALCULATE</code> and not <code>CALCULATETABLE</code> because the result wanted here is a scalar. <code>CALCULATETABLE</code> would return the filtered capacity rows, which you would then have to aggregate anyway.</div></div>
+    <div class="linex-row"><div class="linex-k">No relationship</div><div class="linex-v">Because there is no physical relationship between <code>DimDate</code> and <code>FactCapacity</code>, nothing else can filter capacity by date behind your back. Every date filter that reaches capacity goes through this one line of code.</div></div>
+  </div>
+
+  <p>The model stays a clean star and the grain assumption sits in the one place a maintainer will look. Behaviour on a day filter matches option 1: 2025-01-20 gives <code>VALUES ( DimDate[MonthKey] )</code> of a single value, 202501, so you get all of January's capacity. The difference is that you can point at the line of DAX that decided it.</p>
+
+  <h4>3. Allocate capacity down to day grain in Power Query</h4>
+
+  <p>The most durable answer, when the business will sign the allocation rule, is to stop having a grain mismatch. Expand every capacity row into one row per working day and divide the planned hours across them at load time. Capacity is then additive against the same calendar as labor, and every measure becomes a plain <code>SUM</code>.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">FactCapacityDaily</span></div>
+    <pre><code><span class="k">let</span>
+    Source <span class="op">=</span> FactCapacity,
+    WithDays <span class="op">=</span> Table.AddColumn(
+        Source, <span class="s">"WorkDays"</span>,
+        <span class="k">each</span> List.Select(
+            List.Dates(
+                <span class="col">[MonthStart]</span>,
+                Date.DaysInMonth( <span class="col">[MonthStart]</span> ),
+                #duration( <span class="n">1</span>, <span class="n">0</span>, <span class="n">0</span>, <span class="n">0</span> )
+            ),
+            <span class="k">each</span> Date.DayOfWeek( _, Day.Monday ) <span class="op">&lt;</span> <span class="n">5</span>
+        )
+    ),
+    WithDaily <span class="op">=</span> Table.AddColumn(
+        WithDays, <span class="s">"DailyHours"</span>,
+        <span class="k">each</span> <span class="col">[PlannedHours]</span> <span class="op">/</span> List.Count( <span class="col">[WorkDays]</span> )
+    ),
+    ToRows <span class="op">=</span> Table.ExpandListColumn( WithDaily, <span class="s">"WorkDays"</span> ),
+    Renamed <span class="op">=</span> Table.RenameColumns(
+        ToRows, {{ <span class="s">"WorkDays"</span>, <span class="s">"Date"</span> }}
+    ),
+    Dropped <span class="op">=</span> Table.RemoveColumns(
+        Renamed, { <span class="s">"PlannedHours"</span> }
+    )
+<span class="k">in</span>
+    Dropped</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">List.Dates</div><div class="linex-v"><code>List.Dates</code> and not a merge against <code>DimDate</code> because generating the days from <code>MonthStart</code> keeps the step self contained and does not create a query dependency that Power Query has to fold or buffer. A merge would also work and is easier to read if you already have a working days flag on the calendar query.</div></div>
+    <div class="linex-row"><div class="linex-k">Date.DayOfWeek with Day.Monday</div><div class="linex-v">Returns 0 for Monday through 6 for Sunday, so less than 5 keeps Monday to Friday. Passing the day-name argument explicitly and not relying on the locale default matters here, because the same query run on a different regional setting would otherwise silently shift which days count.</div></div>
+    <div class="linex-row"><div class="linex-k">DailyHours</div><div class="linex-v">Divide inside Power Query and do not round. Rounding to two decimals at this step makes the daily numbers tidy and makes the monthly total drift, which is the opposite of what you want.</div></div>
+    <div class="linex-row"><div class="linex-k">Table.ExpandListColumn</div><div class="linex-v">Turns the list of dates into one row per date. This is the step that changes the grain, and it is the only step in this chapter that does so honestly, at load time, where you can see the row count change.</div></div>
+    <div class="linex-row"><div class="linex-k">Table.RemoveColumns</div><div class="linex-v">Drop the monthly <code>PlannedHours</code> before the query loads. The expand leaves it sitting at its full monthly value on all 23 January rows. That is the same duplication this chapter opened with, and the first person to drag it onto a card reads 23 times the truth. Remove the column rather than hiding it in the model. A hidden column is still summable by any measure somebody writes later.</div></div>
+  </div>
+
+  <p>Dividing monthly hours by working days is defensible. Dividing by calendar days usually is not, because it quietly asserts that the shop planned to run on Saturdays and Sundays and will make every weekday look under-utilised. Meridian's <code>DimDate</code> already carries <code>IsWeekend</code>, so the working day count is available without inventing anything.</p>
+
+  <p>Run the arithmetic before you commit to this. January 2025 has 31 days and 8 weekend days, so 23 working days. February has 28 and 8, so 20; March has 31 and 10, so 21. That turns the eight January capacity rows into 8 times 23, or 184, the eight February rows into 160 and the twelve March rows into 252. Total 596 rows from 28. MSP's 30 planned January hours become 30 divided by 23, or about 1.3043 hours per day, spread across four trade rows. The quarter still totals 176 planned hours, and every station-month total still matches Table 16.5.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>596 rows is free. Scale it before you decide. Picture a real maintenance, repair and overhaul (MRO) network: 200 stations, four trades, and five years of monthly plans. That is 200 times 4 times 60, or 48,000 source rows. At roughly 21 working days a month, the expansion gives 1,008,000 rows. That is still small for VertiPaq, the columnar storage engine underneath Power BI, and it compresses well because the daily hours column holds very few distinct values. The measure side is where you should actually worry. The two allocation measures earlier in this chapter run a <code>CALCULATE</code> inside a <code>SUMX</code>, so context transition fires once per labor row. On 8 rows that is nothing. On 4 million labor lines it is the slowest thing in your report. The fix is the same idea as option 3: compute <code>Hours on Order</code> as a column at load time and let the measure read it.</p>
+  </aside>
+
+  <h4>4. Guard the measure so it refuses to answer</h4>
+
+  <p>The last option leaves the grain mismatch exactly where it is and stops the report lying about it. When the filter context is finer than the capacity grain, return blank. Any number you put in that cell will be read as a fact.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Utilisation, month grain guard</span></div>
+    <pre><code><span class="col">Utilisation</span> <span class="op">=</span>
+<span class="k">VAR</span> VisibleDays <span class="op">=</span> <span class="k">COUNTROWS</span> ( <span class="t">DimDate</span> )
+<span class="k">VAR</span> VisibleMonths <span class="op">=</span> <span class="k">VALUES</span> ( <span class="t">DimDate</span><span class="col">[MonthKey]</span> )
+<span class="k">VAR</span> DaysInVisibleMonths <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">COUNTROWS</span> ( <span class="t">DimDate</span> ),
+        <span class="k">REMOVEFILTERS</span> ( <span class="t">DimDate</span> ),
+        VisibleMonths
+    )
+<span class="k">RETURN</span>
+    <span class="k">IF</span> (
+        VisibleDays <span class="op">=</span> DaysInVisibleMonths,
+        <span class="k">DIVIDE</span> ( <span class="col">[Labor Hours]</span>, <span class="col">[Planned Hours]</span> ),
+        <span class="k">BLANK</span> ()
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">VisibleDays</div><div class="linex-v">How many calendar rows survive the current filter context. On a month row of a matrix, 31 for January. On a day filter, 1.</div></div>
+    <div class="linex-row"><div class="linex-k">VisibleMonths</div><div class="linex-v">The months in scope, captured as a table before anything is cleared. <code>VALUES</code> and not <code>SELECTEDVALUE</code> because a total row legitimately has three months visible, and <code>SELECTEDVALUE</code> collapses to blank as soon as there is more than one.</div></div>
+    <div class="linex-row"><div class="linex-k">DaysInVisibleMonths</div><div class="linex-v"><code>REMOVEFILTERS ( DimDate )</code> clears the calendar completely, then re-applying <code>VisibleMonths</code> puts back only the months. The result is the full length of every month in scope, so comparing it against <code>VisibleDays</code> is a direct test of "is the filter finer than a whole month". Use this pattern and not <code>ALLEXCEPT ( DimDate, DimDate[MonthKey] )</code>. That is the version you will see written, and it is subtly broken here. <code>ALLEXCEPT</code> preserves filters placed on the <code>MonthKey</code> column itself, and a slicer on <code>DimDate[Date]</code> places no filter on <code>MonthKey</code> at all. Under <code>ALLEXCEPT</code>, a slicer set to the whole of January compares 31 visible days against all 90 in the calendar and blanks a month that deserved an answer. The difference is that this version captures the month values first and then puts those exact values back.</div></div>
+    <div class="linex-row"><div class="linex-k">IF</div><div class="linex-v"><code>IF</code> and not <code>SWITCH</code> because there are exactly two outcomes. <code>SWITCH ( TRUE(), ... )</code> earns its keep from three branches upward.</div></div>
+    <div class="linex-row"><div class="linex-k">BLANK</div><div class="linex-v"><code>BLANK ()</code> and not <code>0</code>. Zero draws a bar, sorts as a value, and pulls an average down. Blank drops the row out of most visuals and out of an <code>AVERAGEX</code>, which is the honest representation of "this question cannot be answered at this grain".</div></div>
+  </div>
+
+  <p>You may see the shorter version of this guard written with <code>ISFILTERED</code>.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Utilisation, the short guard</span></div>
+    <pre><code><span class="col">Utilisation</span> <span class="op">=</span>
+<span class="k">IF</span> (
+    <span class="k">ISFILTERED</span> ( <span class="t">DimDate</span><span class="col">[Date]</span> ),
+    <span class="k">BLANK</span> (),
+    <span class="k">DIVIDE</span> ( <span class="col">[Labor Hours]</span>, <span class="col">[Planned Hours]</span> )
+)</code></pre>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>ISFILTERED</code> and not <code>ISCROSSFILTERED</code>. <code>ISFILTERED</code> is true only when a filter is applied directly to that column. <code>ISCROSSFILTERED</code> also returns true when the filter arrives indirectly, so putting station on a visual could trip it and blank a figure that was perfectly valid. <code>ISFILTERED</code> and not <code>HASONEVALUE</code>. <code>HASONEVALUE</code> answers "is exactly one value visible", which is a different question, and it would still pass a two day selection straight through to the division.</p>
+    <p>The short version is worse anyway, and it is worth knowing why. A date range slicer set to 1 January through 31 January filters <code>DimDate[Date]</code>. <code>ISFILTERED</code> returns true, and the measure blanks out even though the user selected a complete month and deserves an answer. The day-count version handles that case correctly, because 31 visible days equals 31 days in the visible month. It has its own edge: if somebody adds a slicer on <code>DimDate[IsWeekend]</code>, weekdays only gives 23 visible days against 31, so utilisation blanks. That is arguably the right call, since a monthly capacity figure does not apply to a weekday-only slice, but it will generate a support ticket. Be the one who explains that behaviour before somebody else discovers it.</p>
+  </div>
+
+  <h3>The numbers you should see</h3>
+
+  <p>With any of the three working options and a matrix of station by month, utilisation comes out as follows. These are the reference numbers. If your model produces anything else, the model is wrong, not the table.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 16.5</span> Utilisation at station and month grain: labor hours from <code>FactLabor</code> by <code>WorkDate</code>, station taken from the work order, planned hours from <code>FactCapacity</code>.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Station</th>
+            <th scope="col">Month</th>
+            <th scope="col" class="num">Labor hours</th>
+            <th scope="col" class="num">Planned hours</th>
+            <th scope="col" class="num">Utilisation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row" class="key">MSP</th><td>2025-01</td><td class="num">22.5</td><td class="num">30</td><td class="num">75.0%</td></tr>
+          <tr><th scope="row" class="key">TUS</th><td>2025-01</td><td class="num">12.5</td><td class="num">25</td><td class="num">50.0%</td></tr>
+          <tr><th scope="row" class="key">MSP</th><td>2025-02</td><td class="num">12.0</td><td class="num">30</td><td class="num">40.0%</td></tr>
+          <tr><th scope="row" class="key">TUS</th><td>2025-02</td><td class="num">10.0</td><td class="num">25</td><td class="num">40.0%</td></tr>
+          <tr><th scope="row" class="key">MSP</th><td>2025-03</td><td class="num">0</td><td class="num">30</td><td class="num">0%</td></tr>
+          <tr><th scope="row" class="key">LAS</th><td>2025-03</td><td class="num">5.0</td><td class="num">20</td><td class="num">25.0%</td></tr>
+          <tr><th scope="row" class="key">PHX</th><td>2025-03</td><td class="num">0</td><td class="num">16</td><td class="num">0%</td></tr>
+          <tr class="row-total"><td>All stations</td><td>Q1</td><td class="num">62.0</td><td class="num">176</td><td class="num">35.2%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>That table also answers the production controller. TUS in January ran 12.5 labor hours against 25 planned, which is 50.0 per cent for the month. The twentieth on its own gets no utilisation figure, because the plan was never written at day grain. Give him the month number and that sentence together, and he can work with both.</p>
+
+  <p>Two things in the table catch people out. PHX has 16 planned hours and no labor at all, because PHX exists in the planning workbook and nowhere else in the business. That row is the planning system telling you about a station that never opened, and it belongs in the report. The second is the total row. It is recalculated from the two underlying sums, 62.0 over 176, which is 35.2 per cent. Average the seven rows above it instead and you get 230 divided by 7, which is 32.9 per cent. A ratio measure is not additive, so the total has to be rebuilt from the parts every time. Write utilisation as a division of two measures and you get that for free. Write it as a column and you do not.</p>
+
+  <h3>Mismatch three: eight forecast rows, five real numbers</h3>
+
+  <p>The production controller comes back on the last Friday of the quarter with a different question. How many hours does the shop now expect to spend on the checks that are open? You drag the forecast column onto a card. It reads 99.5 hours against a pack that was planned at 57.0, and a gap that size gets a production manager summoned. The card is doing exactly what you told it to do. The answer he wanted is 63.5.</p>
+
+  <p>The last mismatch in this chapter sits inside a single table. <span class="fact-tag">Fact</span> <code>FactForecast</code> holds eight rows at a grain of one row per work order per revision, which sounds harmless until you ask what a revision is. It is not an extra helping of hours. It is a replacement for the number that came before it.</p>
+
+  <p>Some context, because the column names give you none of it. Weeks before a heavy check starts, a planner builds the work package and prices it in manhours per trade. That is the pre-input pack. It lands in <code>FactPreInput</code>, and it is the available figure: 57.0 hours across the five work orders that have one. It is frozen at induction, because a baseline that moves cannot measure anything.</p>
+
+  <p>Then the aircraft is jacked, the panels come off, and technicians start finding work that no task card predicted. Corrosion under a doubler. A cracked bracket nobody could see with the panel on. Each finding is written up as a non-routine card, an NRC, and none of them were in the frozen figure. So somebody has to restate the expected total while the check is still running. That restatement is the projected figure, and its other name says plainly what it is: estimate at completion, or EAC. Projected is the total the whole job is now expected to come to, counting the hours already spent and the hours still to spend.</p>
+
+  <p>Available, projected and achieved are the manhour triad, and this chapter uses all three words on purpose. Treat them as Meridian's local vocabulary. Available turns up elsewhere as planned, budgeted, estimated or sold. Projected turns up as forecast or EAC. Achieved turns up as actual, booked or clocked. The same word can mean the frozen baseline in one report and the live forecast in the next. Write down the local definition of each one. Get somebody in production control to agree it in writing, and put it in the model description before you build a measure on top of it.</p>
+
+  <p>At Meridian the desk that owns the restatement is the HMCC, the Heavy Maintenance Control Centre. Handle those four letters carefully. Plenty of shops call the same desk production control, or maintenance control, or the base maintenance control centre. On the line maintenance side the equivalent is usually the MOC, the Maintenance Operations Control. AOG, aircraft on ground, travels between employers unchanged. HMCC does not. Move shops and you will find the desk, a different sign on it, and a spreadsheet doing the same job.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 16.6</span> All eight rows of <code>FactForecast</code>. The three tinted rows were superseded by a later revision of the same work order and describe nothing that is still true.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Work order</th>
+            <th scope="col">Revision date</th>
+            <th scope="col">Revision</th>
+            <th scope="col" class="num">Projected hours</th>
+            <th scope="col">Standing</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-bad"><td class="key">WO-1001</td><td>2025-01-06</td><td>Rev 0</td><td class="num">13.0</td><td>Superseded four days later.</td></tr>
+          <tr><td class="key">WO-1001</td><td>2025-01-10</td><td>Rev 1</td><td class="num">14.0</td><td>Current.</td></tr>
+          <tr class="row-bad"><td class="key">WO-1003</td><td>2025-01-14</td><td>Rev 0</td><td class="num">13.0</td><td>Superseded once findings landed.</td></tr>
+          <tr><td class="key">WO-1003</td><td>2025-01-25</td><td>Rev 1</td><td class="num">16.5</td><td>Current.</td></tr>
+          <tr><td class="key">WO-1004</td><td>2025-02-03</td><td>Rev 0</td><td class="num">12.0</td><td>Current. Never revised.</td></tr>
+          <tr class="row-bad"><td class="key">WO-1006</td><td>2025-02-17</td><td>Rev 0</td><td class="num">10.0</td><td>Superseded a fortnight later.</td></tr>
+          <tr><td class="key">WO-1006</td><td>2025-03-01</td><td>Rev 1</td><td class="num">13.5</td><td>Current.</td></tr>
+          <tr><td class="key">WO-1008</td><td>2025-03-10</td><td>Rev 0</td><td class="num">7.5</td><td>Current. Just inducted.</td></tr>
+          <tr class="row-total"><td>SUM over all eight rows</td><td class="muted">any</td><td class="muted">any</td><td class="num cell-bad">99.5</td><td>Describes nothing.</td></tr>
+          <tr class="row-total"><td>Latest revision per work order</td><td class="muted">latest</td><td class="muted">latest</td><td class="num">63.5</td><td>The projected figure.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Read the projected hours column downward and you get the 99.5 from the production controller's card. There is no reading of the business under which that is a true number. WO-1001 was forecast at 13.0 on the day it was inducted, then re-forecast at 14.0 four days later. The shop expects 14.0 hours on that check. Adding the two revisions together gives 27.0, which nobody in the building is forecasting. The three superseded rows carry 13.0 plus 13.0 plus 10.0, which is 36.0 hours of stale estimate. Take 36.0 off 99.5 and you have the 63.5 that a correct measure returns. Every hour of the difference is a figure somebody deliberately replaced.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Dragging <code>FactForecast[ProjectedHours]</code> straight onto a card. Power BI defaults a numeric column to <code>SUM</code>, the card renders 99.5, and nothing anywhere says otherwise. Set against an available figure of 57.0 it produces a story plausible enough to survive a meeting: a pack planned at 57.0 hours now forecast at 99.5, which is the sort of number that gets a production manager summoned. Set the column's default summarisation to Do Not Summarize on the day you load the table, then hide it, so the only route to a projected number is through a measure you wrote on purpose.</p>
+  </aside>
+
+  <h4>The measure that reads the latest revision</h4>
+
+  <p>The shape you need is: for each work order find its most recent revision, take that row's hours, and add those across work orders. Adding across work orders is legitimate. Adding across revisions never is. The measure exists to encode that difference and nothing else.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Projected Hours</span></div>
+    <pre><code><span class="col">Projected Hours</span> <span class="op">=</span>
+<span class="k">SUMX</span> (
+    <span class="k">VALUES</span> ( <span class="t">FactForecast</span><span class="col">[WorkOrderID]</span> ),
+    <span class="k">VAR</span> LatestRev <span class="op">=</span>
+        <span class="k">CALCULATE</span> ( <span class="k">MAX</span> ( <span class="t">FactForecast</span><span class="col">[RevisionDate]</span> ) )
+    <span class="k">RETURN</span>
+        <span class="k">CALCULATE</span> (
+            <span class="k">SUM</span> ( <span class="t">FactForecast</span><span class="col">[ProjectedHours]</span> ),
+            <span class="t">FactForecast</span><span class="col">[RevisionDate]</span> <span class="op">=</span> LatestRev
+        )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">SUMX</div><div class="linex-v"><code>SUMX</code> and not <code>SUM</code> because the latest revision date is a different date for every work order, and a plain <code>SUM</code> has nowhere to put the words "per work order". The iteration is the only place that idea can live.</div></div>
+    <div class="linex-row"><div class="linex-k">VALUES over FactForecast</div><div class="linex-v"><code>VALUES ( FactForecast[WorkOrderID] )</code> and not <code>VALUES ( FactWorkOrder[WorkOrderID] )</code>, which would iterate eight work orders when only five were ever forecast. The three light maintenance orders would return blank, blank adds nothing, and the total would be identical either way. The argument here is readability. Iterate the table whose grain you are collapsing, so the next person can see which grain that was.</div></div>
+    <div class="linex-row"><div class="linex-k">CALCULATE around MAX</div><div class="linex-v">This <code>CALCULATE</code> does no filtering of its own. It is there purely for context transition. It turns the current row of <code>VALUES</code> into a filter on <code>FactForecast[WorkOrderID]</code>, so <code>MAX</code> reads the revision dates of one work order instead of all eight rows. Drop it and <code>MAX</code> returns 2025-03-10 every time, which is WO-1008's only revision. The inner filter then matches nothing on the other four orders and the whole measure quietly returns 7.5.</div></div>
+    <div class="linex-row"><div class="linex-k">MAX on RevisionDate</div><div class="linex-v"><code>MAX ( FactForecast[RevisionDate] )</code> and not <code>MAX ( FactForecast[Revision] )</code>. <code>Revision</code> is text, "Rev 0" and "Rev 1", and text sorts alphabetically, which puts "Rev 10" before "Rev 2". Meridian never goes past Rev 1, so the text version works today and fails the first time a difficult check runs to eleven revisions. Also not <code>LASTDATE ( FactForecast[RevisionDate] )</code>. It returns the same date here, but it hands back a one row table rather than a scalar. It also carries a reading of <code>RevisionDate</code> as a calendar key that the column does not deserve. That column records when somebody typed a number into production control's spreadsheet, not when anything happened to the aircraft. <code>MAX</code> says take the largest value in this column and nothing more.</div></div>
+    <div class="linex-row"><div class="linex-k">The boolean filter</div><div class="linex-v"><code>FactForecast[RevisionDate] = LatestRev</code> is a filter argument, so <code>CALCULATE</code> overwrites any existing filter on that column instead of adding to it. The inner context transition still pins the work order. Together they leave exactly one row. Not <code>TOPN ( 1, ..., FactForecast[RevisionDate], DESC )</code>, which builds a table per iteration and, more to the point, has the same weakness as this version: on a tie it returns both rows.</div></div>
+    <div class="linex-row"><div class="linex-k">The tie you cannot see</div><div class="linex-v">If production control ever issues two revisions to one work order on the same date, this measure adds them together and says nothing. In Meridian's eight rows it cannot happen. In a live extract you do not know until it does. Ask the source system owner whether same-day revisions are possible, and if the answer is yes, get the revision sequence as an integer and use that as the ordering key instead of the date.</div></div>
+  </div>
+
+  <p>Run it and the five work orders report 14.0, 16.5, 12.0, 13.5 and 7.5, totalling 63.5. That is the production controller's answer, and it is the figure to put on the card. Now compare it against the earlier rule of thumb in this chapter, which said a <code>MAX</code> reached for to stop a number double counting means the measure is on the wrong table. This <code>MAX</code> is a different animal, and the distinction is worth holding. It chooses which row of a superseding series is currently in force. Every row of <code>FactForecast</code> already sits at the grain it should, no join fanned anything out, and there is no other table to move the measure to. Rules of thumb have edges. Knowing where those edges are is most of what separates a modeller from somebody following instructions.</p>
+
+  <h4>Additive, semi-additive and non-additive, in one place</h4>
+
+  <p>Step back from the forecast and this is a category, not a quirk. Ask one question of any numeric column: if I add two rows of it together, what do I have? For <code>FactLabor[Hours]</code> you have more hours, because each row records a technician who was actually at the aircraft for that long on that day. Nothing overlaps, nothing is restated, and 62.0 comes out the same whether you roll it up by date, by station, by aircraft or by technician. That is additive, and it is what most people assume every number in a fact table is.</p>
+
+  <p>For <code>FactForecast[ProjectedHours]</code> you have a number describing no moment in time, because the second row was written to cancel the first. But it only breaks along that one axis. Projected hours add perfectly well across work orders, stations, service lines and customers: four checks each forecast independently really do sum to a shop-level forecast. The column adds across some dimensions and not others, and that is the definition of semi-additive. The dimension it breaks along here is revision, and since revisions are dated, it breaks along time as a consequence.</p>
+
+  <p>The pattern you will meet again wearing different clothes is the closing balance. Parts on hand in stores at the end of each month, open work orders at the end of each week, headcount at the end of each quarter. Add February's closing stock to March's and you get a figure that was never true on any day. You take the closing value instead, which is the same two-step operation as this measure: find the maximum key, then read the value sitting at it. Meridian has no stock balance table, which is exactly why the forecast is worth practising on. It is the closing balance problem with a revision number where the date usually goes.</p>
+
+  <p>The third behaviour you have already met. In <a class="xref" href="#ch-14">Chapter 14</a>, hours split by certification through <code>BridgeTechCert</code> gave A&amp;P (Airframe and Powerplant) 39.0, Avionics 10.5, NDT (non-destructive testing) 12.0 and Engine Run 23.5. Those four rows sum to 85.0 against a grand total of 62.0, and every one of them is correct. No rewrite fixes it, because TECH-04's 10.5 hours genuinely belong to three certifications at once, and asking the four rows to add up is asking the model to pretend otherwise. Be precise about the vocabulary here, because it gets used loosely. A strict definition of non-additive covers values with no meaningful sum along any dimension at all, which means ratios and distinct counts. The utilisation total of 35.2 per cent earlier in this chapter is the clean example. The certification split is a many to many double count. It shows the identical symptom, rows that do not add to the total, and it arises from a different cause. What matters is being able to say which of the two you are holding. The label you hang on it matters much less.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 16.7</span> The three summation behaviours in the Meridian model, and what a naive <code>SUM</code> costs you in each.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Behaviour</th>
+            <th scope="col">Meridian measure</th>
+            <th scope="col">Adds across</th>
+            <th scope="col">Does not add across</th>
+            <th scope="col" class="num">Naive sum</th>
+            <th scope="col" class="num">Correct</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Additive</th><td>Labor Hours on <code>FactLabor</code>, the achieved figure of the manhour triad</td><td>every dimension in the model</td><td class="muted">nothing</td><td class="num muted">62.0</td><td class="num">62.0</td></tr>
+          <tr><th scope="row">Semi-additive</th><td>Projected Hours on <code>FactForecast</code></td><td>work order, station, service line, customer</td><td>revision, and therefore time</td><td class="num cell-bad">99.5</td><td class="num">63.5</td></tr>
+          <tr><th scope="row">Non-additive</th><td>Hours by certification through <code>BridgeTechCert</code></td><td>date, station and technician within one certification</td><td>certification</td><td class="num cell-bad">85.0</td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Three tables, three behaviours, one model. The available figure of 57.0 makes a fourth case worth a sentence, because it looks like the forecast and behaves like the labor. <code>FactPreInput</code> is one row per work order per trade, and a trade row is an increment. The airframe estimate and the avionics estimate on WO-1001 are separate pieces of planned work, and they genuinely add to 13.0. Two planning tables, both estimates, both owned by people in the same corridor, and they have opposite summation behaviour. That is why grain is a property of the table and never of the subject matter.</p>
+
+  <details class="expand" open>
+    <summary>What the measure does under a slicer, traced by hand</summary>
+    <div class="expand-body">
+      <p>Put <code>Revision</code> on a slicer and select Rev 0 only. <code>Projected Hours</code> returns 55.5: 13.0 plus 13.0 plus 12.0 plus 10.0 plus 7.5. That answer is correct. <code>MAX</code> reads the revision dates that survive the filter context, and with only Rev 0 visible the latest revision of every work order is its Rev 0. The measure has answered a real question, which is what the shop believed at induction before any findings landed. Nobody expects a measure to change its definition when a slicer moves. Put the answer in the visual title, so the reader can see which of the two numbers is on screen.</p>
+      <p>Now the harder case. Suppose you relate <code>DimDate[Date]</code> to <code>FactForecast[RevisionDate]</code>, which the model as built does not, and filter to February 2025. Two forecast rows fall inside the month, WO-1004 Rev 0 at 12.0 and WO-1006 Rev 0 at 10.0, so the measure returns 22.0. That is the latest revision <em>issued in</em> February. A manager asking about February almost always means the latest revision <em>as at the end of</em> February, which carries WO-1001's Rev 1 of 14.0 and WO-1003's Rev 1 of 16.5 forward out of January and totals 14.0 plus 16.5 plus 12.0 plus 10.0, or 52.5. WO-1008 contributes nothing to that figure because its first revision is dated 2025-03-10. Three defensible numbers for one month, 22.0, 52.5 and the unfiltered 63.5, and the difference between them is entirely a question of what the reader thinks the word February is doing.</p>
+      <p>Getting the as-at version means removing the date filter and re-applying an upper bound rather than a window, which is the closing balance pattern written out in full. Build it only when somebody asks for it, and when they do, make them say the sentence out loud first.</p>
+      <p>One caution about <code>RevisionDate</code> as a date key at all. WO-1003 Rev 0 is dated 2025-01-14, the day the aircraft actually arrived, while the HMCC board has that check starting on 2025-01-13. The revision date records one thing: when a person typed a number into production control's spreadsheet. The check began on a different date, the finding was raised on a third, and this column should carry no measure other than this one.</p>
+    </div>
+  </details>
+
+  <h3>What to ship</h3>
+
+  <p>For Meridian, allocate capacity to working days in Power Query. The table is 28 rows. The working day rule is one the planners already think in. Once capacity sits at day grain, every measure becomes a plain sum against one calendar: no virtual joins, and no guard clauses for the next analyst to misread. That is worth more than the rows it costs.</p>
+
+  <p>Sometimes the business will refuse to commit to an allocation rule, and that happens more often than you would like. Use options 2 and 4 together. Join on <code>MonthKey</code> with <code>TREATAS</code>, so the assumption is written into the measure. Then guard the day-level case, so the report goes blank instead of producing a confident wrong answer. Reach for option 1 last. It works, but it needs bidirectional filtering to be useful, and adding a filter path to solve a problem two lines of DAX could solve is a trade most models come to regret.</p>
+
+  <p>The inconvenient truth under all four: no technique makes a monthly plan tell you what happened on a Tuesday. Options 1 and 2 hand back the whole month whenever anyone asks about a day. Option 3 hands back a daily number that looks precise and is really the monthly number divided by 23. Option 4 hands back nothing. Only the last is honest about it, and only the last will get complained about.</p>
+
+  <p>The forecast needs no such negotiation. Ship <code>Projected Hours</code> as a measure, hide <code>FactForecast[ProjectedHours]</code> so nobody can sum it by accident, and write the words "latest revision per work order" into the measure description where a report author will see them on hover. The one thing to settle with production control before you build anything on top of it is the tiebreak: ask them, in writing, whether two revisions of one work order can ever share a date. If they can, ask for the revision sequence as an integer. The text label the extract gives you today sorts alphabetically, and it will put Rev 10 before Rev 2.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Grain first. Before writing any measure, say out loud what one row of the table means.</li>
+      <li>A measure belongs to the table where its value is recorded once. <code>Quoted Amount</code> on <code>FactWorkOrder</code>, <code>Labor Cost</code> on <code>FactLabor</code>, <code>Parts Cost</code> on <code>FactParts</code>. The visual combines them; you do not.</li>
+      <li><code>DISTINCT</code> or <code>MAX</code> in a measure to stop double counting means the measure is on the wrong table. Move it, do not patch it.</li>
+      <li>Quoted 38,100 against actual 29,671.50 is only reachable by keeping the measures apart. Pulled to line grain, quoted reads 46,600.</li>
+      <li>Allocating a header value down to lines is legitimate, but the basis is a business decision. Hours weighted beats line count whenever hours are recorded, and either needs a rounding rule agreed with finance before it goes live.</li>
+      <li>Relating a month-grain fact to a day-grain calendar matches only the first of the month. It looks correct at month level and returns blank or Infinity on every other day, with no error.</li>
+      <li>Prefer allocating the plan to day grain in Power Query when the rule is defensible. Working days is defensible, calendar days usually is not. Otherwise join on the month key with <code>TREATAS</code> and guard the measure.</li>
+      <li>Utilisation at month grain: MSP 75, 40 and 0 per cent, TUS 50 and 40, LAS 25, PHX 0, and 35.2 per cent overall. The total is not the average of the rows, and should not be.</li>
+      <li>A revision is a restatement, not an increment. <code>FactForecast</code> sums to 99.5 and means 63.5. Take the latest revision per work order, hide the raw column, and never let it reach a visual on its own.</li>
+      <li>Three behaviours, one model: achieved hours of 62.0 add across everything, projected hours add across work orders but not across revisions, and hours by certification add to 85.0 against a true 62.0 and never will. Say which one you are holding before you write the measure.</li>
+      <li>Semi-additive is a class, not a special case. Anything you take the closing value of rather than the sum, a stock balance, a headcount, an open work order count, is the same shape as the latest revision.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="15.html"><span class="pn-dir">Previous</span><span class="pn-t">Virtual relationships: TREATAS and friends</span></a><a class="pn" href="17.html"><span class="pn-dir">Next</span><span class="pn-t">Making slicers cross-filter each other</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

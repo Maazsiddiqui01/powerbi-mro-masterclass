@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Available, projected and achieved: three numbers that are three facts</title>
+</head>
+<body data-ch="B">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">B</span><span class="tb-title">Available, projected and achieved: three numbers that are three facts</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-B">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 0 . The domain</div>
+    <h2 class="chapter-title"><span class="chapter-num">B</span>Available, projected and achieved: three numbers that are three facts</h2>
+    <p class="chapter-lede">After this chapter you can say precisely what each of the three manhour numbers means, when it is set, who owns it and at what grain it is recorded, and you can explain to a production controller why each of the three needs a table of its own. You will also be able to build the six measures the three numbers support without summing a forecast or dividing by a plan that was never written.</p>
+  </div>
+
+  <p class="lead">The finance manager asks for one number: forecast hours for the quarter. You drag <code>ProjectedHours</code> onto a card and it reads 99.5. He puts it in the month-end pack. Two weeks later the production controller sees the pack and says the shop has never forecast 99.5 hours in its life. He is right, by 36.0 hours. The card did exactly what you asked it to do, and this chapter is how a correct sum produces a number nobody in the building believes.</p>
+
+  <p>Three words carry the whole chapter, so here they are up front. Available is the plan. Projected is the forecast. Achieved is what was booked. A work order is one job on one aircraft, opened, priced, worked and closed, and all three numbers describe the same work order from three different moments.</p>
+
+  <p>One more word before the tables start, because it is used on every page from here. Grain is the answer to the question what does one row of this table mean, written as a single sentence. One row of the timesheet table is one technician's hours on one work order on one day. That is a grain. Get the grain of a table wrong and every number built on top of it is wrong in a way that is very hard to see.</p>
+
+  <p>This chapter sits before the curriculum, so it borrows freely from it. The DAX in here is real and it works, but several of the techniques are not properly explained until later. Read the code now for what it does, then come back for the mechanism.</p>
+
+  <ul class="list">
+    <li>Iterators such as <code>SUMX</code>, and the context transition that makes one of them work here: <a class="xref" href="#ch-09">Chapter 9</a>.</li>
+    <li><code>CALCULATE</code> and the filter arguments that pick a single revision: <a class="xref" href="#ch-11">Chapter 11</a>.</li>
+    <li>Semi-additive values, the family that latest-revision belongs to: <a class="xref" href="#ch-16">Chapter 16</a>.</li>
+    <li>Building a dimension that no source system holds, which is what the trade list needs: <a class="xref" href="#ch-03">Chapter 3</a>.</li>
+    <li>Blanks, orphan keys and unknown members: <a class="xref" href="#ch-19">Chapter 19</a>.</li>
+    <li>One date table serving several date columns: <a class="xref" href="#ch-13">Chapter 13</a>.</li>
+  </ul>
+
+  <h3>The three words, one at a time</h3>
+
+  <p>The shift supervisor keeps a whiteboard in the crew room with one number against each check in the hangar. The planner keeps a spreadsheet with a different number for the same checks. The production controller updates a third. Ask any of the three and he will tell you the other two are out of date.</p>
+
+  <p>Your department uses three numbers to describe the same check, and they disagree constantly. Each one is a true statement about a different moment in the life of the check. Each was made by a different person and written into a different system. So the disagreement is evidence. It is the only quantitative evidence anybody has about how well the shop plans and how well it forecasts, and a model that reconciles it away throws that evidence in the bin.</p>
+
+  <h4>Available</h4>
+
+  <p>Available is what the pre-input work package says the work should take. Before the aircraft arrives, the planner assembles every task card falling due in the window. A task card is one printed instruction for one piece of work, and it is what a technician books time against. He adds the out-of-phase items, the modifications and the deferred defects. He adds the ADs, Airworthiness Directives, which the authority issues and which are mandatory. He adds the SBs, Service Bulletins, which are the manufacturer's recommendation and become mandatory only when an AD or the operator says so.</p>
+
+  <p>Each card carries an estimated manhour figure, taken from a standard time or from shop history. The planner rolls those estimates up by trade, and a trade is a skill group such as airframe, avionics, engine or NDT, meaning non-destructive testing. That roll-up is the available figure.</p>
+
+  <p>It is set once, at the end of pre-input planning, then frozen at induction. Induction is the moment the aircraft arrives and the check formally opens. Frozen is the important word. A baseline that moves cannot measure anything, because every time the work turns out harder than expected you can quietly raise the plan and report that you hit it. Planning owns the number. Its grain is one figure per work order per trade, and in a stricter shop one figure per task card. In Meridian that is <code>HeavyPreInput</code>, eight rows covering five work orders.</p>
+
+  <p>The synonyms are where this starts to hurt. Planned, budgeted, estimated and sold all appear in the wild meaning roughly this, and they are not always the same number. Sold hours is the figure the customer was quoted, and it can deliberately differ from the internal estimate, which carries contingency the customer never sees. Two available numbers, both correct, and nobody will tell you which one the report you inherited uses.</p>
+
+  <h4>Projected</h4>
+
+  <p>Projected is the current best estimate of the final total. It is also called the forecast, or the estimate at completion, EAC. That last phrase is worth knowing, because it makes the meaning plain. It is an estimate of where the number ends up. Adding it on top of anything else is a category error. Production control owns it, and it moves during the check because findings arrive during the check.</p>
+
+  <p>That word findings deserves a sentence of its own, because it is the whole economics of heavy maintenance. A technician opens a panel that a routine card told them to open, and behind it is corrosion, or a crack, or a chafed wiring loom that no card mentions. They raise a non-routine card, sometimes called an NRC or a finding. Routine hours are known before induction. Non-routine hours are not knowable before induction, by definition, so production control revises the expected total as the check runs and each revision replaces the last.</p>
+
+  <p>Its grain is one figure per work order per revision. In Meridian that is <code>ManhourForecast</code>: eight rows across five work orders, two of which were never revised at all. The gap between projected and available is, in practice, what the findings cost. It is a proxy, and a weak one here. The limits section at the end of the chapter says why.</p>
+
+  <h4>Achieved</h4>
+
+  <p>Achieved is what technicians actually recorded against the work. Actual, booked, expended and clocked all mean this. It is the only one of the three that is a transaction record: a person did some work, and a row was written. The other two are opinions with a date attached. Keep that sentence. It settles more arguments than any modelling technique in this document.</p>
+
+  <p>The timesheet or labour booking system owns it, a third system separate from both of the others. Its grain in Meridian is one row per technician per work order per day, which is <code>LaborEntries</code>. A stricter shop books time against the task card. That is a finer grain, and it is the grain that would produce the metrics this dataset cannot.</p>
+
+  <h4>The four derived numbers you will be asked for</h4>
+
+  <dl class="defs">
+    <dt>Earned hours</dt><dd>The planned hours for the work that is actually finished so far. It is the honest progress measure. Booked hours tell you how much time went in, and they say nothing about how much of the work package is done. Earned hours requires task card completion status, which Meridian does not have.</dd>
+    <dt>Performance factor</dt><dd>Available divided by achieved, in most shops. Above one means the work took fewer hours than planned. Some shops invert it. Confirm the direction before you publish it.</dd>
+    <dt>Remaining to go</dt><dd>Projected minus achieved, also called estimate to complete. Meaningful only while the check is open, which turns out to matter.</dd>
+    <dt>Forecast accuracy</dt><dd>Achieved divided by projected, measured at close. It grades production control, not the shop floor.</dd>
+  </dl>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table B.1</span> The three numbers as facts: what each one is, when it is set, who owns it, and the grain of one row.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Number</th>
+            <th scope="col">What it is</th>
+            <th scope="col">When it is set</th>
+            <th scope="col">Owner</th>
+            <th scope="col">Grain of one row</th>
+            <th scope="col">Meridian table</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Available</th>
+            <td>What the pre-input work package says the work should take</td>
+            <td>Before induction, then frozen</td>
+            <td>Planning</td>
+            <td>One work order, one trade</td>
+            <td class="key">HeavyPreInput</td>
+          </tr>
+          <tr>
+            <th scope="row">Projected</th>
+            <td>Current best estimate of the final total</td>
+            <td>Repeatedly, as findings land</td>
+            <td>Production control</td>
+            <td>One work order, one revision</td>
+            <td class="key">ManhourForecast</td>
+          </tr>
+          <tr>
+            <th scope="row">Achieved</th>
+            <td>Time technicians recorded against the work</td>
+            <td>Continuously, usually daily</td>
+            <td>Timesheet system</td>
+            <td>One technician, one work order, one day</td>
+            <td class="key">LaborEntries</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The whiteboard, the planner's spreadsheet and production control's third number are the three rows of Table B.1. All of them are current, each about a different moment in the life of the check, and the model has to carry every one.</p>
+
+  <h3>The warning that will save you the most time</h3>
+
+  <p>This vocabulary is local to each shop. The authorities define a Certificate of Release to Service and then leave available hours to whoever is writing the report. One shop's planned is another shop's budgeted and a third shop's sold. Worse, and this is the failure mode that bites. The same word can mean the frozen baseline in one report and the live forecast in the next. Same building, two people, and no reason yet for either of them to compare notes.</p>
+
+  <p>Take WO-1003, a C-check on an E175 at Tucson. Planning set the baseline at 13.0 hours. Production control revised to 16.5 after findings. The check finished on 12.5 hours booked. Now put the planner and the production controller in a review where the agenda item reads hours against plan. On the planner's definition the check came in 0.5 hours under: 13.0 minus 12.5. On the production controller's definition it came in 4.0 hours under: 16.5 minus 12.5. Both figures are arithmetically correct. They tell different stories about whether this shop estimates well, and the meeting will reach whichever conclusion belongs to whoever spoke first.</p>
+
+  <p>So your first job on any new maintenance, repair and overhaul dataset is to write down the local definition of each term. One sentence each, with the source table named. Modelling comes after that. Take the page to somebody in production control and get it agreed in writing. Email is fine. What matters is that a named person agreed a named definition on a named date.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Put the agreed definitions into the model description and into the description property of every measure that uses them, not just into a document nobody opens. Power BI shows measure descriptions on hover in the field list, so the definition travels with the model to whoever inherits it. Two people using one word for two numbers is the most expensive failure mode in reporting for this industry, and it survives every technical review: clean data, correct relationships, right DAX, wrong answer.</p>
+  </aside>
+
+  <h3>The three source tables, printed in full</h3>
+
+  <p>The shift supervisor tells you his bay is occupied and your bay report shows it free. He is standing next to the aircraft, so he wins the argument on the spot. The work order he means is WO-1005, and the reason it vanished from your report is printed in the first table below.</p>
+
+  <p>These three arrive on top of the six raw tables you met in <a class="xref" href="#ch-00">Chapter 0</a>. They add no columns to anything you already have and they change none of the totals you already know. Here they are complete, every row and every column, with the problems marked.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table B.2</span> <code>HMCCSchedule</code>, all eight rows. Red rows carry a planted problem. HMCC stands for Heavy Maintenance Control Centre, and the four service line values are Heavy, Light, Line, and Cabin and IFE, where IFE is In-Flight Entertainment.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">WorkOrderID</th>
+            <th scope="col">ServiceLine</th>
+            <th scope="col">CheckType</th>
+            <th scope="col">Customer</th>
+            <th scope="col">Bay</th>
+            <th scope="col">PlannedStart</th>
+            <th scope="col">PlannedFinish</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">WO-1001</td><td>Heavy</td><td>C-Check</td><td>Cascade Air</td><td class="key">MSP-H1</td><td>2025-01-06</td><td>2025-01-17</td></tr>
+          <tr><td class="key">WO-1002</td><td>Light</td><td>Defect Rectification</td><td>Cascade Air</td><td class="key">MSP-L2</td><td>2025-01-08</td><td>2025-01-10</td></tr>
+          <tr class="row-bad"><td class="key">WO-1003</td><td>Heavy</td><td>C-Check</td><td>Northwind Regional</td><td class="key">TUS-H1</td><td class="cell-bad">2025-01-13</td><td>2025-02-07</td></tr>
+          <tr><td class="key">WO-1004</td><td>Cabin and IFE</td><td>Cabin Retrofit</td><td>Cascade Air</td><td class="key">TUS-H2</td><td>2025-02-03</td><td>2025-02-21</td></tr>
+          <tr class="row-bad"><td class="key">WO-1005</td><td>Light</td><td>Defect Rectification</td><td>Northwind Regional</td><td class="cell-bad">(blank)</td><td>2025-02-10</td><td>2025-02-12</td></tr>
+          <tr class="row-bad"><td class="key">WO-1006</td><td>Heavy</td><td>C-Check</td><td class="cell-bad">(blank)</td><td class="key">MSP-H1</td><td>2025-02-17</td><td>2025-03-14</td></tr>
+          <tr><td class="key">WO-1007</td><td>Line</td><td>Defect Rectification</td><td>Northwind Regional</td><td class="key">LAS-L1</td><td>2025-03-03</td><td>2025-03-05</td></tr>
+          <tr><td class="key">WO-1008</td><td>Heavy</td><td>A-Check</td><td>Cascade Air</td><td class="key">MSP-H2</td><td>2025-03-10</td><td>2025-03-28</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>In a real shop this is the planning board of the Heavy Maintenance Control Centre. Be careful with that acronym. AOG (aircraft on ground) and CRS (Certificate of Release to Service) are universal. HMCC is a local name, used by many airlines and independent shops for the function that owns the heavy maintenance schedule. Elsewhere the same function is production control, maintenance control, or the base maintenance control centre. On the line side the equivalent is usually MOC, Maintenance Operations Control. Change employer and the function will still be there while the letters change. Physically this extract is very often a hand-maintained Excel workbook. Whoever is running the shift edits it at eight in the morning. That is why it is the table most likely to break your model.</p>
+
+  <p>Three things are wrong with it. WO-1005 has no bay, which matches its blank station code in <code>WorkOrders</code>. That blank is why the shift supervisor's occupied bay is missing from your report: the work order is real, the aircraft is real, and the bay label the visual groups by is empty. WO-1006 has no customer, which matches its aircraft registration N338WA being absent from the aircraft registry. WO-1003 has a planned start of 2025-01-13 while <code>WorkOrders</code> records an opened date of 2025-01-14, because the aircraft arrived a day late and only one system was told.</p>
+
+  <p>A fourth thing matters more than those three defects. <code>ServiceLine</code> and <code>CheckType</code> live only in this table, and <code>WorkOrders</code> holds neither of them. So every split by service line in this chapter reaches the work order through a hand-maintained spreadsheet. While you are looking at that column, notice the two values that are one letter apart. Light and Line both cover short defect work done outside a hangar bay. Many shops treat the two as one family, and Meridian's board keeps them separate. WO-1007 is the only line work order in the quarter. Label it light by mistake and 5.0 hours move from one service line to the other while the total stays at 62.0, so no reconciliation check will ever catch it.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table B.3</span> <code>HeavyPreInput</code>, all eight rows. This is the available baseline. The Cabin trade is the planted problem. NDT is non-destructive testing.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">WorkOrderID</th>
+            <th scope="col">Trade</th>
+            <th scope="col" class="num">PlannedHours</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">WO-1001</td><td>Airframe</td><td class="num">9.0</td></tr>
+          <tr><td class="key">WO-1001</td><td>Avionics</td><td class="num">4.0</td></tr>
+          <tr><td class="key">WO-1003</td><td>Airframe</td><td class="num">8.0</td></tr>
+          <tr><td class="key">WO-1003</td><td>Engine</td><td class="num">5.0</td></tr>
+          <tr class="row-bad"><td class="key">WO-1004</td><td class="cell-bad">Cabin</td><td class="num">12.0</td></tr>
+          <tr><td class="key">WO-1006</td><td>Airframe</td><td class="num">10.0</td></tr>
+          <tr><td class="key">WO-1008</td><td>Airframe</td><td class="num">7.0</td></tr>
+          <tr><td class="key">WO-1008</td><td>NDT</td><td class="num">2.0</td></tr>
+          <tr class="row-total"><td>Total available</td><td></td><td class="num">57.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>This comes from the planning module of the maintenance and engineering system, or from the planner's own workbook, which is more common than anybody admits. Its problems are structural. Every value in it is clean and correctly typed, and the trouble is which rows are missing. Only heavy and cabin work orders appear. WO-1002 and WO-1005 sit on the light service line, and WO-1007 sits on line. All three are absent entirely. That work is defect driven, and there is nothing to plan until the defect is reported. So any measure that divides by planned hours has three work orders with no denominator. How you handle that is a design decision, and it belongs to you.</p>
+
+  <p>The trade value Cabin does not exist in <code>ShopCapacity</code>, whose four trade columns are Airframe, Avionics, Engine and NDT. Cabin and IFE work often uses different trades from airframe work, so the mismatch is normal shop life. It still has to be resolved before either number can be trusted. Quietly nastier: the column is called <code>PlannedHours</code> here, and the capacity table has a column called <code>PlannedHours</code> too. The two mean opposite things, demand here and supply there. I have watched that collision produce a chart where demand was plotted against demand.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table B.4</span> <code>ManhourForecast</code>, all eight rows. Superseded revisions are greyed. The total row is the number you must never publish.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">WorkOrderID</th>
+            <th scope="col">RevisionDate</th>
+            <th scope="col">Revision</th>
+            <th scope="col" class="num">ProjectedHours</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key muted">WO-1001</td><td class="muted">2025-01-06</td><td class="muted">Rev 0</td><td class="num muted">13.0</td></tr>
+          <tr class="row-good"><td class="key">WO-1001</td><td>2025-01-10</td><td>Rev 1</td><td class="num">14.0</td></tr>
+          <tr><td class="key muted">WO-1003</td><td class="muted">2025-01-14</td><td class="muted">Rev 0</td><td class="num muted">13.0</td></tr>
+          <tr class="row-good"><td class="key">WO-1003</td><td>2025-01-25</td><td>Rev 1</td><td class="num">16.5</td></tr>
+          <tr class="row-good"><td class="key">WO-1004</td><td>2025-02-03</td><td>Rev 0</td><td class="num">12.0</td></tr>
+          <tr><td class="key muted">WO-1006</td><td class="muted">2025-02-17</td><td class="muted">Rev 0</td><td class="num muted">10.0</td></tr>
+          <tr class="row-good"><td class="key">WO-1006</td><td>2025-03-01</td><td>Rev 1</td><td class="num">13.5</td></tr>
+          <tr class="row-good"><td class="key">WO-1008</td><td>2025-03-10</td><td>Rev 0</td><td class="num">7.5</td></tr>
+          <tr class="row-total"><td>Naive sum of all eight rows</td><td></td><td></td><td class="num cell-bad">99.5</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>This is production control's table, and in most shops it is a spreadsheet with one tab per check and a column added every time somebody re-forecasts. Its defining property is that it must never be summed: each revision supersedes the one before, so adding Rev 0 to Rev 1 adds an estimate to the estimate that replaced it. Only three work orders were ever revised. Either the other two had no findings large enough to move the number or nobody updated the tab, and the data cannot tell you which. One smaller detail: the Rev 0 date on WO-1003 is 2025-01-14, the actual induction date, not the 2025-01-13 the control board still shows. Production control forecast from reality. The control board never caught up.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 940 430" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><text x="26.0" y="30.0" class="d-t" fill="#17160F">Three numbers, three tables, three grains, three owners</text><rect x="26" y="62" width="250" height="84" rx="5" fill="#F5F0DC" stroke="#78641F" stroke-width="1.6"/><text x="38.0" y="82.0" class="d-t" fill="#78641F">HeavyPreInput</text><text x="38.0" y="100.0" class="d-s">one row per work order per trade</text><text x="38.0" y="116.0" class="d-s" font-style="italic">owner: Planning</text><text x="38.0" y="134.0" class="d-lbl" fill="#78641F">AVAILABLE</text><path d="M280,104 L360,104" class="d-line-hot" marker-end="url(#ah)"/><rect x="364.0" y="82.0" width="118.0" height="44.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="423.0" y="102.0" class="d-t" text-anchor="middle" fill="#17160F" font-size="16">57.0</text><text x="423.0" y="118.0" class="d-s" text-anchor="middle">hours</text><rect x="26" y="168" width="250" height="84" rx="5" fill="#F5F0DC" stroke="#78641F" stroke-width="1.6"/><text x="38.0" y="188.0" class="d-t" fill="#78641F">ManhourForecast</text><text x="38.0" y="206.0" class="d-s">one row per work order per revision</text><text x="38.0" y="222.0" class="d-s" font-style="italic">owner: Production control</text><text x="38.0" y="240.0" class="d-lbl" fill="#78641F">PROJECTED</text><path d="M280,210 L360,210" class="d-line-hot" marker-end="url(#ah)"/><rect x="364.0" y="188.0" width="118.0" height="44.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="423.0" y="208.0" class="d-t" text-anchor="middle" fill="#17160F" font-size="16">63.5</text><text x="423.0" y="224.0" class="d-s" text-anchor="middle">hours</text><rect x="26" y="274" width="250" height="84" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="38.0" y="294.0" class="d-t" fill="#AE4419">LaborEntries</text><text x="38.0" y="312.0" class="d-s">one row per technician per WO per day</text><text x="38.0" y="328.0" class="d-s" font-style="italic">owner: Timesheet system</text><text x="38.0" y="346.0" class="d-lbl" fill="#AE4419">ACHIEVED</text><path d="M280,316 L360,316" class="d-line-hot" marker-end="url(#ah)"/><rect x="364.0" y="294.0" width="118.0" height="44.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="423.0" y="314.0" class="d-t" text-anchor="middle" fill="#17160F" font-size="16">62.0</text><text x="423.0" y="330.0" class="d-s" text-anchor="middle">hours</text><rect x="510.0" y="62.0" width="406.0" height="168.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="524.0" y="84.0" class="d-t" fill="#17160F">WO-1003, one C-check, traced across the three</text><text x="524.0" y="108.0" class="d-lbl" fill="#77746B"></text><text x="660.0" y="108.0" class="d-lbl" fill="#77746B">available</text><text x="750.0" y="108.0" class="d-lbl" fill="#77746B">projected</text><text x="850.0" y="108.0" class="d-lbl" fill="#77746B">achieved</text><line x1="524" y1="116" x2="900" y2="116" stroke="#D2CDC0" stroke-width="1"/><text x="524.0" y="134.0" class="d-s">hours</text><text x="660.0" y="134.0" class="d-m">13.0</text><text x="750.0" y="134.0" class="d-m">16.5</text><text x="850.0" y="134.0" class="d-m">12.5</text><text x="524.0" y="160.0" class="d-s">The planner said 13.0. Findings pushed the forecast to 16.5.</text><text x="524.0" y="176.0" class="d-s">The check finished on 12.5, under both.</text><text x="524.0" y="200.0" class="d-m" fill="#2B6140">performance 13.0 / 12.5 = 104.0 percent</text><text x="524.0" y="218.0" class="d-m" fill="#98281E">forecast accuracy 12.5 / 16.5 = 75.8 percent</text><rect x="510.0" y="248.0" width="406.0" height="110.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="524.0" y="270.0" class="d-t" fill="#98281E">Never SUM the forecast table</text><text x="524.0" y="292.0" class="d-m">13.0 + 14.0 + 13.0 + 16.5 + 12.0 + 10.0 + 13.5 + 7.5 = 99.5</text><text x="524.0" y="312.0" class="d-s">That number means nothing. Each revision replaces the one</text><text x="524.0" y="328.0" class="d-s">before it, so the answer is the latest revision per work order,</text><text x="524.0" y="344.0" class="d-s">which totals 63.5. Semi-additive, see chapter 16.</text><rect x="26.0" y="374.0" width="890.0" height="44.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="40.0" y="396.0" class="d-s">48.0 of the 62.0 achieved hours sit on heavy and cabin work. The other 14.0 are light maintenance, which has no pre-input pack at all,</text><text x="40.0" y="412.0" class="d-s">so any available-versus-achieved measure has to decide what to do about three work orders that were never planned in hours.</text></svg></div><figcaption><span class="fig-num">Figure B.1</span>Available, projected and achieved: three numbers that are three different facts.</figcaption></figure>
+
+  <p>Read the figure down the left column first. Three source boxes, three grains, three owners, and note the colours: <code>HeavyPreInput</code> and <code>ManhourForecast</code> are drawn olive because they hold planning estimates, while <code>LaborEntries</code> is terracotta because it is a transaction record. That colour split is the argument of this chapter in one visual convention. The three grey value cards on their right give the totals: 57.0 available hours, 63.5 projected hours, 62.0 achieved hours. The 62.0 is every labor row in the dataset, which is why it ties to the total you already know.</p>
+
+  <p>The upper right card traces one check across all three. WO-1003: the planner said 13.0, findings pushed the forecast to 16.5, and the check finished on 12.5, under both. Performance is 13.0 divided by 12.5, which is 104.0 percent, and forecast accuracy is 12.5 divided by 16.5, which is 75.8 percent. Hold that pair. Below it, in red, is the number nobody should ship, the eight forecast rows added together to give 99.5. The green card across the bottom is the reconciliation to keep in your head: 48.0 of the 62.0 achieved hours sit on heavy and cabin work, and the remaining 14.0 hours belong to three work orders that were never planned in hours at all. Split those 14.0 hours across the four service lines and they are 9.0 on light and 5.0 on line.</p>
+
+  <h3>Why the three numbers need three tables</h3>
+
+  <p>The production controller has a suggestion, and it is a reasonable one. Put the three numbers in a single table, one row per work order, three columns. It would fit on one screen and everybody could read it without being taught anything. He is asking in good faith, and you need four answers ready.</p>
+
+  <p>The single most valuable idea in this chapter is this one, so here are the grains stated as sentences, exactly as you should be able to recite them in a design review.</p>
+
+  <ul class="list">
+    <li>One row of <code>HeavyPreInput</code> is the planned hours for one trade on one work order, decided once before the aircraft arrived.</li>
+    <li>One row of <code>ManhourForecast</code> is one estimate of the final total for one work order, made on one date and superseded by the next one.</li>
+    <li>One row of <code>LaborEntries</code> is one technician's booked hours on one work order on one day.</li>
+  </ul>
+
+  <p>Now imagine the flat alternative that somebody proposes in every project: a single table with <code>WorkOrderID</code>, <code>Available</code>, <code>Projected</code> and <code>Achieved</code>, one row per work order. It looks tidy. WO-1003 would read 13.0, 16.5, 12.5, and the report would be trivial to build. It fails for four reasons, and they are independent, which is why no clever transformation rescues it.</p>
+
+  <p>They are set at different times. The available column would be written weeks before induction, the projected column three separate times during the check, the achieved column every day. A row that has to be rewritten by three different processes on three different schedules is a race condition with a primary key. Whichever process writes last wins, and nothing in the table records that the other two ever ran.</p>
+
+  <p>They are owned by different people. Planning writes one column, production control writes another, the timesheet system writes the third. When the number is wrong you need to know who to ask, and a shared row destroys that information. It also destroys the audit trail: overwrite 13.0 with 16.5 and the evidence that the plan ever said 13.0 is gone.</p>
+
+  <p>They are recorded at different levels of detail. Available is per trade, so flattening it loses the fact that WO-1003's 13.0 is 8.0 airframe plus 5.0 engine. Projected is per revision, so flattening it loses when the forecast moved, which is the only evidence you will have about whether the estimate or the execution was the problem. Achieved is per technician per day, so flattening it loses every time-based analysis and every question about who did the work.</p>
+
+  <p>And two of the three keep changing after the first is frozen. That is the point that ends the argument. A frozen baseline sitting in the same row as two live values will eventually be edited by somebody who is updating the whole row when he meant to touch one column, and you will never find out.</p>
+
+  <p>Four answers, then, for the production controller: three writing schedules, three owners, three levels of detail, and one frozen value living next to two moving ones. He can have his one-screen view. Build it as a report page over three tables, and the model keeps the evidence he will want the first time a customer queries a bill.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>There is a cleaner way to say this, and it generalises well beyond aviation. The three numbers have three different additive behaviours. Available is fully additive: sum it across trades, work orders, stations and months and every total means something. Achieved is fully additive too. Projected is semi-additive: it sums across work orders but never across revisions, because the revision axis holds versions of one value rather than parts of it. Three columns on one table would force a single filter context to serve three aggregation rules, and no measure can do that honestly. Filter context is the set of rows a visual has left visible at the moment a measure runs, and every measure in that visual gets the same one.</p>
+  </aside>
+
+  <h3>Two wrong answers, worked</h3>
+
+  <h4>Wrong answer one: summing the forecast</h4>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <p>Drop <code>ProjectedHours</code> onto a card. Power BI defaults to a sum, because the column is numeric and it has no way of knowing what the rows mean.</p>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Projected Hours, the default</span></div>
+        <pre><code><span class="col">Projected Hours</span> <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactForecast</span><span class="col">[ProjectedHours]</span> )</code></pre>
+      </div>
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">13.0 plus 14.0 plus 13.0 plus 16.5 plus 12.0 plus 10.0 plus 13.5 plus 7.5, which is 99.5 hours. This is the number that reached the finance manager's month-end pack.</div></div>
+        <div class="linex-row"><div class="linex-k">Why it is wrong</div><div class="linex-v">WO-1001 contributes 27.0 hours, which is its first guess plus its second guess. The check was never expected to take 27.0 hours by anybody at any point.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>Nothing. That is the problem. A card reading 99.5 next to an achieved card reading 62.0 looks like a shop running well under forecast, which is a pleasant story somebody will repeat in a customer meeting. No error, no blank, no warning triangle. The number is 36.0 hours too high and it is perfectly formatted.</p>
+  </div>
+
+  <div class="ba">
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <p>Take the latest revision for each work order, then sum those five values. WO-1001 14.0, WO-1003 16.5, WO-1004 12.0, WO-1006 13.5, WO-1008 7.5, totalling 63.5 hours. The concept has a name, semi-additive, and it is the same shape as a stock balance: you sum across products but never across time, you take the last one. <a class="xref" href="#ch-16">Chapter 16</a> covers the family properly, including the cases where last by date is not the right selector.</p>
+    </div>
+  </div>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Hiding the problem by setting the forecast column to Do not summarize, or renaming it to something scary. Neither survives contact with a report builder who drags the field into a matrix. Apply the rule instead: if a table holds versions of a value rather than parts of a value, never expose its measure as a plain <code>SUM</code>, hide the underlying column so nobody can drag it into a visual, and write the words latest revision per work order into the measure description, where a report author sees them on hover.</p>
+  </aside>
+
+  <h4>Wrong answer two: dividing available by achieved on light and line maintenance</h4>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <p>Build a performance factor as available divided by achieved, put it in a matrix by service line, and then tidy the empty cells away, because a matrix with holes in it looks unfinished. The usual tidy-up is a third argument on <code>DIVIDE</code>, written as <code>DIVIDE ( [Available Hours], [Achieved Hours], 0 )</code>. Now light maintenance shows 0.0 percent, and so does line maintenance. Somebody senior reads that as two teams achieving nothing against their plan, and that is a conversation you cannot take back.</p>
+      <p>The three work orders outside base maintenance appear nowhere in <code>HeavyPreInput</code>: WO-1002 and WO-1005 on light, WO-1007 on line. Their available hours do not exist. Nobody wrote a plan for that work, so there is no figure there to be zero. Divide a number that was never written by 14.0 hours that were genuinely worked, 9.0 of them on light and 5.0 on line, and the answer is undefined. Zero percent claims something. Undefined claims nothing, and the two are as different as an empty bank account and no bank account.</p>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <p><code>DIVIDE</code> with no third argument. When there are no pre-input rows in the current filter context the numerator is blank, so the result comes back blank. The row still appears in the matrix, the ratio cell is empty, and an empty cell is the honest statement: we did not plan this work in hours, so we cannot grade it against a plan.</p>
+      <p>Never supply a third argument of zero to tidy the cell up, because that converts an undefined ratio into a confident false statement for exactly the rows where you know least. Say on the visual why the cell is empty instead, since a blank with no explanation gets filled in by the reader's imagination. <a class="xref" href="#ch-11">Chapter 11</a> covers filter modifiers and <a class="xref" href="#ch-19">Chapter 19</a> covers what blanks mean in a report.</p>
+    </div>
+  </div>
+
+  <h3>The triad, work order by work order</h3>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table B.5</span> The five heavy and cabin work orders across all three numbers. Light and line maintenance are absent from the available column because they are absent from the pre-input pack.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Work order</th>
+            <th scope="col">Service line</th>
+            <th scope="col">Check type</th>
+            <th scope="col" class="num">Available</th>
+            <th scope="col" class="num">Projected</th>
+            <th scope="col" class="num">Achieved</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">WO-1001</td><td>Heavy</td><td>C-Check</td><td class="num">13.0</td><td class="num">14.0</td><td class="num">13.5</td><td>Closed</td></tr>
+          <tr><td class="key">WO-1003</td><td>Heavy</td><td>C-Check</td><td class="num">13.0</td><td class="num">16.5</td><td class="num">12.5</td><td>Closed</td></tr>
+          <tr><td class="key">WO-1004</td><td>Cabin and IFE</td><td>Cabin Retrofit</td><td class="num">12.0</td><td class="num">12.0</td><td class="num">10.0</td><td>Still open</td></tr>
+          <tr><td class="key">WO-1006</td><td>Heavy</td><td>C-Check</td><td class="num">10.0</td><td class="num">13.5</td><td class="num">12.0</td><td>Closed</td></tr>
+          <tr><td class="key">WO-1008</td><td>Heavy</td><td>A-Check</td><td class="num">9.0</td><td class="num">7.5</td><td class="num">0.0</td><td>Just inducted</td></tr>
+          <tr class="row-total"><td>Total</td><td></td><td></td><td class="num">57.0</td><td class="num">63.5</td><td class="num">48.0</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Available</div><div class="kv-v">57.0 hours</div></div>
+    <div class="kv-item"><div class="kv-k">Projected, latest revision</div><div class="kv-v">63.5 hours</div></div>
+    <div class="kv-item"><div class="kv-k">Achieved, heavy and cabin</div><div class="kv-v">48.0 hours</div></div>
+    <div class="kv-item"><div class="kv-k">Achieved, all work</div><div class="kv-v">62.0 hours</div></div>
+  </div>
+
+  <p>The achieved column in that table totals 48.0 and not 62.0, because it covers only the five work orders with a pre-input pack. The rest of this document works with 62.0, so here is the reconciliation. Keep it: the first question anybody asks about a heavy maintenance report is why the hours do not match the hours in the other report.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table B.6</span> Achieved hours by all four service lines, reconciling the triad total to the dataset total.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Service line</th><th scope="col">Work orders</th><th scope="col" class="num">Achieved hours</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Heavy</th><td class="key">WO-1001, WO-1003, WO-1006, WO-1008</td><td class="num">38.0</td></tr>
+          <tr><th scope="row">Cabin and IFE</th><td class="key">WO-1004</td><td class="num">10.0</td></tr>
+          <tr class="row-good"><th scope="row">Heavy and cabin, the triad scope</th><td></td><td class="num">48.0</td></tr>
+          <tr><th scope="row">Light</th><td class="key">WO-1002, WO-1005</td><td class="num">9.0</td></tr>
+          <tr><th scope="row">Line</th><td class="key">WO-1007</td><td class="num">5.0</td></tr>
+          <tr class="row-good"><th scope="row">Light and line, outside the triad</th><td></td><td class="num">14.0</td></tr>
+          <tr class="row-total"><td>Total, matching the core model</td><td></td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>One detail is worth stating precisely. WO-1003's achieved 12.5 hours comes from two labor rows, and one of them, L-505, carries a technician key of TECH-04 with a trailing space. That defect moves 4.5 hours between technicians. It does not move them between work orders, because the work order key on that row is clean. The triad is safe from that bug and any measure sliced by technician is not. Knowing which of your numbers a given defect can reach is most of what data quality work is.</p>
+
+  <h3>The metrics, on the three closed heavy checks only</h3>
+
+  <p>The finance manager wants a performance figure for the quarter to show the customer on Thursday. There are eight work orders in the quarter. Three of them can honestly produce one, and the walk from eight to three is the whole of this section.</p>
+
+  <p>Only WO-1001, WO-1003 and WO-1006 are closed heavy checks. WO-1004 is still open, so its achieved figure is a partial count and grading it would be meaningless. WO-1008 was inducted on 2025-03-10 and has no hours booked. Filtering to completed work before you compute a completion ratio is the difference between a metric and a number. Treat that filter as a refinement and you will publish the second while calling it the first.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table B.7</span> Performance factor and forecast accuracy for the three closed heavy checks. Totals are computed from the totals, not averaged down the column.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Work order</th>
+            <th scope="col" class="num">Available</th>
+            <th scope="col" class="num">Projected</th>
+            <th scope="col" class="num">Achieved</th>
+            <th scope="col" class="num">Performance factor</th>
+            <th scope="col" class="num">Forecast accuracy</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">WO-1001</td><td class="num">13.0</td><td class="num">14.0</td><td class="num">13.5</td><td class="num">96.3%</td><td class="num">96.4%</td></tr>
+          <tr class="row-good"><td class="key">WO-1003</td><td class="num">13.0</td><td class="num">16.5</td><td class="num">12.5</td><td class="num">104.0%</td><td class="num cell-bad">75.8%</td></tr>
+          <tr><td class="key">WO-1006</td><td class="num">10.0</td><td class="num">13.5</td><td class="num">12.0</td><td class="num">83.3%</td><td class="num">88.9%</td></tr>
+          <tr class="row-total"><td>Three closed checks</td><td class="num">36.0</td><td class="num">44.0</td><td class="num">38.0</td><td class="num">94.7%</td><td class="num">86.4%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The arithmetic, spelled out. Performance factor is available divided by achieved: 36.0 divided by 38.0 gives 94.7 percent overall, and per check 13.0 over 13.5 is 96.3 percent, 13.0 over 12.5 is 104.0 percent, 10.0 over 12.0 is 83.3 percent. Forecast accuracy is achieved divided by projected: 38.0 divided by 44.0 gives 86.4 percent, and per check 13.5 over 14.0 is 96.4 percent, 12.5 over 16.5 is 75.8 percent, 12.0 over 13.5 is 88.9 percent.</p>
+
+  <p>Notice that the total row is not the average of the rows above it. The three performance figures average to 94.5 percent: 96.3 plus 104.0 plus 83.3, divided by 3, giving 94.53. The measure at the total does something different. It divides 36.0 by 38.0 and gives 94.7 percent, because bigger checks carry more weight there. Both quantities are legitimate. Only one is what your measure computes. Export the matrix to Excel, average the column, and you will get a different answer from the total.</p>
+
+  <p>Now WO-1003, which is the check worth understanding. The planner estimated 13.0. Production control revised to 16.5 after findings, a 3.5 hour increase. The check came in at 12.5, under the plan and a long way under the forecast. Its performance factor is 104.0 percent, the best of the three, and its forecast accuracy is 75.8 percent, the worst of the three by some distance. Those two numbers answer two different questions, so both are true at once. The planner was close. The forecast panicked. Execution beat both.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Keeping the two ratios separate is what makes the pair useful. A single hours-against-plan number cannot distinguish a shop that executes badly from one that forecasts badly, and those problems have different owners and different fixes. WO-1003 is a forecasting problem, not an execution problem. Report only performance factor and you conclude the check went well, while production control carries on adding contingency nobody measures. Report only forecast accuracy and you go and talk to the wrong team.</p>
+  </aside>
+
+  <p>Here is the inconvenient part, and it is what the finance manager has to hear before Thursday. Three closed checks is a sample of three. The 94.7 percent has no statistical meaning, and putting it on a dashboard with a trend arrow invents information the data does not contain. Build this for real and you should put the count of checks beside the ratio in the same visual, and refuse to show the ratio below an agreed minimum. You will be told this makes the dashboard look empty. It does. It also stops the shop deciding on a sample of one. Give him 94.7 percent with the figure 3 printed next to it, and let the customer see both.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>State the direction of the performance ratio in the measure name, not in a footnote: Performance Factor (available over achieved, above 100 percent is good). Shops genuinely invert this, and half of them read above 100 percent as favourable while the other half read it as an overspend. Nobody misreads a ratio whose direction is printed on it. The same applies to forecast accuracy, where 75.8 percent means the forecast was too high, and that is not obvious from the label either.</p>
+  </aside>
+
+  <h3>The trade only one system has heard of</h3>
+
+  <p>The resource manager cannot understand why his quarterly utilisation looks comfortable while his cabin fitters are turning work away. The answer is one row. Twelve hours of cabin demand sit in the pre-input pack, and his capacity workbook has four trades, none of them cabin.</p>
+
+  <p><code>HeavyPreInput</code> books 12.0 hours to a trade called Cabin. <code>ShopCapacity</code> has never heard of it: its four trade columns are Airframe, Avionics, Engine and NDT. Both tables are right about the world each one was built for. Planning knows the cabin retrofit needs cabin fitters, and the capacity workbook was built around airframe trades and never updated. The only correct response is to build the trade dimension from both sources and take the distinct union, which gives five members. That technique is <a class="xref" href="#ch-03">Chapter 3</a>, and it is the same move that produces the station and aircraft dimensions.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table B.8</span> Planned demand against planned capacity by trade, over the whole quarter, once <code>DimTrade</code> is conformed from both sources.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Trade</th>
+            <th scope="col" class="num">Planned demand, hours</th>
+            <th scope="col" class="num">Planned capacity, hours</th>
+            <th scope="col">Appears in</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Airframe</th><td class="num">34.0</td><td class="num">80</td><td>Both</td></tr>
+          <tr><th scope="row">Avionics</th><td class="num">4.0</td><td class="num">44</td><td>Both</td></tr>
+          <tr><th scope="row">Engine</th><td class="num">5.0</td><td class="num">39</td><td>Both</td></tr>
+          <tr><th scope="row">NDT</th><td class="num">2.0</td><td class="num">13</td><td>Both</td></tr>
+          <tr class="row-bad"><th scope="row">Cabin</th><td class="num">12.0</td><td class="num cell-bad">0</td><td>Pre-input only</td></tr>
+          <tr class="row-total"><td>Total</td><td class="num">57.0</td><td class="num">176</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Read the Cabin row as an operational statement. Clean it up as a data defect and you destroy the signal. Twelve planned hours of cabin work exist and nobody planned the people to do it. There are at least three explanations, and the data cannot choose between them. Airframe or avionics staff may be absorbing the work and booking it under their own trade. The work may be subcontracted to a company that never appears in the capacity workbook. Or the workbook was never updated for the retrofit programme. One weak clue: the only person who booked time to WO-1004 is TECH-07, who does not exist in the human resources extract. That is consistent with an outside body and equally consistent with a data entry error. Ask.</p>
+
+  <p>The wider lesson is worth carrying to your next shop. Planned hours in a pre-input pack are demand. Planned hours in a capacity workbook are supply. Comparing the two needs the shared trade dimension, plus careful handling of grain. Capacity sits at station and month. Demand sits at work order and trade.</p>
+
+  <h3>Two systems, two dates, one turnaround time</h3>
+
+  <p>The finance manager needs an average turnaround figure for the customer review, and turnaround time is the elapsed days from induction to release. You build it and get 12.00 days. A colleague builds the same thing and gets 12.17. One row of data is the difference between you.</p>
+
+  <p>The control board says WO-1003 started on 2025-01-13. The shop floor system says it opened on 2025-01-14. The aircraft arrived a day late. Somebody updated one system and left the other alone. Now turnaround time, the headline metric in a heavy maintenance shop, has two defensible values.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table B.9</span> One row of disagreement, and what it does to a headline average. Turnaround time is measured from start to release.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Measured from</th>
+            <th scope="col">Start date used</th>
+            <th scope="col" class="num">WO-1003 turn days</th>
+            <th scope="col" class="num">Sum over six closed work orders</th>
+            <th scope="col" class="num">Average turn days</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row"><code>WorkOrders[OpenedDate]</code></th><td>2025-01-14</td><td class="num">22</td><td class="num">72</td><td class="num">12.00</td></tr>
+          <tr><th scope="row"><code>HMCCSchedule[PlannedStart]</code></th><td>2025-01-13</td><td class="num">23</td><td class="num">73</td><td class="num">12.17</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>One row of disagreement out of eight moves a quarterly headline. Both numbers are correct arithmetic on different columns. The planned start answers when were we going to start. The opened date answers when did work actually begin. Turnaround time as customers understand it usually means the second, measured from induction to the issue of the Certificate of Release to Service.</p>
+
+  <p>So the finance manager gets 12.00 days, taken from the opened date, with the source column named on the visual. Pick one source as the system of record for each fact, write that choice down beside the definitions you already agreed, and never let a report mix them silently. If both dates matter, and for on-time delivery analysis both do, surface both as separate named measures. The thing to keep out of production is one measure that takes its start date from whichever table happened to be joined first.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Relating <code>HMCCSchedule</code> to <code>FactWorkOrder</code> one to one and leaving both sets of dates live in the model. Two tables at identical grain with overlapping columns is an invitation for two report authors to pick different columns and produce two turnaround figures that both survive review. Merge the control board into the work order table in Power Query, keep the columns you decided to trust, and rename the ones you keep for reference so nobody picks them up by accident. <a class="xref" href="#ch-06">Chapter 6</a> covers one to one relationships and why they are almost always a merge waiting to happen.</p>
+  </aside>
+
+  <h3>The measures</h3>
+
+  <p>Six measures. The first two are trivial, the third is the only difficult one, and the last three depend on all of the above.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Available Hours, Achieved Hours</span></div>
+    <pre><code><span class="c">// planning demand, frozen at induction</span>
+<span class="col">Available Hours</span> <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactPreInput</span><span class="col">[PlannedHours]</span> )
+
+<span class="c">// booked time, the only transaction record of the three</span>
+<span class="col">Achieved Hours</span> <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Available Hours</div><div class="linex-v">A plain sum is correct because available is fully additive. Every row is a distinct trade on a distinct work order, so no row overlaps another. Returns 57.0 with no filter, and blank for any light or line work order, which is the behaviour you want.</div></div>
+    <div class="linex-row"><div class="linex-k">Achieved Hours</div><div class="linex-v">Also fully additive: every row is a separate day of a separate technician. Returns 62.0 over the whole dataset and 48.0 when the filter context is restricted to the heavy and cabin service lines, using the service line column merged onto <code>FactWorkOrder</code>.</div></div>
+  </div>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Projected Hours (latest revision)</span></div>
+    <pre><code><span class="col">Projected Hours</span> <span class="op">=</span>
+<span class="k">SUMX</span> (
+    <span class="k">VALUES</span> ( <span class="t">FactForecast</span><span class="col">[WorkOrderID]</span> ),
+    <span class="k">VAR</span> LatestRevision <span class="op">=</span>
+        <span class="k">CALCULATE</span> ( <span class="k">MAX</span> ( <span class="t">FactForecast</span><span class="col">[RevisionDate]</span> ) )
+    <span class="k">RETURN</span>
+        <span class="k">CALCULATE</span> (
+            <span class="k">SUM</span> ( <span class="t">FactForecast</span><span class="col">[ProjectedHours]</span> ),
+            <span class="t">FactForecast</span><span class="col">[RevisionDate]</span> <span class="op">=</span> LatestRevision
+        )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>SUMX</code> iterates, which means it walks a list and evaluates an expression once per item, then adds the results. The list here is one row per work order.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>VALUES</code> returns the distinct work order identifiers visible in the current filter context. Five of them in this dataset, since only five work orders were ever forecast.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 4 and 5</div><div class="linex-v">Inside the iteration, <code>CALCULATE</code> with no filter argument performs a context transition: it converts the current work order into a filter. <code>MAX</code> of the revision date within that filter is therefore the latest revision date for that one work order. This is the technique explained in <a class="xref" href="#ch-09">Chapter 9</a>.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 7 to 10</div><div class="linex-v">The second <code>CALCULATE</code> keeps the work order filter and replaces the revision date filter with the single date found above, then sums. One row survives per work order.</div></div>
+    <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">14.0 plus 16.5 plus 12.0 plus 13.5 plus 7.5, which is 63.5 hours.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p>The obvious alternative is to keep the iterator and take <code>MAX ( FactForecast[ProjectedHours] )</code> per work order instead of hunting for the latest revision date, and on this dataset that returns exactly the right answer, 63.5, because every revision in Meridian happens to revise upwards. That coincidence is the reason to reject it. The rule is take the latest, not take the largest, and the two agree only while no forecast is ever cut. The first time a production controller reduces a forecast because a finding turned out to be cosmetic, the maximum measure quietly reports the superseded number and keeps reporting it. A measure that is right for the wrong reason cannot be tested, because the test passes.</p>
+    <p>The other alternative is <code>LASTNONBLANKVALUE</code>, which is shorter and reads well when the model has a proper date relationship on the revision date. It is a reasonable choice. The explicit form is written out here because it makes both ideas visible, latest by date and one row per work order, and because it keeps working when the selector is not a date, such as a revision number or an approval flag.</p>
+  </div>
+
+  <details class="expand" open>
+    <summary>Trace the latest revision measure by hand, work order by work order</summary>
+    <div class="expand-body">
+      <p>With no filters applied, <code>VALUES ( FactForecast[WorkOrderID] )</code> returns five values, and <code>SUMX</code> evaluates the expression once for each.</p>
+      <ul class="list">
+        <li>WO-1001. Context transition leaves two rows, dated 2025-01-06 and 2025-01-10. <code>MAX</code> gives 2025-01-10. The inner <code>CALCULATE</code> keeps Rev 1 and sums 14.0.</li>
+        <li>WO-1003. Two rows, 2025-01-14 and 2025-01-25. <code>MAX</code> gives 2025-01-25, which is Rev 1, and sums 16.5.</li>
+        <li>WO-1004. One row only, 2025-02-03. <code>MAX</code> gives that date, and Rev 0 contributes 12.0. Work orders that were never revised need no special handling, which is why this pattern is preferable to anything that filters on the text Rev 1.</li>
+        <li>WO-1006. Two rows, 2025-02-17 and 2025-03-01. Rev 1 wins and contributes 13.5.</li>
+        <li>WO-1008. One row, 2025-03-10, contributing 7.5.</li>
+      </ul>
+      <p>14.0 plus 16.5 plus 12.0 plus 13.5 plus 7.5 equals 63.5. Now suppose <code>RevisionDate</code> is joined to the date table and somebody slices to February. Only WO-1004 and WO-1006 have a forecast row in February, so the card reads 12.0 plus 10.0, which is 22.0. That 10.0 is WO-1006 Rev 0, superseded on 2025-03-01 by 13.5, and the slicer has hidden the row that replaced it. Arguably correct, in that it answers what production control believed during February. Arguably wrong, in that a card labelled Projected Hours is showing a number somebody has already withdrawn. Which behaviour you want is a business decision, and every semi-additive measure forces it on you.</p>
+    </div>
+  </details>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>This measure iterates the distinct work orders and performs a context transition on every one, which is materially more expensive than a plain <code>SUM</code>. At five work orders you will never notice. At forty thousand work orders in a real maintenance and engineering system, in a matrix that also slices by trade and month, you will. The usual remedy is to resolve the latest revision once, in Power Query or a calculated table, flagging each forecast row as current or superseded, then filtering on that flag at query time. That moves the work from per query to per refresh, the trade discussed in <a class="xref" href="#ch-04">Chapter 4</a>. The cost is that the flag is only as fresh as the last refresh, so avoid it where somebody re-forecasts mid-morning and expects the report to move.</p>
+  </aside>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Performance Factor, Forecast Accuracy</span></div>
+    <pre><code><span class="c">// above 100 percent means the work took fewer hours</span>
+<span class="c">// than the frozen plan. Confirm the direction locally.</span>
+<span class="col">Performance Factor</span> <span class="op">=</span>
+    <span class="k">DIVIDE</span> ( <span class="col">[Available Hours]</span>, <span class="col">[Achieved Hours]</span> )
+
+<span class="c">// measured at close only. Below 100 percent means the</span>
+<span class="c">// forecast was too high.</span>
+<span class="col">Forecast Accuracy</span> <span class="op">=</span>
+    <span class="k">DIVIDE</span> ( <span class="col">[Achieved Hours]</span>, <span class="col">[Projected Hours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Performance Factor</div><div class="linex-v">Grades the planner against the shop floor. 36.0 over 38.0 across the three closed checks, which is 94.7 percent. Blank for light and for line maintenance, because the numerator does not exist there.</div></div>
+    <div class="linex-row"><div class="linex-k">Forecast Accuracy</div><div class="linex-v">Grades production control. 38.0 over 44.0 across the same three checks, which is 86.4 percent. Apply it to closed work only: on an open check the numerator is a partial count and the ratio is guaranteed to look terrible.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>DIVIDE</code> rather than the division operator, in both measures, for two separate reasons. The familiar one: a plain slash raises a division by zero condition when the denominator is zero. Power BI usually renders that as infinity instead of failing the visual, and infinity in a percentage column draws the eye and means nothing. The second reason matters more here. <code>DIVIDE</code> gives you one explicit place to decide what an undefined ratio shows, through its optional third argument, and leaving that argument out states that undefined is undefined. WO-1008 has 9.0 available hours and 0.0 achieved hours because it was inducted on 2025-03-10 and nobody has booked time. It has no performance factor at all, and a blank cell says exactly that. Infinity would be wrong and zero would be worse.</p>
+  </div>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Remaining To Go</span></div>
+    <pre><code><span class="col">Remaining To Go</span> <span class="op">=</span>
+<span class="k">VAR</span> Forecast <span class="op">=</span> <span class="col">[Projected Hours]</span>
+<span class="k">VAR</span> Booked <span class="op">=</span> <span class="col">[Achieved Hours]</span>
+<span class="k">VAR</span> IsOpen <span class="op">=</span>
+    <span class="k">ISBLANK</span> ( <span class="k">CALCULATE</span> ( <span class="k">MAX</span> ( <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> ) ) )
+<span class="k">RETURN</span>
+    <span class="k">IF</span> (
+        IsOpen <span class="op">&amp;&amp;</span> <span class="k">NOT</span> <span class="k">ISBLANK</span> ( Forecast ),
+        Forecast <span class="op">-</span> Booked
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 2 and 3</div><div class="linex-v">Evaluate both measures once and hold them. Beyond readability this matters because each is referenced below and the engine should not be asked to compute the forecast selection twice.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 4 and 5</div><div class="linex-v">A work order with no closed date is still open. <code>ISBLANK</code> of the maximum closed date in context is the cheapest reliable test, and it correctly returns true for WO-1004 and WO-1008.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 6 to 10</div><div class="linex-v">Two guards, each catching a different wrong number. Without the open test, closed checks report phantom remaining work: WO-1003 would show 16.5 minus 12.5, which is 4.0 hours still to go on a check released on 2025-02-05. The blank test catches nothing this quarter, because the two light work orders and the one line work order are already closed and the open test excludes them anyway. Leave it in. A blank forecast minus booked hours evaluates to the negative of the hours booked. So a line work order still open would report minus 5.0 hours to go against WO-1007's 5.0 booked. A negative remaining figure reaches a customer long before anybody questions it.</div></div>
+    <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">WO-1004 shows 12.0 minus 10.0, which is 2.0 hours, and WO-1008 shows 7.5 minus 0.0, which is 7.5 hours, so open work carries 9.5 hours to go. The unguarded version would have reported 15.5 across the five forecast work orders, of which 6.0 hours belong to checks that finished weeks ago. One caveat, since it will be the first thing anybody notices. Put this measure in a matrix by work order and the total row comes back blank. At the total the filter context still holds closed work orders, so the maximum closed date has a value and the open test fails. Defensible, in that a total mixing open and closed checks answers nothing, but if you want the 9.5 on the total row you have to wrap the whole expression in an iterator over the work orders and pay for the context transition.</div></div>
+  </div>
+
+  <h3>What this dataset cannot show you</h3>
+
+  <p>The production controller asks the question he asks every morning at the stand-up. Is WO-1004 going to make its date? Meridian cannot answer him, and knowing exactly why is worth more to you than a measure that pretends to.</p>
+
+  <p>Everything above reconciles, and it is a small fraction of what a heavy maintenance reporting pack contains. Four gaps, each with the table that would close it.</p>
+
+  <p><strong>No findings or non-routine table.</strong> Meridian has no record of a single non-routine card, and this is the largest gap by a distance. The routine against non-routine split is the central economics of heavy maintenance and usually the central commercial argument too, since checks are typically priced as a fixed sum for the routine content plus a rate for whatever is found. Without it there is no non-routine ratio, no findings per check, no average hours per finding. The 6.5 hour gap between projected 63.5 and available 57.0 stands in for findings here, and it is a poor proxy. It nets increases against decreases. It says nothing about how many findings there were. On WO-1008 it is negative 1.5 hours, which no quantity of findings can produce. What is needed is a table at task card grain carrying the work order, the ATA chapter (the system numbering standard, where chapter 25 is equipment and furnishings), the raise date, a routine or non-routine flag, and estimated and actual hours per card.</p>
+
+  <p><strong>No earned hours, because there is no task card grain.</strong> <code>LaborEntries</code> books time to a work order and a day. It never books time to a card. So there is no way to know which planned work is finished, and no way to compute earned hours. That is the stand-up question answered, and the answer is that you cannot answer it. WO-1004 has booked 10.0 of a projected 12.0 hours, and nothing here tells you whether it is nearly finished or a fifth of the way in with the hard job still to come. Hours booked measures spend. Only earned hours measures progress. Closing the gap needs a task card identifier on the labor row and a card status table with a completion date. Say that to the production controller in those words, and he will know which of his questions your model is allowed to answer.</p>
+
+  <p><strong>No materials forecast.</strong> <code>PartsIssued</code> is actual consumption only. There is no planned or committed materials figure, so the labour triad has no material equivalent and cost per check cannot be split into forecast against actual on the material side. That matters more than it sounds, because long lead items are ordered during pre-input planning, weeks before anybody books an hour against the check. A planned materials line per work order, ideally per part number with a required-by date, would close it.</p>
+
+  <p><strong>No shift pattern, so no schedule adherence.</strong> <code>ShopCapacity</code> gives monthly totals per trade per station. There is no shift roster, no daily capacity curve, no bay occupancy calendar. So you cannot say whether a check is where the plan says it should be on day nine of a twenty-two day visit, which is what schedule adherence means and what production control looks at every morning. You get a monthly average utilisation that hides every peak. The table required is a roster at station, date, trade and available hours, which is also the table that turns the month-grain problem in <a class="xref" href="#ch-16">Chapter 16</a> into a day-grain one that behaves properly.</p>
+
+  <p>The exercise stays useful with all four of those gaps open. The triad is the spine of heavy maintenance reporting. Model three numbers with three grains and three owners correctly, and the rest of the pack is more of the same shape. It does mean you should not expect this model to answer the questions your production controller asks in the morning meeting. It answers a few of them properly, which is a better starting position than answering all of them approximately.</p>
+
+  <p>One boundary to mark before the summary, so you know where the rest of the vocabulary lives. This chapter covers three manhour words: available, projected and achieved. Meridian uses more than three. Demand is what the business asks the shop to deliver, 75.0 hours across the quarter. Attended is the hours the crew are rostered to be present, 109.0. Productivity is the fraction of attended hours that reaches a job card. Meridian sets one factor per service line, and those factors are illustrative values chosen for this example, since every shop sets its own and reviews them periodically. Achievable is attended multiplied by that factor, 87.72 hours, and it is the real ceiling on what the quarter could deliver. Those four words come from the manpower planning tables, and <a class="xref" href="#ch-C">Chapter C</a> takes them apart one at a time. When a number in a planning pack matches nothing in this chapter, that is usually where it came from.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Available is the frozen pre-input plan owned by planning, projected is the live estimate at completion owned by production control, achieved is booked time owned by the timesheet system. Only achieved is a transaction record.</li>
+      <li>The words are not standardised between shops. Write down the local definition of each, get production control to agree it in writing, and put it in the model description and in every measure description.</li>
+      <li>They cannot be three columns on one table: different times, different owners, different levels of detail, and two of the three keep moving after the first is frozen. Their aggregation rules differ too, which is the argument that ends the discussion.</li>
+      <li>Never sum a forecast table. Summing Meridian's eight rows gives 99.5, which no one ever expected. The latest revision per work order gives 63.5. The concept is semi-additive, covered in <a class="xref" href="#ch-16">Chapter 16</a>.</li>
+      <li>Light and line maintenance have no pre-input pack, so their performance factor is undefined and not zero. That is 9.0 achieved hours on light and 5.0 on line, 14.0 in all, with no plan to grade them against. Leave the third argument of <code>DIVIDE</code> out and let the cell go blank.</li>
+      <li>Performance factor 36.0 over 38.0 is 94.7 percent and grades the plan. Forecast accuracy 38.0 over 44.0 is 86.4 percent and grades the forecast. WO-1003 scores 104.0 percent and 75.8 percent on the same check, which is a forecasting problem and not an execution problem.</li>
+      <li>Conform the trade list from both sources, giving five members. Cabin then shows 12.0 planned hours against zero planned capacity, which means nobody planned the people for the cabin retrofit.</li>
+      <li>Pick one system of record per fact and write it down. The one day disagreement on WO-1003 moves the six work order average turnaround from 12.0 to 12.17 days.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="A.html"><span class="pn-dir">Previous</span><span class="pn-t">How an aircraft maintenance shop actually runs</span></a><a class="pn" href="C.html"><span class="pn-dir">Next</span><span class="pn-t">The manhour maze: nine words for nine different numbers</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

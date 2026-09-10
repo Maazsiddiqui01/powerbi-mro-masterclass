@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Who produces which number, and why two of them disagree</title>
+</head>
+<body data-ch="D">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">D</span><span class="tb-title">Who produces which number, and why two of them disagree</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-D">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 0 . The domain</div>
+    <h2 class="chapter-title"><span class="chapter-num">D</span>Who produces which number, and why two of them disagree</h2>
+    <p class="chapter-lede">After this chapter you can name the function that owns every number in the Meridian data, choose the right table for a question without guessing, and explain to a supervisor why his whiteboard and your dashboard are both correct.</p>
+  </div>
+
+  <p class="lead">This is the chapter that answers the question you will ask yourself every day for your first six months: there are fifteen tables and half of them look like they could answer this, so which one do I use? The answer is a habit. Find the function that owns the question, then use that function's table. Learn the habit and the fifteen tables stop competing for the same job.</p>
+
+  <h3>The whiteboard and the dashboard</h3>
+
+  <p>The shift supervisor in the MSP hangar keeps a whiteboard by the office door. Top right corner, in blue marker, he writes the month's heavy maintenance hours. In the first week of February the corner reads 27.0 for January. Your dashboard, the one you inherited on your second day, shows 26.0 for the same month, the same service line, the same station.</p>
+
+  <p>He tells you the dashboard is wrong. He has a reason. He wrote 27.0 down himself, from the figure his department submitted at month end, and he has the email. You did not invent 26.0 either. It is the sum of the hours in the timesheet system, and every one of those hours ties back to a work order you can point at. A work order is one job on one aircraft, identified by a code such as <code>WO-1001</code>.</p>
+
+  <p>Both numbers are right. By the end of this chapter you will know exactly why, you will be able to show the one hour that separates them, and you will have a measure that reports the gap on purpose instead of leaving two people to argue about it in a corridor. A measure is a calculation Power BI works out on demand, inside whatever filters the visual has applied.</p>
+
+  <h3>Five functions, and the number each one hands on</h3>
+
+  <p>Before the whiteboard, a smaller problem. The production controller asks you how many hours were planned for <code>WO-1006</code>. You have two tables open, and both hold a plausible planned figure for that work order. Pick the wrong one and you will be quoting a forecast to a man who is about to commit to a customer date. The way out is to stop looking at the tables and ask who made each number.</p>
+
+  <p>Work in an MRO passes down a chain of functions. MRO stands for maintenance, repair and overhaul, and Meridian Aero Services is one. Each function makes a decision, writes it down, and hands the result to the next one. Every table you have is the residue of one of those handovers.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 940 420" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><text x="26.0" y="30.0" class="d-t" fill="#17160F">Five functions, five systems, and the number each one hands on</text><rect x="26" y="60" width="158" height="128" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><circle cx="46" cy="81" r="9.5" fill="#1B5A68"/><text x="46.0" y="84.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">1</text><text x="62.0" y="85.0" class="d-t" fill="#1B5A68" font-size="11.5">CAMO</text><line x1="26" y1="112" x2="184" y2="112" stroke="#1B5A68" stroke-width="1"/><text x="38.0" y="130.0" class="d-s">decides what is due</text><text x="38.0" y="156.0" class="d-lbl" fill="#77746B">hands on:</text><text x="38.0" y="172.0" class="d-m">work package</text><text x="38.0" y="186.0" class="d-m">task cards</text><path d="M187,124 L200,124" class="d-line-hot" marker-end="url(#ah)"/><rect x="204" y="60" width="158" height="128" rx="5" fill="#F5F0DC" stroke="#78641F" stroke-width="1.6"/><circle cx="224" cy="81" r="9.5" fill="#78641F"/><text x="224.0" y="84.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">2</text><text x="240.0" y="85.0" class="d-t" fill="#78641F" font-size="11.5">Production</text><text x="216.0" y="102.0" class="d-t" fill="#78641F" font-size="11.5">planning</text><line x1="204" y1="112" x2="362" y2="112" stroke="#78641F" stroke-width="1"/><text x="216.0" y="130.0" class="d-s">plans the week and the day</text><text x="216.0" y="156.0" class="d-lbl" fill="#77746B">hands on:</text><text x="216.0" y="172.0" class="d-m">planned hours</text><text x="216.0" y="186.0" class="d-m">the schedule</text><path d="M365,124 L378,124" class="d-line-hot" marker-end="url(#ah)"/><rect x="382" y="60" width="158" height="128" rx="5" fill="#F5F0DC" stroke="#78641F" stroke-width="1.6"/><circle cx="402" cy="81" r="9.5" fill="#78641F"/><text x="402.0" y="84.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">3</text><text x="418.0" y="85.0" class="d-t" fill="#78641F" font-size="11.5">Resource</text><text x="394.0" y="102.0" class="d-t" fill="#78641F" font-size="11.5">scheduling</text><line x1="382" y1="112" x2="540" y2="112" stroke="#78641F" stroke-width="1"/><text x="394.0" y="130.0" class="d-s">converts hours into people</text><text x="394.0" y="156.0" class="d-lbl" fill="#77746B">hands on:</text><text x="394.0" y="172.0" class="d-m">attended hours</text><text x="394.0" y="186.0" class="d-m">productivity factor</text><path d="M543,124 L556,124" class="d-line-hot" marker-end="url(#ah)"/><rect x="560" y="60" width="158" height="128" rx="5" fill="#F5F0DC" stroke="#78641F" stroke-width="1.6"/><circle cx="580" cy="81" r="9.5" fill="#78641F"/><text x="580.0" y="84.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">4</text><text x="596.0" y="85.0" class="d-t" fill="#78641F" font-size="11.5">Production</text><text x="572.0" y="102.0" class="d-t" fill="#78641F" font-size="11.5">control</text><line x1="560" y1="112" x2="718" y2="112" stroke="#78641F" stroke-width="1"/><text x="572.0" y="130.0" class="d-s">runs the check day to day</text><text x="572.0" y="156.0" class="d-lbl" fill="#77746B">hands on:</text><text x="572.0" y="172.0" class="d-m">revised forecast</text><text x="572.0" y="186.0" class="d-m">blockers</text><path d="M721,124 L734,124" class="d-line-hot" marker-end="url(#ah)"/><rect x="738" y="60" width="158" height="128" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><circle cx="758" cy="81" r="9.5" fill="#AE4419"/><text x="758.0" y="84.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">5</text><text x="774.0" y="85.0" class="d-t" fill="#AE4419" font-size="11.5">Production</text><line x1="738" y1="112" x2="896" y2="112" stroke="#AE4419" stroke-width="1"/><text x="750.0" y="130.0" class="d-s">does the work</text><text x="750.0" y="156.0" class="d-lbl" fill="#77746B">hands on:</text><text x="750.0" y="172.0" class="d-m">booked hours</text><text x="750.0" y="186.0" class="d-m">findings</text><path d="M817,188 L817,214 L461,214 L461,232" class="d-line" fill="none" marker-end="url(#ahg)" stroke-dasharray="5 4"/><text x="560.0" y="208.0" class="d-lbl" fill="#77746B">at month end, achieved hours go back to central planning</text><rect x="26.0" y="268.0" width="440.0" height="62.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="40.0" y="290.0" class="d-t" fill="#98281E">Two achieved numbers, both official</text><text x="40.0" y="310.0" class="d-m">timesheet 26.0    departmental submission 27.0    gap 1.0</text><text x="40.0" y="326.0" class="d-s">for heavy maintenance in January</text><rect x="486.0" y="268.0" width="428.0" height="62.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="500.0" y="290.0" class="d-t" fill="#77746B">Why they differ</text><text x="500.0" y="310.0" class="d-s">A late booking was corrected after the submission cutoff.</text><text x="500.0" y="326.0" class="d-s">Neither side is wrong. They were taken at different moments.</text><rect x="26.0" y="344.0" width="888.0" height="62.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="40.0" y="366.0" class="d-t" fill="#2B6140">The rule that follows</text><text x="40.0" y="386.0" class="d-s">Name the system of record for every number, write it in the measure description, and never let one visual mix the two.</text></svg></div><figcaption><span class="fig-num">Figure D.1</span>Which function produces which number, and where the two achieved figures come from.</figcaption></figure>
+
+  <p>Read the five numbered cards left to right. Card 1 is the CAMO, which sits at the customer. Cards 2 to 5 are inside the shop: production planning, resource scheduling, production control, and production itself. The dashed line looping back from under card 5 is the month end consolidation, and it is where the supervisor's 27.0 comes from. The cards below show the January heavy figures, 26.0 against 27.0, and the rule that keeps the pair from wrecking your reports.</p>
+
+  <h4>1. The CAMO decides what is due</h4>
+
+  <p>CAMO stands for Continuing Airworthiness Management Organisation, and it belongs to the operator that owns the aircraft. The CAMO holds the maintenance programme, tracks flight hours and flight cycles, and decides which tasks fall due in which window. It raises a work package and sends it to a shop that has a slot.</p>
+
+  <p>What it hands on: a work package of task cards, with a tail number and a date range attached. A task card is one written instruction for one piece of work. In Meridian the package arrives as a row in <span class="fact-tag">Fact</span> <code>FactWorkOrder</code>: the work order identifier, the registration, the type of work, the opened date and the promised date. The reasoning behind the package stays in the customer's system, where you cannot see it. That is why <code>WO-1006</code> arrives carrying registration <code>N338WA</code>, a tail number missing from your own aircraft list.</p>
+
+  <h4>2. Production planning turns the package into hours</h4>
+
+  <p>The planner turns the work package into a plan. Which task cards, in which week, on which day, and how many manhours each trade needs. A trade is a skill group, such as airframe or avionics. That roll-up by trade is the <strong>available</strong> figure, also called planned or budgeted, and it is frozen at induction so performance has something steady to be measured against.</p>
+
+  <p>What it hands on: planned hours by work order and trade, plus the weekly and daily schedule the hangar works to. In Meridian that is <span class="fact-tag">Fact</span> <code>FactPreInput</code>, eight rows, one per work order per trade, totalling 57.0 hours. Only heavy and cabin work orders appear there, because light and line work arrive as defects and nobody planned them in hours.</p>
+
+  <h4>3. Resource scheduling turns hours into people</h4>
+
+  <p>Ten planned hours need more than ten hours of people. A shift contains briefings, tool collection, a walk to the stand, waiting for access and paperwork, and none of that lands on a job card. A job card is the piece of paperwork a technician books time against.</p>
+
+  <p>Resource scheduling works out how many attended hours it must roster to deliver the planned hours. <strong>Attended hours</strong> means hours a person is rostered to be at work. The conversion uses a <strong>productivity factor</strong>, the fraction of attended time that reaches a job card. Meridian uses 0.88 for heavy and 0.68 for line, light, and cabin and IFE. Those two values are illustrative and they belong to the Meridian example. Every shop sets its own. Heavy is normally the higher, because a hangar crew works a continuous shift on one aircraft while a line crew waits on arrivals.</p>
+
+  <p>What it hands on: a roster by trade and skill, and the productivity factor that converts it. In Meridian that is <code>CrewRoster</code> at 109.0 attended hours, <code>ProductivityFactor</code> with the four values, and <code>CrewAssignment</code>, which records the crew each technician belongs to. Multiply attended hours by the productivity factor, one service line and one month at a time, then add the six results up. That gives the <strong>achievable</strong> figure, 87.72 hours, the real ceiling on what the shop can deliver. Add the attended hours up first and multiply once, and the answer changes, because the six rows do not share one factor.</p>
+
+  <h4>4. Production control runs the check day to day</h4>
+
+  <p>Once the aircraft is in the bay, control takes over. It watches progress against the plan, chases blockers, decides whether to add or remove content, and revises the expected total as findings land. A finding is work a technician discovers that no task card covered. Many shops call this function the HMCC, the Heavy Maintenance Control Centre. Others call it production control. The acronym travels badly, the function does not.</p>
+
+  <p>What it hands on: the control board, and the revised forecast. In Meridian the board is <code>HMCCSchedule</code>, which carries the service line, the check type, the customer, the bay, and the planned start and finish. A service line is the kind of maintenance being done, and Meridian has four: Heavy, Light, Line, and Cabin and IFE. The forecast is <span class="fact-tag">Fact</span> <code>FactForecast</code>, one row per work order per revision, where the latest revision per work order totals 63.5 hours. Sum all eight rows and you get 99.5, a number that describes nothing that ever happened.</p>
+
+  <h4>5. Production does the work and books the hours</h4>
+
+  <p>Technicians work the cards and book their time. When they find something a routine card does not cover, they raise a non-routine card and book time to that. Stores issues the parts. This is the only step in the chain that records events. Every other step records an intention.</p>
+
+  <p>What it hands on: booked hours and issued parts. In Meridian that is <span class="fact-tag">Fact</span> <code>FactLabor</code>, eight rows at one row per technician per work order per day, totalling 62.0 hours, and <span class="fact-tag">Fact</span> <code>FactParts</code>. The word for these hours is <strong>achieved</strong>, and they are the only genuine transaction record among the manhour numbers.</p>
+
+  <h4>The loop: month end consolidation</h4>
+
+  <p>At month end each department reports its own achieved hours to a central planning function, which consolidates them and compares them against the demand it issued. In Meridian the demand is <code>RPODemand</code> at 75.0 hours and the consolidated return is <code>DeptSubmission</code> at 63.0 hours. That return holds the 27.0 on the supervisor's whiteboard.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table D.1</span> The chain of functions, what each one decides, and the Meridian table that carries its output.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Function</th>
+            <th scope="col">What it decides</th>
+            <th scope="col">What it hands on</th>
+            <th scope="col">Meridian table</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">CAMO (at the customer)</th>
+            <td>What maintenance is due, and when</td>
+            <td>The work package and its task cards</td>
+            <td class="key">FactWorkOrder</td>
+          </tr>
+          <tr>
+            <th scope="row">Production planning</th>
+            <td>How long the package should take, by trade</td>
+            <td>Available hours, weekly and daily plan</td>
+            <td class="key">FactPreInput</td>
+          </tr>
+          <tr>
+            <th scope="row">Resource scheduling</th>
+            <td>How many people to roster, and on which crew</td>
+            <td>Attended hours, productivity factor, crews</td>
+            <td class="key">CrewRoster, ProductivityFactor, CrewAssignment</td>
+          </tr>
+          <tr>
+            <th scope="row">Production control</th>
+            <td>Where the check actually is, and what it will now take</td>
+            <td>Service line and bay, revised forecast</td>
+            <td class="key">HMCCSchedule, FactForecast</td>
+          </tr>
+          <tr>
+            <th scope="row">Production</th>
+            <td>Nothing. It executes and records</td>
+            <td>Achieved hours, parts issued, findings</td>
+            <td class="key">FactLabor, FactParts</td>
+          </tr>
+          <tr>
+            <th scope="row">Central planning</th>
+            <td>What the shop was asked for, and what it reports back</td>
+            <td>Demand, and the consolidated month end figure</td>
+            <td class="key">RPODemand, DeptSubmission</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>So the production controller gets his answer. Planning made the available figure, so the planned hours for <code>WO-1006</code> come from <code>FactPreInput</code>. Control made the forecast, so anything the controller wants about what the check will now take comes from <code>FactForecast</code> at its latest revision. Two tables, two authors, two moments. Tell him which of the two he is getting before he writes it down.</p>
+
+  <p>You will not meet all six of the functions in Table D.1 in your first month. Production planning and resource scheduling find you first, because they want a weekly pack on Monday morning. Production control comes next, usually asking why the forecast on their spreadsheet does not match the forecast on your page. Production engineering, which writes the task cards and sets the standard times behind the planner's estimates, comes later. Meridian holds no table for engineering, so its work reaches you second hand, baked into the hours in <code>FactPreInput</code>. Worth knowing before you promise anybody an analysis of estimate quality.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Before you use a table for the first time, find out three things: which function produces it, on what day of the month they cut it off, and whether anything ever changes after the cutoff. The first two take one conversation. The third is the one that decides whether your numbers will tie out, and almost nobody volunteers it.</p>
+  </aside>
+
+  <h3>The ownership rule</h3>
+
+  <p>Here is the rule, stated plainly, and it is the answer to the question at the top of the chapter.</p>
+
+  <p><strong>Every number has exactly one function that owns it. The table you should use is the one owned by the function that owns the question.</strong></p>
+
+  <p>Work the rule backwards from the question. Somebody asks how many hours heavy maintenance planned for a check. Planning owns planning, so the answer lives in <code>FactPreInput</code> and nowhere else. Somebody asks what the check is now expected to take. That is control's number, so it lives in <code>FactForecast</code>. The same question with a different verb lands on a different table, and the verb is the clue.</p>
+
+  <dl class="defs">
+    <dt>Owning function</dt><dd>The function whose job it is to decide the number. Plenty of other functions report it and complain about it; the owner is the one that sets it.</dd>
+    <dt>System of record</dt><dd>The one table you have declared to be the truth for a given measure. Every other table holding a similar number is a copy, a forecast, or a snapshot of a different moment.</dd>
+    <dt>Cutoff</dt><dd>The moment a function stops collecting and publishes. Anything corrected after the cutoff lives in the source system and stays out of the published figure.</dd>
+    <dt>Work type</dt><dd>The service line of the work order, from the control board. What kind of work was performed.</dd>
+    <dt>Owning crew</dt><dd>The service line of the crew a technician belongs to, from the roster. Whose people did the work.</dd>
+  </dl>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table D.2</span> Twelve questions, the function that owns each one, and the table people reach for by mistake.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">The question</th>
+            <th scope="col">Who owns it</th>
+            <th scope="col">Table to use</th>
+            <th scope="col">Reached for first, wrongly</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">How many hours were planned for this check?</th>
+            <td>Production planning</td>
+            <td class="key">FactPreInput</td>
+            <td class="key muted">FactForecast Rev 0</td>
+          </tr>
+          <tr>
+            <th scope="row">What do we now expect it to take?</th>
+            <td>Production control</td>
+            <td class="key">FactForecast, latest revision</td>
+            <td class="key muted">FactPreInput</td>
+          </tr>
+          <tr>
+            <th scope="row">How many hours were booked last week?</th>
+            <td>Production, via the timesheet system</td>
+            <td class="key">FactLabor</td>
+            <td class="key muted">DeptSubmission</td>
+          </tr>
+          <tr>
+            <th scope="row">What did heavy maintenance report for January?</th>
+            <td>The department, consolidated by central planning</td>
+            <td class="key">DeptSubmission</td>
+            <td class="key muted">FactLabor</td>
+          </tr>
+          <tr>
+            <th scope="row">How many attended hours are rostered next month?</th>
+            <td>Resource scheduling</td>
+            <td class="key">CrewRoster</td>
+            <td class="key muted">FactCapacity</td>
+          </tr>
+          <tr>
+            <th scope="row">How many trade hours can the station supply?</th>
+            <td>Production planning, in the monthly capacity workbook</td>
+            <td class="key">FactCapacity</td>
+            <td class="key muted">CrewRoster</td>
+          </tr>
+          <tr>
+            <th scope="row">Which service line was this work order?</th>
+            <td>Production control, on the HMCC board</td>
+            <td class="key">HMCCSchedule, merged onto FactWorkOrder</td>
+            <td class="key muted">CrewCodeMap</td>
+          </tr>
+          <tr>
+            <th scope="row">Whose crew did the work?</th>
+            <td>Resource scheduling</td>
+            <td class="key">CrewAssignment plus CrewCodeMap</td>
+            <td class="key muted">HMCCSchedule</td>
+          </tr>
+          <tr>
+            <th scope="row">When did the aircraft actually arrive?</th>
+            <td>Production, at induction</td>
+            <td class="key">FactWorkOrder[OpenedDate]</td>
+            <td class="key muted">HMCCSchedule[PlannedStart]</td>
+          </tr>
+          <tr>
+            <th scope="row">When was the check promised to the customer?</th>
+            <td>Commercial, recorded on the work order</td>
+            <td class="key">FactWorkOrder[PromisedDate]</td>
+            <td class="key muted">FactWorkOrder[ClosedDate]</td>
+          </tr>
+          <tr>
+            <th scope="row">How much demand is heavy being asked to absorb?</th>
+            <td>Central planning</td>
+            <td class="key">RPODemand</td>
+            <td class="key muted">FactPreInput</td>
+          </tr>
+          <tr>
+            <th scope="row">Which technicians hold an Avionics authorisation?</th>
+            <td>HR and the licence register</td>
+            <td class="key">DimTechnician plus BridgeTechCert</td>
+            <td class="key muted">CrewCodeMap, because a crew is named Avionics Heavy</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Read the last row twice. <code>CrewCodeMap</code> contains a crew called Avionics Heavy, which is a statement about a roster. A crew name describes where somebody is scheduled. A certification describes what somebody is licensed to sign. Two facts, two owning functions, and the only reason they look alike is that a scheduler picked a readable name.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>When somebody asks which table you would use, answer with a function before you answer with a table. Saying "planning owns the planned hours, so <code>FactPreInput</code>, and I would confirm the cutoff with the planner" is a completely different answer from "<code>FactPreInput</code>, I think". The first one tells the room you know the number has an author. The second one is a guess that happened to be right.</p>
+  </aside>
+
+  <h3>The two achieved numbers</h3>
+
+  <p>Back to the whiteboard. The supervisor's 27.0 and your 26.0 are both achieved hours for heavy maintenance in January. They come from two tables, produced by two functions, at two different moments.</p>
+
+  <p>Your 26.0 is the timesheet total. Add the January labour rows on heavy work orders: <code>WO-1001</code> took 13.5 hours and <code>WO-1003</code> took 12.5, which is 26.0. His 27.0 is the figure his department submitted to central planning at month end, and it sits in <code>DeptSubmission</code>.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table D.3</span> Timesheet achieved against departmental submission, by service line and month. One row disagrees.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Service line</th>
+            <th scope="col">Month</th>
+            <th scope="col" class="num">Timesheet, FactLabor</th>
+            <th scope="col" class="num">Submitted, DeptSubmission</th>
+            <th scope="col" class="num">Gap</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-bad">
+            <th scope="row">Heavy</th>
+            <td>2025-01</td>
+            <td class="num">26.0</td>
+            <td class="num">27.0</td>
+            <td class="num cell-bad">1.0</td>
+          </tr>
+          <tr>
+            <th scope="row">Light</th>
+            <td>2025-01</td>
+            <td class="num">9.0</td>
+            <td class="num">9.0</td>
+            <td class="num">0.0</td>
+          </tr>
+          <tr>
+            <th scope="row">Heavy</th>
+            <td>2025-02</td>
+            <td class="num">12.0</td>
+            <td class="num">12.0</td>
+            <td class="num">0.0</td>
+          </tr>
+          <tr>
+            <th scope="row">Cabin and IFE</th>
+            <td>2025-02</td>
+            <td class="num">10.0</td>
+            <td class="num">10.0</td>
+            <td class="num">0.0</td>
+          </tr>
+          <tr>
+            <th scope="row">Line</th>
+            <td>2025-03</td>
+            <td class="num">5.0</td>
+            <td class="num">5.0</td>
+            <td class="num">0.0</td>
+          </tr>
+          <tr>
+            <th scope="row">Heavy</th>
+            <td>2025-03</td>
+            <td class="num">0.0</td>
+            <td class="num">0.0</td>
+            <td class="num">0.0</td>
+          </tr>
+          <tr class="row-total">
+            <td>Total</td>
+            <td></td>
+            <td class="num">62.0</td>
+            <td class="num">63.0</td>
+            <td class="num">1.0</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>One hour, in one cell, out of six. The cause is a booking corrected after the submission cutoff. On the last working day of January the department counted its hours and sent 27.0 upward. Days later a booking was corrected in the timesheet system and January heavy settled at 26.0. By then the submission was consolidated and quoted in a meeting, and nobody reopens a closed month to move one hour.</p>
+
+  <p>So the shop holds two achieved figures for the same month and both are defensible. The submission is the number the business reports. The timesheet is the number that reconciles back to individual work orders. Here is the general shape, and you will meet it every month of your career: <strong>two numbers taken at different moments are both correct, and a dashboard that mixes them will not tie out.</strong></p>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Timesheet, Q1</div><div class="kv-v">62.0 hours</div></div>
+    <div class="kv-item"><div class="kv-k">Submitted, Q1</div><div class="kv-v">63.0 hours</div></div>
+    <div class="kv-item"><div class="kv-k">Gap</div><div class="kv-v">1.0 hour, heavy, January</div></div>
+    <div class="kv-item"><div class="kv-k">Reconciles to work orders</div><div class="kv-v">Timesheet only</div></div>
+  </div>
+
+  <h4>The guidance, in three parts</h4>
+
+  <ol class="steps">
+    <li>Pick one table as the system of record for each measure and write down why. For hours by work order, aircraft or technician, use the timesheet, because the submission has no work order key and cannot go there. For the monthly pack central planning consolidates, use the submission, because that is what the business already published.</li>
+    <li>Name the system of record in the measure name and repeat it in the measure description. Call them <code>Achieved Hours (Timesheet)</code> and <code>Achieved Hours (Submitted)</code>. A report author who drags a field called Achieved Hours has no way of knowing which one arrived.</li>
+    <li>Never let one visual mix them. Two cards side by side is fine and honest. One card that switches source depending on whether the month is closed is a trap you will spring on yourself in about four months, when somebody asks why the year total does not equal the sum of the months.</li>
+  </ol>
+
+  <p>Then go one step further and report the gap on purpose. A variance you publish is a data quality control. A variance you hide is a phone call. The three measures below are written in DAX, the formula language you write Power BI measures in.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">The two achieved measures and the variance between them</span></div>
+    <pre><code><span class="col">Achieved Hours (Timesheet)</span> <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )
+
+<span class="col">Achieved Hours (Submitted)</span> <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">DeptSubmission</span><span class="col">[SubmittedHours]</span> )
+
+<span class="col">Submission Variance</span> <span class="op">=</span>
+    <span class="k">VAR</span> Submitted <span class="op">=</span> <span class="col">[Achieved Hours (Submitted)]</span>
+    <span class="k">VAR</span> Booked <span class="op">=</span> <span class="col">[Achieved Hours (Timesheet)]</span>
+    <span class="k">RETURN</span>
+        <span class="k">IF</span> (
+            <span class="k">NOT</span> <span class="k">ISBLANK</span> ( Submitted ) <span class="op">||</span> <span class="k">NOT</span> <span class="k">ISBLANK</span> ( Booked ),
+            Submitted <span class="op">-</span> Booked
+        )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 1 to 2</div><div class="linex-v">The timesheet measure. <code>SUM</code> reads one stored column and the storage engine aggregates it in a single scan. <code>SUMX</code> would iterate row by row, which you need only when the value has to be computed per row, such as hours multiplied by rate.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 4 to 5</div><div class="linex-v">The submission measure, over a different table. <code>DeptSubmission</code> sits at service line and month grain, and grain means the level of detail one row represents. So it relates to <code>DimServiceLine</code> and to the month column of your date table. Put it on a day-level axis and every day except the first of the month comes back blank. That grain behaviour is <a class="xref" href="#ch-16">Chapter 16</a>.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 8 to 9</div><div class="linex-v">Two <code>VAR</code> declarations. Each measure is evaluated once and reused twice, which keeps the code readable and stops the engine being asked the same question again.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 10 to 14</div><div class="linex-v">The guard. If both sides are blank there is nothing to compare, and the measure stays blank. If either side has a value, the subtraction runs.</div></div>
+    <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">Heavy January returns 1.0. Every other populated row returns 0.0. Heavy March returns 0.0, because the department submitted a real zero and the timesheet has no rows, and those two statements agree. Light in March returns blank, because neither side has anything to say.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p>Use <code>ISBLANK</code> here. A test for zero collapses two different situations into one answer, and the data proves it. Heavy in March was submitted as 0.0, a deliberate statement that the department did no heavy work. Light in March was never submitted at all. Test for zero and both cases return the same result, so the variance matrix paints a confident 0.0 across cells holding no data. The same reasoning is why <code>IF</code> wraps the subtraction: blank minus blank returns 0.0, and every empty cell would report perfect agreement.</p>
+  </div>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Averaging the two numbers, or quietly taking the larger one, to make a card agree with a meeting pack. It works for exactly one month. Then a correction runs the other way, the average lands between two figures that both exist in writing, and you now have a third number that no function in the shop owns and nobody can reproduce.</p>
+  </aside>
+
+  <h3>The two routes to service line</h3>
+
+  <p>Now the sharper version of the same problem, and the one that will cost you the most time if you meet it unprepared.</p>
+
+  <p>The production controller asks a question that sounds simple. How many hours went to heavy maintenance in the quarter? You have two ways to answer it, and both of them are already built into your model.</p>
+
+  <p><strong>Route A goes through the work order.</strong> Start at <code>FactLabor</code>, follow the work order key to <code>FactWorkOrder</code>, and read the service line that came from the HMCC board on <code>HMCCSchedule</code>. Every labour row inherits the service line of the job it was booked to.</p>
+
+  <p><strong>Route B goes through the technician.</strong> Start at <code>FactLabor</code>, follow the technician key to <code>DimTechnician</code>, look up the crew in <code>CrewAssignment</code>, then translate the crew code into a service line with <code>CrewCodeMap</code>. Every labour row inherits the service line of the crew that booked it.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table D.4</span> Route A, hours by the service line of the work order. What work was done.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Service line</th><th scope="col" class="num">Hours</th><th scope="col">Work orders</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Heavy</th><td class="num">38.0</td><td class="key">WO-1001 13.5, WO-1003 12.5, WO-1006 12.0, WO-1008 0</td></tr>
+          <tr><th scope="row">Light</th><td class="num">9.0</td><td class="key">WO-1002 9.0, WO-1005 0</td></tr>
+          <tr><th scope="row">Line</th><td class="num">5.0</td><td class="key">WO-1007 5.0</td></tr>
+          <tr><th scope="row">Cabin and IFE</th><td class="num">10.0</td><td class="key">WO-1004 10.0</td></tr>
+          <tr class="row-total"><td>Total</td><td class="num">62.0</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table D.5</span> Route B, hours by the service line of the crew the technician belongs to. Whose crew did it.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Service line of the crew</th><th scope="col" class="num">Hours</th><th scope="col">Technicians</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Heavy</th><td class="num">28.5</td><td class="key">TECH-01 12.0, TECH-02 16.5, TECH-03 0</td></tr>
+          <tr><th scope="row">Cabin and IFE</th><td class="num">10.5</td><td class="key">TECH-04 10.5</td></tr>
+          <tr><th scope="row">Line</th><td class="num">13.0</td><td class="key">TECH-05 13.0</td></tr>
+          <tr><th scope="row">Light</th><td class="num">0.0</td><td class="key">TECH-06 0</td></tr>
+          <tr class="row-bad"><th scope="row">Unmapped, shows as blank</th><td class="num cell-bad">10.0</td><td class="key">TECH-07 on crew CRW-XX9</td></tr>
+          <tr class="row-total"><td>Total</td><td class="num">62.0</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>Two pages of the same report, built by two people six weeks apart, both with a bar labelled Heavy. One says 38.0 hours and one says 28.5. Both totals are 62.0, which is the detail that makes the argument last for months: neither side is losing hours, so neither side can be shown to be broken.</p>
+  </div>
+
+  <h4>Why the two routes disagree</h4>
+
+  <p>The gap on heavy is 38.0 minus 28.5, which is 9.5 hours, and you can name every one of them. The heart of it is <code>TECH-04</code>, who sits on the cabin crew, <code>CRW-CAB</code>. In January he booked 6.0 hours to <code>WO-1001</code> and 4.5 hours to <code>WO-1003</code>. Both are heavy C-checks. Route A counts those 10.5 hours as heavy because heavy is what the work was. Route B counts them as cabin and IFE because cabin is whose person did it.</p>
+
+  <p>Two more movements complete the picture. <code>TECH-02</code> is on an airframe heavy crew and booked 9.0 hours to <code>WO-1002</code>, a light maintenance defect job, so route B pulls those hours into heavy. <code>TECH-05</code> is on the line crew and booked 8.0 hours to the heavy check <code>WO-1003</code>, so route B moves those into line. Route B heavy is 7.5 plus 12.0 plus 9.0, which is 28.5.</p>
+
+  <details class="expand" open>
+    <summary>Trace this by hand, all eight labour rows</summary>
+    <div class="expand-body">
+      <p>Eight rows is small enough to check with a pencil, and doing it once saves you an afternoon later. Read the two service line columns against each other. Wherever they differ, a technician worked off their own crew's service line.</p>
+      <figure class="tbl">
+        <figcaption><span class="tbl-num">Table D.6</span> Every labour row, with the service line each route assigns to it.</figcaption>
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr>
+                <th scope="col">Labour row</th>
+                <th scope="col">Work order</th>
+                <th scope="col">Route A, work type</th>
+                <th scope="col">Technician</th>
+                <th scope="col">Crew</th>
+                <th scope="col">Route B, owning crew</th>
+                <th scope="col" class="num">Hours</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="key">L-501</td><td class="key">WO-1001</td><td>Heavy</td><td class="key">TECH-02</td><td class="key">CRW-AF1</td><td>Heavy</td><td class="num">7.5</td></tr>
+              <tr class="row-bad"><td class="key">L-502</td><td class="key">WO-1001</td><td>Heavy</td><td class="key">TECH-04</td><td class="key">CRW-CAB</td><td class="cell-bad">Cabin and IFE</td><td class="num">6.0</td></tr>
+              <tr class="row-bad"><td class="key">L-503</td><td class="key">WO-1002</td><td>Light</td><td class="key">TECH-02</td><td class="key">CRW-AF1</td><td class="cell-bad">Heavy</td><td class="num">9.0</td></tr>
+              <tr class="row-bad"><td class="key">L-504</td><td class="key">WO-1003</td><td>Heavy</td><td class="key">TECH-05</td><td class="key">CRW-LN1</td><td class="cell-bad">Line</td><td class="num">8.0</td></tr>
+              <tr class="row-bad"><td class="key">L-505</td><td class="key">WO-1003</td><td>Heavy</td><td class="key">TECH-04</td><td class="key">CRW-CAB</td><td class="cell-bad">Cabin and IFE</td><td class="num">4.5</td></tr>
+              <tr class="row-bad"><td class="key">L-506</td><td class="key">WO-1004</td><td>Cabin and IFE</td><td class="key">TECH-07</td><td class="key">CRW-XX9</td><td class="cell-bad">(blank, unmapped)</td><td class="num">10.0</td></tr>
+              <tr><td class="key">L-507</td><td class="key">WO-1006</td><td>Heavy</td><td class="key">TECH-01</td><td class="key">CRW-AF1</td><td>Heavy</td><td class="num">12.0</td></tr>
+              <tr><td class="key">L-508</td><td class="key">WO-1007</td><td>Line</td><td class="key">TECH-05</td><td class="key">CRW-LN1</td><td>Line</td><td class="num">5.0</td></tr>
+              <tr class="row-total"><td>Total</td><td></td><td></td><td></td><td></td><td></td><td class="num">62.0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+      <p>Five of the eight rows are tinted, and that tells you something real: Meridian moves people across service lines constantly. The tinted hours add to 6.0 plus 9.0 plus 8.0 plus 4.5 plus 10.0, which is 37.5 of the 62.0 hours. Sixty percent of the quarter changes service line depending on the route you take.</p>
+      <p>One note on <code>L-505</code>. Its technician identifier arrives as TECH-04 with a trailing space, which looks identical in any table visual and matches nothing on join. Power Query trims it. Without the trim, those 4.5 hours leave <code>TECH-04</code> and land in a blank technician row, so route B would report cabin and IFE at 6.0 instead of 10.5. Route A would not flinch, because it reads the work order key and never touches the technician key. Both routes would still total 62.0, so no total would reveal it. Orphan keys and blank rows are <a class="xref" href="#ch-19">Chapter 19</a>.</p>
+    </div>
+  </details>
+
+  <h4>The resolution: two questions, two measure names</h4>
+
+  <p>Both routes are correct. They answer two different questions that happen to share a word.</p>
+
+  <ul class="list">
+    <li>Route A answers <strong>what work was done</strong>. Use it for capacity against demand, for customer reporting, for turnaround time, and for anything that compares hours against the planned hours on a check, because the plan was written per work order.</li>
+    <li>Route B answers <strong>whose crew did it</strong>. Use it for roster efficiency, for the productivity factor, for headcount conversations, and for anything the resource scheduler owns, because the roster is written per crew.</li>
+  </ul>
+
+  <p>Build both, name them for the question, and put the route in the description where a report author sees it on hover. <code>Hours by Work Type</code> and <code>Hours by Owning Crew</code> are good names because neither can be shortened to Heavy hours by somebody in a hurry. Calling either one Heavy hours without qualification is how two reports end up disagreeing forever, one number on the operations page and another on the manpower page, with no note saying they were never meant to match.</p>
+
+  <p>So the production controller gets a straight answer at last. If he is asking what work the shop did, it is 38.0 hours. If he is asking what his heavy crews spent their time on, it is 28.5. Ask him which one he wants before you open the report, and the number stops moving between meetings.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Two routes, two measures, each refusing the other's axis</span></div>
+    <pre><code><span class="col">Hours by Work Type</span> <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ),
+        <span class="k">REMOVEFILTERS</span> ( <span class="t">DimTechnician</span><span class="col">[OwningServiceLine]</span> )
+    )
+
+<span class="col">Hours by Owning Crew</span> <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ),
+        <span class="k">REMOVEFILTERS</span> ( <span class="t">DimServiceLine</span><span class="col">[ServiceLine]</span> )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">The model behind it</div><div class="linex-v"><code>DimServiceLine</code> relates to <code>FactWorkOrder[ServiceLine]</code>, which arrived when <code>HMCCSchedule</code> was merged onto the work order in Power Query. <code>DimTechnician[OwningServiceLine]</code> is a plain text column on the technician dimension, filled in by merging <code>CrewAssignment</code> and then <code>CrewCodeMap</code>. Two separate columns, two separate axes.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 1 to 5</div><div class="linex-v"><code>CALCULATE</code> is here because nothing else in DAX can change the filter context, and changing it is the whole job. Hours by work type, with the crew column's filter removed. Drop this measure into a matrix that has owning crew on rows and every row shows 38.0 for heavy, which looks odd and is meant to. The repeated value is the measure telling you that this axis does not belong to it.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 7 to 11</div><div class="linex-v">The mirror image. Hours by owning crew ignores any selection on the work order's service line, so it cannot be silently narrowed by a slicer somebody left on another page.</div></div>
+    <div class="linex-row"><div class="linex-k">What you must not build</div><div class="linex-v">A relationship from <code>DimServiceLine</code> to the technician's crew column. That would give the model two paths from one dimension to <code>FactLabor</code>, one through the work order and one through the technician, and Power BI will refuse to activate the second. Two paths, two possible answers, and the engine will not guess. That is <a class="xref" href="#ch-08">Chapter 8</a>.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>REMOVEFILTERS</code> rather than <code>ALL</code>, even though both clear the filter on that column. <code>ALL</code> has two jobs in DAX: it acts as a <code>CALCULATE</code> modifier here, and elsewhere it returns a table you can iterate. A reader of your code has to work out which job it is doing on this line. <code>REMOVEFILTERS</code> has only the one job, so the intent is on the page. Also note that both take a column and not the table. <code>REMOVEFILTERS ( DimTechnician )</code> would clear <code>EmployeeType</code> and <code>HomeStation</code> as well, and a user filtering to contract staff would get a number that silently included the staff technicians.</p>
+  </div>
+
+  <p>Now the inconvenient part. Those two measures refuse each other's axis, and once in a while the cross tabulation is exactly what somebody needs. The cell where work type is heavy and owning crew is cabin and IFE holds <code>TECH-04</code>'s 10.5 hours, which is the best evidence you will ever have that the cabin crew is propping up the hangar. When you need that view, build a third measure with no modifiers, call it <code>Hours by Work Type and Crew</code>, and give it its own page with a title that explains the cells. Three measures is more work. It is also the only version that survives a year of other people using your report.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>Flattening <code>CrewAssignment</code> and <code>CrewCodeMap</code> into one column on <code>DimTechnician</code> at refresh removes two joins from every query that slices by owning crew. Be honest about the size of that win: at seven technicians it is unmeasurable, and even at four thousand the two lookups are cheap, because they run on the one side of the relationship. Do it for clarity and to avoid a second filter path, and expect no visible speed change. The cost that matters sits on the relationship from <code>DimTechnician</code> to <code>FactLabor</code>, and this changes nothing there.</p>
+  </aside>
+
+  <h3>The crew code map, and why it is the most fragile object you own</h3>
+
+  <p>The manpower page has carried a bar with no label for two months. The bar is worth 10.0 hours. Nobody has asked about it, because a blank bar looks like a rendering fault and readers scroll past it. Those 10.0 hours belong to one technician, and the reason they have no home is a six row table that you typed yourself.</p>
+
+  <p>Route B depends on two small tables. Here they are in full, because you should see how little stands behind a number that appears on a manpower page every month.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table D.7</span> CrewAssignment, from the roster system. One row per technician.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">TechnicianID</th><th scope="col">CrewCode</th></tr></thead>
+        <tbody>
+          <tr><td class="key">TECH-01</td><td class="key">CRW-AF1</td></tr>
+          <tr><td class="key">TECH-02</td><td class="key">CRW-AF1</td></tr>
+          <tr><td class="key">TECH-03</td><td class="key">CRW-AV1</td></tr>
+          <tr><td class="key">TECH-04</td><td class="key">CRW-CAB</td></tr>
+          <tr><td class="key">TECH-05</td><td class="key">CRW-LN1</td></tr>
+          <tr><td class="key">TECH-06</td><td class="key">CRW-LT1</td></tr>
+          <tr class="row-bad"><td class="key">TECH-07</td><td class="key cell-bad">CRW-XX9</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table D.8</span> CrewCodeMap. No system produces this. You do.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">CrewCode</th><th scope="col">CrewName</th><th scope="col">ServiceLine</th></tr></thead>
+        <tbody>
+          <tr><td class="key">CRW-AF1</td><td>Airframe Heavy</td><td>Heavy</td></tr>
+          <tr><td class="key">CRW-AV1</td><td>Avionics Heavy</td><td>Heavy</td></tr>
+          <tr><td class="key">CRW-CAB</td><td>Cabin and IFE</td><td>Cabin and IFE</td></tr>
+          <tr><td class="key">CRW-LN1</td><td>Line Operations</td><td>Line</td></tr>
+          <tr><td class="key">CRW-LT1</td><td>Light Maintenance A</td><td>Light</td></tr>
+          <tr class="row-bad"><td class="key">CRW-LT2</td><td>Light Maintenance B</td><td>Light</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p><span class="derived-tag">Built</span> <code>CrewCodeMap</code> is a table you typed. The roster system issues crew codes and knows nothing about service lines. The HMCC board knows service lines and nothing about crews. Somebody has to join the two vocabularies, and at Meridian that somebody is the analyst. Building a dimension your source does not contain is a normal move, covered in <a class="xref" href="#ch-03">Chapter 3</a>. What makes this one dangerous is that it has no owner and no test, while everything downstream looks as solid as any other column in the model.</p>
+
+  <p>Two problems are already sitting in these seven and six rows.</p>
+
+  <ul class="list">
+    <li><strong><code>CRW-XX9</code> is missing from the map.</strong> <code>TECH-07</code> belongs to it and booked 10.0 hours to <code>WO-1004</code>, so those hours land in a blank service line on every route B visual. That is the unlabelled bar from the top of this section. Route B still totals 62.0, and a sixth of the quarter sits in a bucket with no name.</li>
+    <li><strong><code>CRW-LT2</code> is in the map and nobody is on it.</strong> Light Maintenance B has no technician assigned, so it is a mapping row with no facts. Harmless, until somebody sees it on a slicer, selects it, gets an empty page, and asks whether the report is broken.</li>
+  </ul>
+
+  <p>The first problem is the one to fear. It is silent, it grows, and because you own the map, nobody else in the building will fix it. Write the check yourself and let it tell you before the business does.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">Crew codes assigned but not mapped</span></div>
+    <pre><code><span class="k">let</span>
+    Source <span class="op">=</span> <span class="t">CrewAssignment</span>,
+    Anti <span class="op">=</span> <span class="k">Table.NestedJoin</span> (
+        Source, {<span class="s">"CrewCode"</span>},
+        <span class="t">CrewCodeMap</span>, {<span class="s">"CrewCode"</span>},
+        <span class="s">"MapRows"</span>, <span class="k">JoinKind.LeftAnti</span>
+    ),
+    Kept <span class="op">=</span> <span class="k">Table.SelectColumns</span> ( Anti, {<span class="s">"TechnicianID"</span>, <span class="s">"CrewCode"</span>} )
+<span class="k">in</span>
+    Kept</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v">Start from the roster side, because the roster is the list that grows. A new crew code appears there first and reaches your map only when somebody tells you.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 3 to 7</div><div class="linex-v"><code>Table.NestedJoin</code> with <code>JoinKind.LeftAnti</code> keeps the rows on the left that found no match on the right. This is the step the Merge dialog writes when you pick Left Anti, and it is worth reading in the formula bar so you recognise it later. The alternative, <code>Table.SelectRows</code> with <code>List.Contains</code>, gives the same answer and scans the map list once per row, which is fine at six rows and painful at six thousand.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 8</div><div class="linex-v">Keep the technician as well as the code. A code on its own tells you something is missing. A code with a name attached tells you who to ask.</div></div>
+    <div class="linex-row"><div class="linex-k">Result today</div><div class="linex-v">One row. <code>TECH-07</code> on <code>CRW-XX9</code>. Load it as its own small table and put it on a data quality page as a table visual with a card showing the row count.</div></div>
+  </div>
+
+  <p>Run the same join with the sides swapped and you get the opposite problem, crew codes you have mapped that nobody is on, which today returns <code>CRW-LT2</code>. That one is a tidiness issue, so a quarterly review is enough.</p>
+
+  <p>The Power Query check runs at refresh. You also want a number on the page saying how much of the business is parked in the blank, because a count of codes does not tell anybody whether it matters. One unmapped code covering a technician who books nothing is a note. One covering ten hours a month is a hole in the manpower report.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Unmapped crew codes, and the hours sitting behind them</span></div>
+    <pre><code><span class="col">Unmapped Crew Codes</span> <span class="op">=</span>
+    <span class="k">VAR</span> Assigned <span class="op">=</span> <span class="k">ALL</span> ( <span class="t">CrewAssignment</span><span class="col">[CrewCode]</span> )
+    <span class="k">VAR</span> Mapped <span class="op">=</span> <span class="k">ALL</span> ( <span class="t">CrewCodeMap</span><span class="col">[CrewCode]</span> )
+    <span class="k">VAR</span> Missing <span class="op">=</span> <span class="k">EXCEPT</span> ( Assigned, Mapped )
+    <span class="k">RETURN</span>
+        <span class="k">CONCATENATEX</span> ( Missing, <span class="t">CrewAssignment</span><span class="col">[CrewCode]</span>, <span class="s">", "</span> )
+
+<span class="col">Hours on Unmapped Crews</span> <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ),
+        <span class="k">FILTER</span> (
+            <span class="k">ALL</span> ( <span class="t">DimTechnician</span><span class="col">[OwningServiceLine]</span> ),
+            <span class="k">ISBLANK</span> ( <span class="t">DimTechnician</span><span class="col">[OwningServiceLine]</span> )
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 2 to 3</div><div class="linex-v">Both lists are taken with <code>ALL</code> so that no slicer on the page can hide a problem. A data quality check that respects the page filters will happily report all clear because somebody selected January.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v"><code>EXCEPT</code> returns the rows of the first table that are absent from the second, and it keeps the lineage of the first table. That lineage is what lets the next line refer to <code>CrewAssignment[CrewCode]</code> by name. The same test written as <code>FILTER</code> with <code>NOT CONTAINS</code> finds the same rows and reads as a loop, so the intent hides behind two functions.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v"><code>CONCATENATEX</code> turns the resulting table into a readable string for a card, so the page says CRW-XX9 instead of 1. <code>COUNTROWS</code> over the same variable is what gives you that 1. A count tells you something is wrong. A name tells you what to do about it.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 8 to 15</div><div class="linex-v">The hours behind the gap. The filter keeps only the technicians whose owning service line came back blank from the map, which today is <code>TECH-07</code> alone, and returns 10.0 hours. That is the unlabelled bar, now with a number and a name attached to it.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>ALL</code> here, after arguing for <code>REMOVEFILTERS</code> two pages ago, and the difference is the point. <code>REMOVEFILTERS</code> is a <code>CALCULATE</code> modifier and cannot be used as a table expression, so it cannot feed <code>EXCEPT</code> or <code>FILTER</code>. When you need a table of every distinct value, <code>ALL</code> returns one. When you need to clear a filter inside <code>CALCULATE</code>, <code>REMOVEFILTERS</code> says so more clearly. Same clearing behaviour, two jobs. On the second measure, use <code>FILTER</code> with an explicit <code>ALL</code> over the one column, because <code>ISBLANK</code> inside a boolean filter argument is legal and reads ambiguously, and because <code>ALL</code> over the whole table would throw away a genuine filter on employee type or home station.</p>
+  </div>
+
+  <h4>Where to keep a mapping, and how to give it an owner</h4>
+
+  <ol class="steps">
+    <li>Keep it outside the report file. Pasting the six rows in with Enter Data feels quick and makes you the only person who can change them, with no record of what changed or when. A versioned CSV in a controlled folder, or a small list on the team's document site, costs an hour to set up.</li>
+    <li>Give the file two extra columns that nobody uses in the model: who last changed the row, and the date they changed it. When a number moves eight months from now, those two columns are the only account of why.</li>
+    <li>Name a real owner in a real role, which for crew codes is the resource scheduler who issues them. Ask for one thing only: tell me when you open a new crew code. That request is small enough to be agreed and specific enough to be kept. Send them the mapping once a quarter and ask them to confirm it in writing.</li>
+    <li>Put the unmapped check on a data quality page, count and hours side by side. It should read zero and 0.0 nearly every day, and boring is the objective. Set a recurring note so somebody looks even in the weeks nobody opens the page, because a check that only fires when you happen to look is not a check.</li>
+  </ol>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>If you are the only person who can change a table, then you are the system that produces it, and every rule in this chapter applies to you. Write down what your table means, when you cut it off, and who signs it. Do it now, while it has six rows, because the version with sixty rows will be inherited by somebody who has never met you.</p>
+  </aside>
+
+  <h3>What changes when the source system changes</h3>
+
+  <p>The shop signs a new maintenance system and the cutover is eight weeks away. In the project meeting somebody asks whether your reports will be affected. The honest answer is that one small table you typed yourself will decide it, and the room will want to know why.</p>
+
+  <p>Shops replace their maintenance systems. It happens after a merger, when a contract ends, or when somebody finally wins the argument about the ageing platform. Three things then tend to happen to your data, and all three attack a hand maintained mapping.</p>
+
+  <p>Identifiers get reissued, so the tidy prefixed codes you built a map around become historic. Code lists get renumbered, so what was crew CRW-LT1 becomes crew 4102 and the two lists have no character in common. Vocabularies get consolidated, so two service line names collapse into one, and nobody thinks to mention it because to the operational teams it was a naming exercise.</p>
+
+  <p>Your map, keyed on the old codes, does not error. It stops matching. Every row falls into the blank, the totals still add to 62.0, and route B reports zero hours for every named service line while route A carries on looking normal. That is the failure mode to plan for.</p>
+
+  <p>The defence has two parts, and both of them have to be in place before the cutover.</p>
+
+  <ul class="list">
+    <li>Key the mapping on something the migration preserves, where you have the choice. A code the new system will reissue is a poor key. A stable identifier both systems carry, such as an employee number or a cost centre finance also uses, is a better one. You will not always get the choice, and when you do not, say so in the design review so the risk belongs to the project as well as to you.</li>
+    <li>Build the unmapped check before the cutover. On the first refresh against the new system, the count of unmapped codes tells you within seconds whether your mapping survived. Built afterwards, the same check tells you the same thing three weeks later, after the first monthly pack has already gone out with a service line breakdown that was quietly empty.</li>
+  </ul>
+
+  <p>So your answer in the project meeting is one sentence long. <code>CrewCodeMap</code> is keyed on crew codes the new system will reissue, the check that proves whether it survived takes an afternoon to build, and it has to exist before cutover weekend.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>A good answer to "how would you handle a system migration" starts with a list of the objects in your solution that have no owner and no test, because those are the ones that fail silently. In this model that list has one entry, <code>CrewCodeMap</code>, and being able to name it in ten seconds says more about how you work than any amount of DAX.</p>
+  </aside>
+
+  <h3>Back to the whiteboard</h3>
+
+  <p>You now have something to say to the supervisor, and it does not start with the word wrong. His 27.0 is what his department submitted on the last day of January, and it is the figure central planning consolidated. Your 26.0 is what the timesheet holds today, after a booking was corrected in February. One hour, one correction, two moments.</p>
+
+  <p>The fix takes an afternoon. Label the dashboard card <code>Achieved Hours (Timesheet)</code>, add a second card called <code>Achieved Hours (Submitted)</code>, and put <code>Submission Variance</code> beside them so the 1.0 hour is on the page instead of in a corridor. Agree with him which one the monthly pack uses, write that decision into the measure description, and put his name on the agreement. When the same thing happens in April, nobody has to work it out again.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Five functions hand the work down a chain: the CAMO decides what is due, production planning sets the available hours, resource scheduling converts hours into rostered people, production control revises the forecast, and production books the achieved hours. At month end each department submits its own figure to central planning.</li>
+      <li>Every number has exactly one owning function. Use the table owned by the function that owns the question, and work backwards from the question. Working forwards from the tables is how you end up with a plausible wrong number.</li>
+      <li>Heavy maintenance booked 26.0 hours in January according to the timesheet and 27.0 according to the departmental submission. A booking was corrected after the cutoff. Both figures are correct, and the difference of 1.0 hour belongs on the page as a measure.</li>
+      <li>Hours by service line have two routes. Through the work order gives Heavy 38.0, Light 9.0, Line 5.0, Cabin and IFE 10.0. Through the technician's crew gives Heavy 28.5, Cabin and IFE 10.5, Line 13.0, Light 0.0 and 10.0 unmapped. Both total 62.0. <code>TECH-04</code> sits on the cabin crew and booked 10.5 hours to heavy work orders.</li>
+      <li>Name the two routes for the question they answer, <code>Hours by Work Type</code> and <code>Hours by Owning Crew</code>, and never let either be shortened to Heavy hours.</li>
+      <li><code>CrewCodeMap</code> has no system behind it and no owner but you, which makes it the most fragile object in the model. Ship the unmapped check with it, keep it in a versioned file outside the report, and get the resource scheduler to confirm it in writing.</li>
+      <li>When the source system changes, codes get reissued and a hand maintained map stops matching without erroring. Key it on something the migration preserves, and have the unmapped check running before the cutover.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="C.html"><span class="pn-dir">Previous</span><span class="pn-t">The manhour maze: nine words for nine different numbers</span></a><a class="pn" href="00.html"><span class="pn-dir">Next</span><span class="pn-t">The shop, the six tables, and how to read this document</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

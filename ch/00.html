@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>The shop, the six tables, and how to read this document</title>
+</head>
+<body data-ch="00">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">00</span><span class="tb-title">The shop, the six tables, and how to read this document</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-00">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 1 . Reading the data</div>
+    <h2 class="chapter-title"><span class="chapter-num">00</span>The shop, the six tables, and how to read this document</h2>
+    <p class="chapter-lede">By the end of this chapter you will know the six extracts that every later chapter works from, what is broken inside each of them, and how the rest of the manual is arranged. Nothing is repaired here: this is the raw material, printed in full so you can check every claim made later against the actual rows.</p>
+  </div>
+
+  <p class="lead">The finance manager wants one number. What did Meridian quote in the first quarter? You build a card and it reads 38,100 dollars. She likes that number, so she asks to see it split by station, and the three station bars come back adding to 36,100. Now you have to explain where 2,000 dollars went.</p>
+
+  <p>That gap is what this manual is about. It is a working guide to turning raw extracts into a model whose measures still return the right number when somebody clicks three slicers at once. A slicer is the filter control a user clicks on the report page, and clicking one is where most models start telling lies. A measure that is correct on an empty canvas and wrong under a station slicer is not a formula problem, it is a model problem, and rewriting the formula will not fix it. The 2,000 dollars never left the model. It just has nowhere to sit.</p>
+
+  <p>You already know the Power BI interface. You know where Model view is, and you have shipped reports that people use. The gap this document fills sits one layer underneath. What does a relationship actually do to a query? Why does a filter reach one table and stop before the next one? Why does a total that used to reconcile stop reconciling the week somebody adds a slicer to page two? Power BI will let you build a model that returns a plausible wrong number with no error and no warning. Nobody in the meeting catches it either, because the number looks about right. That is the failure mode this manual is written against.</p>
+
+  <p>The emphasis is on mechanism throughout. When a chapter tells you to do something, it also says what the engine does with it and what the obvious alternative would have done instead.</p>
+
+  <h3>How to use this document</h3>
+
+  <p>Part 0 sits in front of this chapter and is not about Power BI at all. Chapters A and B describe how a maintenance shop runs and what its three manhour numbers mean, because a modelling decision you cannot state in the shop's own words is a decision you cannot defend when somebody from production control disagrees with it.</p>
+
+  <p>Parts 1 to 4 are the spine and are written to be read in order. Part 1 teaches you to read an extract and say what its grain is and what its keys are. The grain of a table is what one row of it means, written out as a sentence: one technician booking time to one work order on one day, for example. Part 2 is Power Query, the load and transform step that runs before any data reaches the model. It covers deciding where a transformation belongs and shaping a source without hiding what you did to it. Part 3 is relationships and how a filter travels along them. Part 4 is evaluation context and the DAX that depends on it. Each part assumes the one before it, so skipping ahead to the bridge table chapter without the grain chapter will cost you more time than it saves.</p>
+
+  <p>Part 5 collects the hard modelling cases: role playing dates, many to many, virtual relationships, grain mismatch, cross-filtering slicers. Those chapters are full treatments, and you will want them in order too. Part 6 is diagnosis and reference. You go there when a report is already wrong and you have to find out why. It ends with a cheat sheet you will open more often than anything else in this document. Appendix C is a vocabulary list, and that one really is for looking things up.</p>
+
+  <p>Every number printed in this document can be reproduced by hand. The six source tables hold 8, 8, 7, 6, 6 and 7 rows, which is 42 rows in total, and none of them is larger than eight rows. That is deliberate. If a chapter claims that a measure returns 52.0 rather than 62.0 under a particular model, you can count the rows yourself in about a minute and see whether it is true. Do that at least a few times. Checking a total against the source by hand is most of what separates an analyst who trusts a model from one who hopes.</p>
+
+  <h3>Meridian Aero Services</h3>
+
+  <p>Meridian Aero Services is an independent MRO shop: maintenance, repair and overhaul sold to airlines and charter operators who do not carry the capability in house. It runs three working stations: MSP in Minneapolis, TUS in Tucson and LAS in Las Vegas. A fourth station code, PHX for Phoenix, exists only in the planning workbook and carries no work at all in this quarter. The period is Q1 2025, the first of January to the thirty first of March, and the currency is US dollars. Work arrives in three shapes. Scheduled inputs are planned and booked in advance. AOG call-outs are unplanned. AOG stands for aircraft on ground: the aircraft cannot fly, and what the job involves is known only once the defect has been reported. Mods are modifications or upgrades.</p>
+
+  <h3>The six tables as they arrive</h3>
+
+  <p>What follows is every row of every extract, unmodified. Read them once now. You will come back to them constantly, and it is worth knowing roughly what is in each one before the modelling starts.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 0.1</span> WorkOrders, 8 rows, exactly as exported. Blank cells are marked with the word blank in grey; the underlying cell holds nothing at all.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">WorkOrderID</th>
+            <th scope="col">ACREG</th>
+            <th scope="col">StationCode</th>
+            <th scope="col">WOType</th>
+            <th scope="col">OpenedDate</th>
+            <th scope="col">PromisedDate</th>
+            <th scope="col">ClosedDate</th>
+            <th scope="col" class="num">QuotedAmount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">WO-1001</td><td class="key">N771QR</td><td>MSP</td><td>Scheduled</td><td>2025-01-06</td><td>2025-01-17</td><td>2025-01-16</td><td class="num">3000</td></tr>
+          <tr><td class="key">WO-1002</td><td class="key">N448LM</td><td>MSP</td><td>AOG</td><td>2025-01-08</td><td>2025-01-10</td><td>2025-01-13</td><td class="num">3200</td></tr>
+          <tr><td class="key">WO-1003</td><td class="key">N902TT</td><td>TUS</td><td>Scheduled</td><td>2025-01-14</td><td>2025-02-07</td><td>2025-02-05</td><td class="num">12500</td></tr>
+          <tr class="row-bad"><td class="key">WO-1004</td><td class="key">N771QR</td><td>TUS</td><td>Mod</td><td>2025-02-03</td><td>2025-02-21</td><td class="cell-bad"><span class="muted">blank</span></td><td class="num">4000</td></tr>
+          <tr class="row-bad"><td class="key">WO-1005</td><td class="key">N615RB</td><td class="cell-bad"><span class="muted">blank</span></td><td>AOG</td><td>2025-02-10</td><td>2025-02-12</td><td>2025-02-12</td><td class="num">2000</td></tr>
+          <tr class="row-bad"><td class="key">WO-1006</td><td class="key cell-bad">N338WA</td><td>MSP</td><td>Scheduled</td><td>2025-02-17</td><td>2025-03-14</td><td>2025-03-19</td><td class="num">7500</td></tr>
+          <tr><td class="key">WO-1007</td><td class="key">N902TT</td><td>LAS</td><td>AOG</td><td>2025-03-03</td><td>2025-03-05</td><td>2025-03-06</td><td class="num">900</td></tr>
+          <tr class="row-bad"><td class="key">WO-1008</td><td class="key">N771QR</td><td>MSP</td><td>Scheduled</td><td>2025-03-10</td><td>2025-03-28</td><td class="cell-bad"><span class="muted">blank</span></td><td class="num">5000</td></tr>
+          <tr class="row-total"><td>Total</td><td class="muted">8 rows</td><td></td><td></td><td></td><td></td><td></td><td class="num">38,100</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>This comes from the shop floor system. One row is one work order, which is the piece of paper a job is opened against. <code>QuotedAmount</code> is what the customer was told before any work started. What the job actually cost lands in two other extracts, as labor hours and as parts issues. Three date columns describe the same work order from three angles: opened, promised back to the customer, closed. Two rows have no <code>ClosedDate</code> because those jobs were still open on the thirty first of March. Quoted amounts sum to 38,100.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 0.2</span> LaborEntries, 8 rows. In row L-505 the marker <span class="muted">[space]</span> is notation added for this page, not data. That cell literally contains the seven characters of TECH-04 followed by one trailing space character, and nothing in a report visual will ever show you that.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">LaborID</th>
+            <th scope="col">WorkOrderID</th>
+            <th scope="col">TechnicianID</th>
+            <th scope="col">WorkDate</th>
+            <th scope="col" class="num">Hours</th>
+            <th scope="col" class="num">HourlyRate</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">L-501</td><td class="key">WO-1001</td><td class="key">TECH-02</td><td>2025-01-07</td><td class="num">7.5</td><td class="num">95</td></tr>
+          <tr><td class="key">L-502</td><td class="key">WO-1001</td><td class="key">TECH-04</td><td>2025-01-09</td><td class="num">6.0</td><td class="num">110</td></tr>
+          <tr><td class="key">L-503</td><td class="key">WO-1002</td><td class="key">TECH-02</td><td>2025-01-09</td><td class="num">9.0</td><td class="num">95</td></tr>
+          <tr><td class="key">L-504</td><td class="key">WO-1003</td><td class="key">TECH-05</td><td>2025-01-20</td><td class="num">8.0</td><td class="num">88</td></tr>
+          <tr class="row-bad"><td class="key">L-505</td><td class="key">WO-1003</td><td class="key cell-bad">TECH-04<span class="muted">[space]</span></td><td>2025-01-22</td><td class="num">4.5</td><td class="num">110</td></tr>
+          <tr class="row-bad"><td class="key">L-506</td><td class="key">WO-1004</td><td class="key cell-bad">TECH-07</td><td>2025-02-05</td><td class="num">10.0</td><td class="num">102</td></tr>
+          <tr><td class="key">L-507</td><td class="key">WO-1006</td><td class="key">TECH-01</td><td>2025-02-19</td><td class="num">12.0</td><td class="num">120</td></tr>
+          <tr><td class="key">L-508</td><td class="key">WO-1007</td><td class="key">TECH-05</td><td>2025-03-04</td><td class="num">5.0</td><td class="num">88</td></tr>
+          <tr class="row-total"><td>Total</td><td class="muted">8 rows</td><td></td><td></td><td class="num">62.0</td><td class="muted">n/a</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>This is the timesheet export. One row is one technician booking time to one work order on one day. A single work order collects several rows, and one technician turns up on several jobs. Hours multiplied by <code>HourlyRate</code> gives the labor cost of that line. Total hours booked in the quarter come to 62.0. Note what is not here: no station, no aircraft, no job type. If you want labor hours by station, the station has to travel in from the work order. That is a modelling decision you make yourself, and no column in this extract makes it for you.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>A key is the column two tables are joined on, such as <code>ACREG</code>, the aircraft registration. Before you draw a single relationship, count the distinct values on both sides of the intended key. Compare both counts against the count of their union. If the union is larger than the dimension side, you have keys in the fact that the dimension has never heard of. Decide where those rows go before somebody in a meeting asks why the total moved. Do it now on aircraft registration: WorkOrders holds 5 distinct tails, AircraftRegistry holds 6, and the union of the two is 7. Seven is larger than six, so the aircraft dimension is already known to be short of a member, and you have not built anything yet. It takes two minutes on any extract.</p>
+  </aside>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 0.3</span> PartsIssued, 7 rows, from the stores issue log.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">IssueID</th>
+            <th scope="col">WorkOrderID</th>
+            <th scope="col">PartNumber</th>
+            <th scope="col" class="num">Qty</th>
+            <th scope="col" class="num">UnitCost</th>
+            <th scope="col">IssueDate</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">P-9001</td><td class="key">WO-1001</td><td class="key">BRK-2210</td><td class="num">4</td><td class="num">310</td><td>2025-01-07</td></tr>
+          <tr><td class="key">P-9002</td><td class="key">WO-1002</td><td class="key">HYD-4471</td><td class="num">1</td><td class="num">2450</td><td>2025-01-09</td></tr>
+          <tr><td class="key">P-9003</td><td class="key">WO-1003</td><td class="key">ENG-8802</td><td class="num">2</td><td class="num">5100</td><td>2025-01-21</td></tr>
+          <tr><td class="key">P-9004</td><td class="key">WO-1003</td><td class="key">BRK-2210</td><td class="num">8</td><td class="num">310</td><td>2025-01-24</td></tr>
+          <tr><td class="key">P-9005</td><td class="key">WO-1005</td><td class="key">AVI-1130</td><td class="num">1</td><td class="num">1875</td><td>2025-02-11</td></tr>
+          <tr><td class="key">P-9006</td><td class="key">WO-1006</td><td class="key">ENG-8802</td><td class="num">1</td><td class="num">5100</td><td>2025-02-20</td></tr>
+          <tr class="row-bad"><td class="key">P-9007</td><td class="key cell-bad">WO-1009</td><td class="key">HYD-4471</td><td class="num">2</td><td class="num">2450</td><td>2025-03-05</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Stores logs one row every time a part leaves the cage against a job. Quantity multiplied by unit cost gives the value of the line. The seven lines sum to 28,245 dollars. Two structural facts matter more than any single row here. There is no aircraft registration column, so parts cost by aircraft is only reachable through the work order. Nor is there a part master. Part attributes have to be recovered from the part number itself, where the prefixes BRK, HYD, ENG and AVI carry category information that nobody bothered to store properly.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 0.4</span> Technicians, 6 rows, from the human resources extract. The Certifications column holds more than one value per cell.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">TechnicianID</th>
+            <th scope="col">TechnicianName</th>
+            <th scope="col">HomeStation</th>
+            <th scope="col">EmployeeType</th>
+            <th scope="col">Certifications</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">TECH-01</td><td>R. Okafor</td><td>MSP</td><td>Staff</td><td class="cell-bad">A&amp;P; NDT</td></tr>
+          <tr><td class="key">TECH-02</td><td>M. Halvorsen</td><td>MSP</td><td>Staff</td><td>A&amp;P</td></tr>
+          <tr><td class="key">TECH-03</td><td>J. Prieto</td><td>TUS</td><td>Staff</td><td class="cell-bad">Avionics; NDT</td></tr>
+          <tr><td class="key">TECH-04</td><td>D. Sandoval</td><td>TUS</td><td>Contract</td><td class="cell-bad">A&amp;P; Avionics; Engine Run</td></tr>
+          <tr><td class="key">TECH-05</td><td>K. Ibrahim</td><td>LAS</td><td>Staff</td><td>Engine Run</td></tr>
+          <tr><td class="key">TECH-06</td><td>L. Petrov</td><td>MSP</td><td>Contract</td><td>Avionics</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Six people from the human resources system. <code>HomeStation</code> is where the technician is based. The work they booked can easily have been done at another station, and that gap becomes a modelling trap later. <code>EmployeeType</code> separates staff from contract labor. Certifications is the column to watch. It holds a variable number of values in one cell, separated by a semicolon and a space, and D. Sandoval holds three. A person can hold several certifications, and a certification is held by several people. That shape has a name, many to many, and it has a cost. It is why one of the later chapters exists.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 0.5</span> AircraftRegistry, 6 rows, from the fleet spreadsheet kept by the customer service desk.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">ACREG</th>
+            <th scope="col">AircraftType</th>
+            <th scope="col">Operator</th>
+            <th scope="col">EngineType</th>
+            <th scope="col" class="num">YearBuilt</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">N771QR</td><td>A320-200</td><td>Cascade Air</td><td>CFM56-5B</td><td class="num">2009</td></tr>
+          <tr><td class="key">N448LM</td><td>B737-800</td><td>Cascade Air</td><td>CFM56-7B</td><td class="num">2013</td></tr>
+          <tr><td class="key">N902TT</td><td>E175</td><td>Northwind Regional</td><td>CF34-8E</td><td class="num">2016</td></tr>
+          <tr><td class="key">N615RB</td><td>A320-200</td><td>Northwind Regional</td><td>CFM56-5B</td><td class="num">2011</td></tr>
+          <tr><td class="key">N120CE</td><td>B737-800</td><td>Sierra Charter</td><td>CFM56-7B</td><td class="num">2007</td></tr>
+          <tr><td class="key">N553KD</td><td>E175</td><td>Sierra Charter</td><td>CF34-8E</td><td class="num">2018</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>A spreadsheet, maintained by hand at the customer service desk, and everyone at Meridian knows it lags reality. It is still the only place the aircraft attributes live, so it cannot be discarded. Six tails are listed. The work orders reference five tails, four of which appear here, so the two lists overlap without either one containing the other. N120CE and N553KD did no work at Meridian in Q1, which is normal and is not an error.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Treating a file as the master list because somebody called it the registry. This file describes aircraft. It has one row per tail, and it will be the aircraft dimension in the finished model, so the assumption that it holds every tail Meridian touches costs nothing to make and everything to get wrong. It is a spreadsheet the customer service desk types into, and the work orders reference a tail it has never heard of. The pattern generalises. An MRO does not decide what maintenance is due, the operator does. The keys arriving on a work order were minted in somebody else's system, so no list held at the shop is guaranteed to be complete. Check the key coverage before you promote a file to a dimension, not after a report has shipped.</p>
+  </aside>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 0.6</span> ShopCapacity, 7 rows, from the monthly planning workbook. Planned available hours per trade, per station, per month. The four trades are stored as column headers.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">StationCode</th>
+            <th scope="col">Month</th>
+            <th scope="col" class="num">Airframe</th>
+            <th scope="col" class="num">Avionics</th>
+            <th scope="col" class="num">Engine</th>
+            <th scope="col" class="num">NDT</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">MSP</td><td>2025-01</td><td class="num">14</td><td class="num">8</td><td class="num">6</td><td class="num">2</td></tr>
+          <tr><td class="key">MSP</td><td>2025-02</td><td class="num">14</td><td class="num">8</td><td class="num">6</td><td class="num">2</td></tr>
+          <tr><td class="key">MSP</td><td>2025-03</td><td class="num">16</td><td class="num">8</td><td class="num">4</td><td class="num">2</td></tr>
+          <tr><td class="key">TUS</td><td>2025-01</td><td class="num">10</td><td class="num">5</td><td class="num">8</td><td class="num">2</td></tr>
+          <tr><td class="key">TUS</td><td>2025-02</td><td class="num">10</td><td class="num">5</td><td class="num">8</td><td class="num">2</td></tr>
+          <tr><td class="key">LAS</td><td>2025-03</td><td class="num">8</td><td class="num">6</td><td class="num">4</td><td class="num">2</td></tr>
+          <tr class="row-bad"><td class="key cell-bad">PHX</td><td>2025-03</td><td class="num">8</td><td class="num">4</td><td class="num">3</td><td class="num">1</td></tr>
+          <tr class="row-total"><td>Total</td><td class="muted">7 rows</td><td class="num">80</td><td class="num">44</td><td class="num">39</td><td class="num">13</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Planning publishes this workbook monthly. It states how many hours of each trade the shop expects to have available at each station in each month. The four trade columns total 80, 44, 39 and 13 reading left to right. Add those four: 80 plus 44 plus 39 plus 13 is 176 planned hours for the quarter. Do not read 14 as fourteen people or fourteen shifts. The figures here are kept small so that every utilisation percentage in this document divides cleanly. In a real shop that cell would hold headcount multiplied by shift hours multiplied by an availability factor, and the availability factor is what strips out holiday, sickness, training and indirect time. Three things about the shape of this table will matter. Airframe, Avionics, Engine and NDT are stored as column headers, when each of the four is a value that belongs in a trade column. A row is a station and a month, with no work order and no day. And the station list here disagrees with the station list in the work orders: PHX appears, LAS has no January or February row, TUS has no March row.</p>
+
+  <h3>The colour language used in every diagram</h3>
+
+  <p>The planner sends you a screenshot of somebody else's model and asks whether it looks right. There are eleven boxes on it and no legend. Before you can answer that, you have to sort eleven boxes into the small number of roles a table can play inside a model. This section hands you the four buckets and the colours this document uses for them.</p>
+
+  <p>From the next chapter onwards, every table in every diagram carries one of four tags. The colours stay the same all the way through the document. Once you have the four, you can read any diagram here without a legend, and you can sort that screenshot in seconds. The tags describe the role a table plays inside a model, not where it came from.</p>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k"><span class="fact-tag">Fact</span></div><div class="kv-v">Terracotta. Rows recording things that happened, at one stated grain, holding the numbers you add up.</div></div>
+    <div class="kv-item"><div class="kv-k"><span class="dim-tag">Dimension</span></div><div class="kv-v">Teal. One row per real world thing, holding the labels you slice, group and filter by.</div></div>
+    <div class="kv-item"><div class="kv-k"><span class="bridge-tag">Bridge</span></div><div class="kv-v">Olive. One row per valid pair, used where the link between two tables is many to many. Olive carries a second job in the diagrams: it also marks a table of planning estimates. A planned or forecast hour is somebody's opinion about the future, and nothing has happened yet for it to record.</div></div>
+    <div class="kv-item"><div class="kv-k"><span class="derived-tag">Built</span></div><div class="kv-v">Teal with a dashed edge. A table that exists in no source system and is assembled in Power Query.</div></div>
+  </div>
+
+  <p>Take the dashed edge on a built table seriously. A dashed table is one that you own. If it is wrong, nobody upstream will fix it for you, and nobody upstream will tell you when the assumption behind it stops holding.</p>
+
+  <h3>What is deliberately wrong in this data</h3>
+
+  <p>Nine problems were planted in the six extracts. Every one of them has happened in a real extract on a real Tuesday. None of them is exotic. Each is repaired in a named chapter later in this document, and none of them is repaired here, because the point of Part 1 is to be able to see a problem before you know its fix.</p>
+
+  <p>The finance manager's missing 2,000 dollars is the first of the nine, and Table 0.1 has been showing it to you all along. WO-1005 is an AOG job quoted at 2,000 dollars with a blank <code>StationCode</code>. Split the quoted total by station and that row belongs to no bar, so the bars add to 36,100 while the card still says 38,100. Nothing is broken. The station is simply missing, and until you decide where that row goes, every station split in this model runs 2,000 dollars short.</p>
+
+  <ol class="list">
+    <li>WorkOrders row WO-1005 has a blank <code>StationCode</code>, so an AOG job worth 2,000 dollars belongs to no station until you decide where to put it, and this is repaired in the chapter on the unknown member.</li>
+    <li>WorkOrders rows WO-1004 and WO-1008 have a blank <code>ClosedDate</code> because both jobs were still open at the end of the quarter, which is correct data that breaks any measure written as if every job has closed, and it is handled in the chapter on counting open and closed work.</li>
+    <li>WorkOrders row WO-1006 carries tail N338WA, which appears nowhere in AircraftRegistry. That makes it an orphan foreign key. A foreign key is a column holding the identifier of a row in another table, and an orphan is one whose row is not there. This one quietly parks 12.0 labor hours outside every aircraft grouping, and it is repaired in the chapter on building a dimension from incomplete key lists.</li>
+    <li>WorkOrders carries three date columns, <code>OpenedDate</code>, <code>PromisedDate</code> and <code>ClosedDate</code>, and only one of them can drive a relationship at a time, which is the subject of the chapter on role playing dimensions.</li>
+    <li>LaborEntries row L-505 stores the technician key as TECH-04 followed by a trailing space, which looks identical to TECH-04 in every visual and matches nothing on a join, and it is repaired in the chapter on key hygiene in Power Query.</li>
+    <li>LaborEntries row L-506 books 10.0 hours to TECH-07, who is genuinely absent from the Technicians extract, and it is handled in the chapter on orphan keys and the blank row.</li>
+    <li>PartsIssued row P-9007 charges 4,900 dollars of hydraulics to WO-1009, a work order that does not exist in WorkOrders, and it is handled in the same chapter on orphan keys because the header side of a header to line join fails exactly like a dimension side does.</li>
+    <li>Technicians row TECH-04 holds three certifications in one cell separated by semicolons, with TECH-01 and TECH-03 holding two each, and this becomes the many to many relationship covered in the chapter on bridge tables.</li>
+    <li>ShopCapacity stores its four trades as column headers, and it sits at station and month grain with no day and no work order. Its row PHX 2025-03 is the only appearance of PHX anywhere in the six extracts. All of that is dealt with in the chapter on unpivoting and grain mismatch.</li>
+  </ol>
+
+  <p>Two further things are missing from the extract: an aircraft registration column on PartsIssued, and a part master anywhere at all. Both are shape problems. You fix a shape problem by building a new table, and cleaning the existing ones will not help, because there is nothing dirty in them to clean.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Nothing in these six extracts announces what it is. Fact and dimension are roles a table plays inside one particular model, not properties the table carries out of the source system. WorkOrders will end up serving as the measured event table for turn time and quoting. At the same time it is the header that labor and parts lines hang from. Same eight rows, two jobs. Candidates who answer "a fact table is the big one and a dimension is the small one" have memorised a symptom. The next chapter does the classification properly, and it does it by asking what each table records and at what grain, not by counting rows.</p>
+  </aside>
+
+  <h3>How to follow along</h3>
+
+  <p>Build the six tables in Power BI Desktop before you read Part 2. There are two routes. The first is Enter Data: you paste each table from this page into the grid and load it. That is quicker, and it works for five of the six. LaborEntries is the exception. The exercise there depends on row L-505 keeping its trailing space, and clipboard paths have a habit of trimming whitespace on the way through. I have seen that space survive a paste and I have seen it vanish, and I will not claim to know which happens in your build of Desktop. What is certain is that the second query below writes that space as an explicit character, so it cannot be lost. If you do use Enter Data, check L-505 afterwards with a column that returns the text length of the key: 8 for that row, 7 for every other technician key.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">WorkOrders as a blank query</span></div>
+<pre><code><span class="k">let</span>
+    Cols <span class="op">=</span> <span class="k">type table</span> [
+        WorkOrderID   <span class="op">=</span> <span class="k">text</span>,
+        ACREG    <span class="op">=</span> <span class="k">text</span>,
+        StationCode   <span class="op">=</span> <span class="k">nullable text</span>,
+        WOType        <span class="op">=</span> <span class="k">text</span>,
+        OpenedDate    <span class="op">=</span> <span class="k">date</span>,
+        PromisedDate  <span class="op">=</span> <span class="k">date</span>,
+        ClosedDate    <span class="op">=</span> <span class="k">nullable date</span>,
+        QuotedAmount  <span class="op">=</span> <span class="k">number</span>
+    ],
+    Rows <span class="op">=</span> {
+        {<span class="s">"WO-1001"</span>,<span class="s">"N771QR"</span>,<span class="s">"MSP"</span>,<span class="s">"Scheduled"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">1</span>,<span class="n">6</span>), <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">1</span>,<span class="n">17</span>), <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">1</span>,<span class="n">16</span>), <span class="n">3000</span>},
+        {<span class="s">"WO-1002"</span>,<span class="s">"N448LM"</span>,<span class="s">"MSP"</span>,<span class="s">"AOG"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">1</span>,<span class="n">8</span>), <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">1</span>,<span class="n">10</span>), <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">1</span>,<span class="n">13</span>), <span class="n">3200</span>},
+        {<span class="s">"WO-1003"</span>,<span class="s">"N902TT"</span>,<span class="s">"TUS"</span>,<span class="s">"Scheduled"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">1</span>,<span class="n">14</span>), <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">2</span>,<span class="n">7</span>), <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">2</span>,<span class="n">5</span>), <span class="n">12500</span>},
+        {<span class="s">"WO-1004"</span>,<span class="s">"N771QR"</span>,<span class="s">"TUS"</span>,<span class="s">"Mod"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">2</span>,<span class="n">3</span>), <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">2</span>,<span class="n">21</span>), <span class="k">null</span>, <span class="n">4000</span>},
+        {<span class="s">"WO-1005"</span>,<span class="s">"N615RB"</span>,<span class="k">null</span>,<span class="s">"AOG"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">2</span>,<span class="n">10</span>), <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">2</span>,<span class="n">12</span>), <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">2</span>,<span class="n">12</span>), <span class="n">2000</span>},
+        {<span class="s">"WO-1006"</span>,<span class="s">"N338WA"</span>,<span class="s">"MSP"</span>,<span class="s">"Scheduled"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">2</span>,<span class="n">17</span>), <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">3</span>,<span class="n">14</span>), <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">3</span>,<span class="n">19</span>), <span class="n">7500</span>},
+        {<span class="s">"WO-1007"</span>,<span class="s">"N902TT"</span>,<span class="s">"LAS"</span>,<span class="s">"AOG"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">3</span>,<span class="n">3</span>), <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">3</span>,<span class="n">5</span>), <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">3</span>,<span class="n">6</span>), <span class="n">900</span>},
+        {<span class="s">"WO-1008"</span>,<span class="s">"N771QR"</span>,<span class="s">"MSP"</span>,<span class="s">"Scheduled"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">3</span>,<span class="n">10</span>), <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">3</span>,<span class="n">28</span>), <span class="k">null</span>, <span class="n">5000</span>}
+    },
+    Source <span class="op">=</span> <span class="k">#table</span>(Cols, Rows)
+<span class="k">in</span>
+    Source</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 2 to 11</div><div class="linex-v">The column types are declared once, in one visible place, before any data appears. <code>StationCode</code> and <code>ClosedDate</code> are declared nullable because two rows genuinely have no value. Declaring them as plain text and date would be a statement you know to be false, and a later step that assumes non-null would fail somewhere less obvious than here.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 13 to 28</div><div class="linex-v">The eight rows in source order, two lines each, values only. Nothing is corrected on the way in. WO-1006 keeps N338WA and the blanks stay blank, because the whole document depends on loading the extract as it actually arrived.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 20, 21 and 28</div><div class="linex-v">These are the three places a <code>null</code> appears: the missing <code>ClosedDate</code> on WO-1004, the missing <code>StationCode</code> on WO-1005, and the missing <code>ClosedDate</code> on WO-1008. A null is the absence of a value, and it behaves like an absence everywhere downstream. An empty string is a different animal. It is a value, it will take its own row in a slicer, and it will slip past a check written to look for missing data. Write WO-1005 with an empty string and the station stops looking missing at all.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 30</div><div class="linex-v">The type and the row lists are combined into a typed table in a single step, so the query has no untyped intermediate state that a later step could mistype.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>#table</code> and not <code>Table.FromRecords</code>. <code>Table.FromRecords</code> wants a record per row, so you write all eight field names eight times over before you have read a single value. The row you care about ends up buried in field names you already know. Both functions accept a table type, so typing comes out the same either way. Readability is what separates them. <code>#table</code> takes the type once and the values as plain lists, so the shape of the table is stated in one place you can read. Enter Data is the third option. It loads the same rows, and it stores them as a compressed binary string inside the query, so the rows stop being readable the moment you open the Advanced Editor. <code>#date</code> and not the text <code>"2025-01-06"</code>. A text date is parsed against a locale, so the same file loaded on a machine set to a different regional format can produce a different date or an error. <code>#date</code> takes three integers and has no locale to get wrong.</p>
+  </div>
+
+  <p>The other five tables take the same shape and I will not print all of them. One of the five earns the space: LaborEntries, because it is the table where a copy and paste can silently repair the defect you are supposed to study.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">LaborEntries as a blank query</span></div>
+<pre><code><span class="k">let</span>
+    Cols <span class="op">=</span> <span class="k">type table</span> [
+        LaborID      <span class="op">=</span> <span class="k">text</span>,
+        WorkOrderID  <span class="op">=</span> <span class="k">text</span>,
+        TechnicianID <span class="op">=</span> <span class="k">text</span>,
+        WorkDate     <span class="op">=</span> <span class="k">date</span>,
+        Hours        <span class="op">=</span> <span class="k">number</span>,
+        HourlyRate   <span class="op">=</span> <span class="k">number</span>
+    ],
+    <span class="c">// the planted defect, written so it cannot be lost</span>
+    Space <span class="op">=</span> <span class="k">Character.FromNumber</span>(<span class="n">32</span>),
+    Rows <span class="op">=</span> {
+        {<span class="s">"L-501"</span>,<span class="s">"WO-1001"</span>,<span class="s">"TECH-02"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">1</span>,<span class="n">7</span>), <span class="n">7.5</span>, <span class="n">95</span>},
+        {<span class="s">"L-502"</span>,<span class="s">"WO-1001"</span>,<span class="s">"TECH-04"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">1</span>,<span class="n">9</span>), <span class="n">6.0</span>, <span class="n">110</span>},
+        {<span class="s">"L-503"</span>,<span class="s">"WO-1002"</span>,<span class="s">"TECH-02"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">1</span>,<span class="n">9</span>), <span class="n">9.0</span>, <span class="n">95</span>},
+        {<span class="s">"L-504"</span>,<span class="s">"WO-1003"</span>,<span class="s">"TECH-05"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">1</span>,<span class="n">20</span>), <span class="n">8.0</span>, <span class="n">88</span>},
+        {<span class="s">"L-505"</span>,<span class="s">"WO-1003"</span>,<span class="s">"TECH-04"</span> <span class="op">&amp;</span> Space,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">1</span>,<span class="n">22</span>), <span class="n">4.5</span>, <span class="n">110</span>},
+        {<span class="s">"L-506"</span>,<span class="s">"WO-1004"</span>,<span class="s">"TECH-07"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">2</span>,<span class="n">5</span>), <span class="n">10.0</span>, <span class="n">102</span>},
+        {<span class="s">"L-507"</span>,<span class="s">"WO-1006"</span>,<span class="s">"TECH-01"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">2</span>,<span class="n">19</span>), <span class="n">12.0</span>, <span class="n">120</span>},
+        {<span class="s">"L-508"</span>,<span class="s">"WO-1007"</span>,<span class="s">"TECH-05"</span>,
+         <span class="k">#date</span>(<span class="n">2025</span>,<span class="n">3</span>,<span class="n">4</span>), <span class="n">5.0</span>, <span class="n">88</span>}
+    },
+    Source <span class="op">=</span> <span class="k">#table</span>(Cols, Rows)
+<span class="k">in</span>
+    Source</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 10 and 11</div><div class="linex-v">The trailing space is defined once, by character code, and given a name. <code>Character.FromNumber(32)</code> and not the literal <code>"TECH-04 "</code>. A space sitting between the 4 and the closing quote is invisible on this page, invisible in the Advanced Editor, and the first editor or chat window that trims trailing whitespace will delete it without telling you. A character code cannot be trimmed by accident, and it also documents the defect for whoever reads the query next.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 13 to 28</div><div class="linex-v">All eight timesheet rows, in source order, two lines each. Nothing is trimmed and nothing is joined. The trim belongs in a later chapter, and if you apply it now the key hygiene exercise has nothing left to find.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 21</div><div class="linex-v">L-505 is the only row whose technician key is assembled from two pieces. Every other row carries a plain literal, which is exactly the asymmetry the source extract has.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 30</div><div class="linex-v">The same single-step assembly as the WorkOrders query. <code>Hours</code> and <code>HourlyRate</code> are typed as numbers here, not text. Typed as text, 7.5 plus 6.0 would concatenate, and the first total you write on that column would fail. Typed as numbers it gives 13.5.</div></div>
+  </div>
+
+  <p>Eight rows is enough to reproduce every behaviour in this document, because the engine does not change what it does as data grows, only how long it takes. A relationship propagates a filter the same way over eight rows and over eighty million. The exceptions are limits on volume, not changes in logic. Some visuals cap the number of rows they will return. DirectQuery, the mode where Power BI leaves the data in the source system and sends a query out for every visual, changes what is possible at all.</p>
+
+  <p>That cuts the other way, and it is worth being blunt. Nothing you verify on 42 rows tells you whether your real model will be fast. Cardinality, compression, the cost of a bidirectional filter over a wide dimension: those are volume problems, and none of them can be demonstrated here. The performance notes in this document are advice, not measurements. When speed is the question, measure it on your own data at your own row counts.</p>
+
+  <h3>Nine tables in the extract, six of them in this chapter</h3>
+
+  <p>Meridian does not send six files. It sends nine. You have already met the other three in <a class="xref" href="#ch-B">Chapter B</a>: <code>HMCCSchedule</code>, <code>HeavyPreInput</code> and <code>ManhourForecast</code>, which between them carry the heavy maintenance planning numbers. HMCC stands for Heavy Maintenance Control Centre, the function that owns the heavy check schedule and decides which aircraft sits in which bay and when. Treat those four letters with more caution than you would treat AOG, aircraft on ground, which means the same thing in every hangar in the world. HMCC does not. Other shops call the identical function production control, maintenance control, or the base maintenance control centre, and the line maintenance equivalent is usually MOC, Maintenance Operations Control. The function exists wherever you work. The acronym travels badly.</p>
+
+  <p>The six printed above are the ones the modelling curriculum is built on, and the reason is that they already hold every structural problem you need to learn on. A blank key. An orphan foreign key on the dimension side, and a second one on the header side of a header to line join. One table wearing three date columns. A key with a trailing space that no visual will ever show you, a cell holding a variable number of values, and a table storing its trades as column headers at a grain nothing else in the model shares. The planning three do raise questions of their own, including a one to one relationship and a forecast table that must never be summed. Each of those is a question about what to do with a table you have already classified. Put all nine in front of you before you can look at an extract and say what its grain is, and the extra three are noise. Learn to classify first. Then the planning tables have somewhere to land.</p>
+
+  <p>What those three add is the vocabulary you use every day and the numbers underneath it. <code>HeavyPreInput</code> is the heavy pre-input pack. One row is one work order and one trade, and it holds the available hours: what the planner said the job should take. Those hours are fixed at induction, so performance has something stable to be measured against. <code>ManhourForecast</code> holds the projected hours, the current best estimate of the final total, revised as findings land, one row per revision, each revision replacing the one before it rather than adding to it. Achieved hours are the timesheet, which you have already read as Table 0.2. Across the quarter the three totals are 57.0 available, 63.5 projected and 62.0 achieved, although only 48.0 of those achieved hours sit on work orders that had a plan at all. Add the forecast rows together instead and you get 99.5, which is not a manhour figure at all, and Chapter B is where that number gets taken apart.</p>
+
+  <p>One consequence of the split is inconvenient enough to say out loud. The counts in this chapter, six extracts and 42 rows, describe what this chapter prints and not what the shop sends. Load Chapter B as well and your file holds nine queries, and 42 stops being the size of the whole model. The reading order is also the reverse of the working order. Pre-input planning happens weeks before the aircraft is towed into the bay, and the bay date is the one <code>WorkOrders</code> records as <code>OpenedDate</code>. So the planned hours in <code>HeavyPreInput</code> were written before the row you would naturally call the start of the job. Teaching order and business order are different things, and this document chose the first. On your own extract nobody hands you a curated six. You get the folder on day one. Several of the files inside it are maintained by hand in a spreadsheet, and those are reliably the ones that break the model.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Six extracts, 42 rows, nothing larger than eight rows. Every number in this document can be checked by hand against Tables 0.1 to 0.6.</li>
+      <li>Meridian runs three real stations, MSP, TUS and LAS, and one planning-only station, PHX, that appears in ShopCapacity and nowhere else.</li>
+      <li>Nine problems are planted on purpose. Learn the row numbers: WO-1005, WO-1004 and WO-1008, WO-1006, the three date columns, L-505, L-506, P-9007, TECH-04, and the wide PHX row in ShopCapacity.</li>
+      <li>Two more issues are shape problems, not dirt: PartsIssued has no aircraft registration, and no part master exists anywhere.</li>
+      <li>Terracotta is a fact, teal is a dimension, olive is a bridge or a table of planning estimates, and a dashed edge means a table you built yourself and therefore own.</li>
+      <li>Small data proves correctness and proves nothing about speed. Keep those two questions separate for the rest of this document.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="D.html"><span class="pn-dir">Previous</span><span class="pn-t">Who produces which number, and why two of them disagree</span></a><a class="pn" href="01.html"><span class="pn-dir">Next</span><span class="pn-t">Facts, dimensions and the grain test</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

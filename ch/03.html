@@ -1,0 +1,1209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Building the dimensions your source does not contain</title>
+</head>
+<body data-ch="03">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">03</span><span class="tb-title">Building the dimensions your source does not contain</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-03">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 1 . Reading the data</div>
+    <h2 class="chapter-title"><span class="chapter-num">03</span>Building the dimensions your source does not contain</h2>
+    <p class="chapter-lede">By the end of this chapter you will be able to build a complete, unique and stable dimension table out of source systems that never shipped one. You will also be able to prove that the dimension covers every key value any fact actually uses.</p>
+  </div>
+
+  <p class="lead">The planner asks for planned hours by station for the quarter. You build the chart in five minutes. Three bars come back, MSP 90, TUS 50 and LAS 20, and a fourth bar with no label on it holding 16. The total reads 176, which is right, and one station's worth of capacity is sitting in a bar nobody can name. This chapter is about where that unlabelled bar comes from and how to make it impossible.</p>
+
+  <p>Meridian's six source tables give you four facts and almost no dimensions. A dimension is the table that describes something a fact refers to: a station, a part, an aircraft, a date. There is no station master, no part master, no calendar and no work order type list. The one dimension that does exist, <code>AircraftRegistry</code>, is missing an aircraft registration that a work order already references. This is normal. Operational systems are built to record transactions, not to describe the world those transactions happen in.</p>
+
+  <p>So you build the descriptions yourself. That is the job, and this chapter is how it is done. A dimension is the list of values your model agrees are allowed to exist. The moment a fact holds a value that list does not contain, the model starts telling a quieter kind of lie: the totals stay right and the breakdowns go wrong. The planner's total of 176 is correct, and the breakdown underneath it is the half that fails him.</p>
+
+  <h3>The four properties every dimension table must have</h3>
+
+  <p>Before any M code, agree on what you are aiming at. A table qualifies as a dimension when all four of these hold. Miss one and you get a predictable failure, and it is worth knowing which failure belongs to which property.</p>
+
+  <ol class="list">
+    <li><strong>The key is unique.</strong> One row per key value, no exceptions. The engine enforces this on the one side of a relationship and will simply refuse to create the relationship if you break it. The deeper reason is arithmetic: a duplicated key fans the fact rows out across both matching dimension rows, and every measure over that path doubles without warning.</li>
+    <li><strong>The key has no blank.</strong> A blank in a dimension key is ambiguous, because Power BI already uses a blank member for something else. When a fact holds a key the dimension lacks, the engine adds an invisible blank row on the dimension side and parks the unmatched facts there. If your dimension also contains a real blank key, a blank category on a visual could mean either thing and you can no longer tell which.</li>
+    <li><strong>The key covers every value that appears in every fact referencing it.</strong> Complete coverage, across all facts, not just the convenient one. This is the property everyone misses, and it is the direct cause of the blank rows people see in visuals and cannot explain.</li>
+    <li><strong>The key is stable.</strong> The same code means the same thing next refresh. If the shop floor system starts sending <code>MSP1</code> where it used to send <code>MSP</code>, every report level filter, every bookmark, every saved slicer selection and every measure that tests for <code>"MSP"</code> keeps working syntactically and returns nothing. Filters store the value, not the row. That failure is invisible at build time and expensive at read time.</li>
+  </ol>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Taking the distinct values from the largest fact and calling that a dimension. It feels safe because the biggest table surely has everything. At Meridian, <code>WorkOrders</code> is the biggest table that uses a station code, and it does not contain PHX at all. Build DimStation from <code>WorkOrders</code> alone and every capacity row for PHX, 16 planned hours, loses its home and lands behind a blank member. The station list has to be the union of everything that uses the key, not a sample of it.</p>
+  </aside>
+
+  <h3>DimStation, assembled from three partial lists</h3>
+
+  <p>So where did the planner's fourth bar go. The station code lives in three places at Meridian and no two of them hold the full list. Look at what each source actually contains.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 3.1</span> Where a station code appears, and which distinct values each source can supply.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Source column</th>
+            <th scope="col">Values as they arrive</th>
+            <th scope="col">Distinct values</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row"><code>WorkOrders[StationCode]</code></th>
+            <td class="cell-bad">MSP, MSP, TUS, TUS, <strong>(blank)</strong>, MSP, LAS, MSP</td>
+            <td>MSP, TUS, LAS</td>
+          </tr>
+          <tr>
+            <th scope="row"><code>Technicians[HomeStation]</code></th>
+            <td>MSP, MSP, TUS, TUS, LAS, MSP</td>
+            <td>MSP, TUS, LAS</td>
+          </tr>
+          <tr>
+            <th scope="row"><code>ShopCapacity[StationCode]</code></th>
+            <td>MSP, MSP, MSP, TUS, TUS, LAS, PHX</td>
+            <td class="cell-good">MSP, TUS, LAS, <strong>PHX</strong></td>
+          </tr>
+          <tr class="row-total">
+            <td>Union of all three</td>
+            <td class="muted">blank discarded, not a key</td>
+            <td>MSP, TUS, LAS, PHX</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>There is the planner's missing bar. Only the planning workbook knows PHX exists. Phoenix has capacity rows and no work orders, which is exactly the situation his chart should be showing him. Leave PHX out of DimStation and the relationship from <code>DimStation[StationCode]</code> to <code>FactCapacity[StationCode]</code> orphans those four capacity rows. An orphan is a fact row whose key has no match in the dimension, and the engine has to park it somewhere. It parks it in an unlabelled row, which splits the planned hours total into a labelled 160 and an unlabelled 16.</p>
+
+  <p>The blank on WO-1005 needs a different answer. A blank means nobody recorded a station. Keep it out of the key list you union together, because a key list holds codes and a blank is the absence of one. The work order itself is real, though, and its hours have to land somewhere a person can see, so you add a member with a real code, <code>UNASSIGNED</code>, and map the blank to it on the fact side. Two separate acts, in this order: drop the blank from the key list, then create a member that means "we know this one is missing".</p>
+
+  <ol class="steps">
+    <li>Create three reference queries from <code>WorkOrders</code>, <code>Technicians</code> and <code>ShopCapacity</code>, and reduce each one to the single station column.</li>
+    <li>Rename <code>HomeStation</code> to <code>StationCode</code> so all three columns carry the same name, because an append matches columns by name and not by position.</li>
+    <li>Append the three into one stack.</li>
+    <li>Trim the text, then remove nulls and empty strings.</li>
+    <li>Remove duplicates. What remains is the key list.</li>
+    <li>Attach the descriptive attributes, either by merging a maintained mapping table or by joining a small inline table written in M.</li>
+    <li>Append the single <code>UNASSIGNED</code> row.</li>
+  </ol>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">DimStation</span></div>
+    <pre><code><span class="k">let</span>
+    <span class="c">// one column from each source, all named StationCode</span>
+    FromWorkOrders <span class="op">=</span>
+        <span class="k">Table.SelectColumns</span>( <span class="t">WorkOrders</span>, {<span class="s">"StationCode"</span>} ),
+
+    FromTechnicians <span class="op">=</span>
+        <span class="k">Table.RenameColumns</span>(
+            <span class="k">Table.SelectColumns</span>( <span class="t">Technicians</span>, {<span class="s">"HomeStation"</span>} ),
+            {{<span class="s">"HomeStation"</span>, <span class="s">"StationCode"</span>}} ),
+
+    FromCapacity <span class="op">=</span>
+        <span class="k">Table.SelectColumns</span>( <span class="t">ShopCapacity</span>, {<span class="s">"StationCode"</span>} ),
+
+    Stacked <span class="op">=</span>
+        <span class="k">Table.Combine</span>(
+            {FromWorkOrders, FromTechnicians, FromCapacity} ),
+
+    Trimmed <span class="op">=</span>
+        <span class="k">Table.TransformColumns</span>(
+            Stacked, {{<span class="s">"StationCode"</span>, <span class="k">Text.Trim</span>, <span class="k">type text</span>}} ),
+
+    NoBlanks <span class="op">=</span>
+        <span class="k">Table.SelectRows</span>( Trimmed,
+            <span class="k">each</span> <span class="col">[StationCode]</span> <span class="op">&lt;&gt;</span> <span class="k">null</span>
+                 <span class="k">and</span> <span class="col">[StationCode]</span> <span class="op">&lt;&gt;</span> <span class="s">""</span> ),
+
+    Keys <span class="op">=</span> <span class="k">Table.Distinct</span>( NoBlanks ),
+
+    Attributes <span class="op">=</span> <span class="k">#table</span>(
+        <span class="k">type table</span> [ StationCode <span class="op">=</span> text, StationName <span class="op">=</span> text,
+                     StationRole <span class="op">=</span> text ],
+        {
+            {<span class="s">"MSP"</span>, <span class="s">"Minneapolis"</span>, <span class="s">"Line and Base"</span>},
+            {<span class="s">"TUS"</span>, <span class="s">"Tucson"</span>,      <span class="s">"Base"</span>},
+            {<span class="s">"LAS"</span>, <span class="s">"Las Vegas"</span>,   <span class="s">"Line"</span>},
+            {<span class="s">"PHX"</span>, <span class="s">"Phoenix"</span>,     <span class="s">"Planned, no activity"</span>}
+        } ),
+
+    Joined <span class="op">=</span>
+        <span class="k">Table.NestedJoin</span>( Keys, {<span class="s">"StationCode"</span>},
+            Attributes, {<span class="s">"StationCode"</span>}, <span class="s">"attr"</span>,
+            <span class="k">JoinKind.LeftOuter</span> ),
+
+    Widened <span class="op">=</span>
+        <span class="k">Table.ExpandTableColumn</span>( Joined, <span class="s">"attr"</span>,
+            {<span class="s">"StationName"</span>, <span class="s">"StationRole"</span>} ),
+
+    Unassigned <span class="op">=</span> <span class="k">#table</span>(
+        <span class="k">type table</span> [ StationCode <span class="op">=</span> text, StationName <span class="op">=</span> text,
+                     StationRole <span class="op">=</span> text ],
+        {{<span class="s">"UNASSIGNED"</span>, <span class="s">"Unassigned"</span>, <span class="s">"n/a"</span>}} ),
+
+    DimStation <span class="op">=</span> <span class="k">Table.Combine</span>( {Widened, Unassigned} )
+<span class="k">in</span>
+    DimStation</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">FromTechnicians</div><div class="linex-v">The rename is the load bearing step. <code>Table.Combine</code> aligns on column name, so an unrenamed <code>HomeStation</code> would produce a second column full of nulls instead of stacking underneath, and you would find out only when the distinct count came back wrong.</div></div>
+    <div class="linex-row"><div class="linex-k">Trimmed</div><div class="linex-v">Trim before deduplicating, never after. <code>"TUS"</code> and <code>"TUS "</code> are two distinct values to <code>Table.Distinct</code> and one value to your eyes. Meridian already has this exact defect in <code>LaborEntries</code> on TECH-04, so treat the trim as a certainty. It has happened here once already.</div></div>
+    <div class="linex-row"><div class="linex-k">NoBlanks</div><div class="linex-v">Nulls and empty strings are different values in M and both have to go. This removes the WO-1005 blank from the key list. It does not lose the work order, which still carries its hours and gets mapped to UNASSIGNED on the fact side.</div></div>
+    <div class="linex-row"><div class="linex-k">Attributes</div><div class="linex-v">An inline <code>#table</code> is honest about what it is: a hand maintained mapping with four rows that a human owns. When it grows past roughly twenty rows or a second person needs to edit it, move it to a real file and merge instead, because nobody outside your team can find a table that only exists inside a query.</div></div>
+    <div class="linex-row"><div class="linex-k">Joined</div><div class="linex-v">A left outer join keeps every key, even the ones the mapping has no entry for. That is the point of choosing it. If a new station code called RNO appears next quarter, it arrives in DimStation carrying a null name. An inner join would have dropped it on the floor. A null name in a report is a question somebody asks.</div></div>
+  </div>
+
+  <p>The same union can be expressed in DAX as a calculated table, and you should know how. On some datasets you genuinely cannot touch the queries. A live connection, a shared semantic model owned by another team, a certified dataflow you have no rights to edit: any of those leaves you working inside the model instead of upstream of it. Take the block below for what it is. It returns the key list and stops there, so the descriptive columns and the UNASSIGNED member are a second step, described under the code.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">DimStation key list, calculated table fallback</span></div>
+    <pre><code>DimStation <span class="op">=</span>
+<span class="k">VAR</span> Keys <span class="op">=</span>
+    <span class="k">DISTINCT</span> (
+        <span class="k">UNION</span> (
+            <span class="k">DISTINCT</span> ( <span class="t">WorkOrders</span><span class="col">[StationCode]</span> ),
+            <span class="k">DISTINCT</span> ( <span class="t">Technicians</span><span class="col">[HomeStation]</span> ),
+            <span class="k">DISTINCT</span> ( <span class="t">ShopCapacity</span><span class="col">[StationCode]</span> )
+        )
+    )
+<span class="k">RETURN</span>
+    <span class="k">FILTER</span> ( Keys, <span class="col">[StationCode]</span> <span class="op">&lt;&gt;</span> <span class="s">""</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">DISTINCT</div><div class="linex-v"><code>DISTINCT</code> is the function to reach for, and <code>VALUES</code> is the trap sitting next to it. The two are identical except for one thing that matters here: <code>VALUES</code> returns the blank virtual row that the engine adds when a relationship has unmatched fact keys, and <code>DISTINCT</code> leaves that row out. Building a dimension out of <code>VALUES</code> would import the very blank member you are trying to eliminate.</div></div>
+    <div class="linex-row"><div class="linex-k">UNION</div><div class="linex-v"><code>UNION</code> concatenates and keeps duplicates, so MSP would appear three times without the outer <code>DISTINCT</code>. It also matches its arguments by position rather than by name, which is why <code>Technicians[HomeStation]</code> can sit in the middle with a different column name and still land in the same column.</div></div>
+    <div class="linex-row"><div class="linex-k">FILTER</div><div class="linex-v"><code>FILTER</code> is the operator that applies here, because it iterates whatever table expression you hand it. The habit to break is reaching for <code>CALCULATETABLE</code>. That function works by modifying filter context over model tables, and <code>Keys</code> is an anonymous table held in a variable, which has no filter context to modify.</div></div>
+    <div class="linex-row"><div class="linex-k">&lt;&gt; ""</div><div class="linex-v">One comparison against <code>""</code> does the whole job. In DAX a true blank compares equal to an empty string, so that single test removes an empty text value and a real blank together. The obvious looking alternative, <code>NOT ISBLANK</code>, returns FALSE for an empty string and would let it through.</div></div>
+    <div class="linex-row"><div class="linex-k">What is not here</div><div class="linex-v">One column comes back, <code>StationCode</code>, so this is not yet the five row table in Table 3.2. Wrap the result in <code>ADDCOLUMNS</code> with a <code>SWITCH</code> over the code to attach <code>StationName</code> and <code>StationRole</code>, then <code>UNION</code> that with a one row table constructor holding UNASSIGNED. <code>SWITCH</code> rather than a merge because a calculated table has no join step, and the mapping is small enough that hard coding it in the expression is readable. That is three more layers of DAX to reproduce two Power Query clicks, which is itself an argument for the next box.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p>Power Query is the correct home for a built dimension and DAX is the fallback. Three reasons, in order of what they cost you. A calculated table is evaluated during refresh and stored in the model, so no query can reference it, column quality cannot profile it, and a second report cannot reuse it. The DAX version also has no access to the source, so it can only union what is already loaded, which forces you to import <code>ShopCapacity</code> as a model table even if you wanted it only for its station list. Last, and this is the one that bites in a design review, the dimension build becomes invisible: someone auditing the extract and transform layer sees six queries and no station logic anywhere, because it is hiding in a table definition. Use the DAX version when the queries are genuinely out of reach, and write a comment saying why.</p>
+  </div>
+
+  <details class="expand" open>
+    <summary>Trace the station union by hand, row by row</summary>
+    <div class="expand-body">
+      <p>The append stacks 8 rows from <code>WorkOrders</code>, 6 from <code>Technicians</code> and 7 from <code>ShopCapacity</code>, which is 8 plus 6 plus 7 = 21 rows before anything is removed. One of those 21 is the blank on WO-1005, leaving 20. Deduplicating 20 values leaves 4: MSP appears 4 plus 3 plus 3 = 10 times, TUS 2 plus 2 plus 2 = 6 times, LAS 1 plus 1 plus 1 = 3 times, PHX once, and 10 plus 6 plus 3 plus 1 = 20. Adding the UNASSIGNED member gives the 5 row DimStation. If your row count after deduplication is not 4, the trim step did not run or did not run first.</p>
+    </div>
+  </details>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 3.2</span> DimStation as loaded, five rows, one of which exists only because a fact had a hole in it.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">StationCode</th>
+            <th scope="col">StationName</th>
+            <th scope="col">StationRole</th>
+            <th scope="col">Why it is here</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">MSP</td><td>Minneapolis</td><td>Line and Base</td><td class="muted">All three sources</td></tr>
+          <tr><td class="key">TUS</td><td>Tucson</td><td>Base</td><td class="muted">All three sources</td></tr>
+          <tr><td class="key">LAS</td><td>Las Vegas</td><td>Line</td><td class="muted">All three sources</td></tr>
+          <tr class="row-good"><td class="key">PHX</td><td>Phoenix</td><td>Planned, no activity</td><td>ShopCapacity only</td></tr>
+          <tr class="row-good"><td class="key">UNASSIGNED</td><td>Unassigned</td><td>n/a</td><td>Added to catch the WO-1005 blank</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Load that table and the planner's chart changes. The fourth bar is now labelled Phoenix and carries the same 16 hours it always carried. Nothing about the arithmetic moved. The total was 176 before and it is 176 now, which is the point that makes this defect so easy to ship: the number you would have checked was already right. What the fifth row bought him is a bar he can point at and ask about.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>A dimension is a contract about what values are allowed to exist. Building it from the union of every source that uses the key is what makes that contract true. Anyone can write a lookup table from the values they happened to see. The discipline is deriving it from every producer of the key, including the producers that generate no transactions at all. PHX is the one that generates none.</p>
+  </aside>
+
+  <h3>DimTrade, where planning and capacity keep different lists</h3>
+
+  <p>The production controller asks the question the whole shop runs on: do we have the people for the work booked this quarter. You give him a chart with demand and capacity side by side, split by trade. Four bars, all of them comfortably inside their limit, meeting over in ninety seconds. The chart is missing a fifth bar, and the fifth bar is the only one worth talking about.</p>
+
+  <p>Meridian has a second key with exactly the same defect as the station code. It is worth working through, because the two sources that produce it sit on opposite sides of the shop and have never had to agree on anything. Start with what a trade is, since the word carries no meaning outside this industry. A trade is the skill group a technician works in: airframe, avionics, engine, NDT (Non-Destructive Testing, the inspection specialism that finds cracks and corrosion without dismantling the structure), and at some shops cabin. Everything about resourcing a hangar is split by trade, for one reason. Ten airframe technicians cannot do an avionics job. A headcount on its own tells you almost nothing about whether the work in front of you can be done.</p>
+
+  <p>Two extracts carry a trade code, and neither of them is a list of trades.</p>
+
+  <dl class="defs">
+    <dt>ShopCapacity</dt>
+    <dd>Supply, at station and month grain. Grain is the sentence that says what one row of a table means, and one row here means one station in one month. It comes out of the monthly planning workbook the resource manager owns. A capacity figure is normally headcount multiplied by shift hours multiplied by an availability factor that strips out holiday, sickness, training and time booked to no job, then split by trade. In this workbook the four trades arrive as column headers: Airframe, Avionics, Engine and NDT. Unpivoting turns a set of columns into rows, one row per column per original row, and until that unpivot runs "Airframe" is the name of a column instead of a value in one. You cannot build a relationship on a column name.</dd>
+    <dt>HeavyPreInput</dt>
+    <dd>Demand, at work order and trade grain. This is the heavy pre-input tab: the planner's work package for a base maintenance visit, assembled in the weeks before the aircraft physically arrives. Input, also called induction, is that arrival, so pre-input is everything the planner does while the aircraft is still flying. He pulls together four kinds of work: the routine task cards falling due in the window, the ADs (Airworthiness Directives, which are mandatory), the service bulletins and modifications the customer has bought, and the defects carried over from earlier visits. He puts an estimated manhour figure against each card. Then he rolls the total up per trade. One row is one work order and one trade. The figure is then frozen at induction, because a baseline that moves cannot measure anything. Here the trades are values in a column, and there are five of them: the four above, plus Cabin.</dd>
+  </dl>
+
+  <p>That fifth member is the one that matters, and it appears nowhere else in the model. WO-1004 is a cabin retrofit on N771QR at Tucson, carrying 12.0 planned hours. Three systems describe that one job in three vocabularies. The shop floor system types it Mod. The HMCC board records the service line as Cabin and IFE. The planner's pack calls the trade Cabin. HMCC stands for Heavy Maintenance Control Centre. That is what many airlines and MROs (maintenance, repair and overhaul organisations) call the function that owns the heavy schedule. Plenty of shops call the identical function production control, or base maintenance control, so do not expect the acronym to travel with you. IFE is In-Flight Entertainment, the seat-back screens and the head-end equipment behind them. None of those three words appears anywhere in the capacity workbook.</p>
+
+  <p>One caution about the figures before you model them. What Meridian calls available hours, other shops call planned, budgeted, estimated or sold. The same word can mean the frozen baseline in one report and the live forecast in the next. Every shop settles this locally and no industry standard settles it for them. So write down the definition your production control team actually uses, get it agreed in writing, and put it in the model description. Note also that the hours column is called <code>PlannedHours</code> in both extracts and means opposite things: demand in one, supply in the other. Name the measures apart even if you leave the columns alone. A report author browsing the field list then sees Available Hours and Capacity Hours, and cannot add them together by accident.</p>
+
+  <p>The union arithmetic is smaller than the station one. The capacity workbook names four trades, the pre-input pack names five, the union is five, and the single member that separates the two lists is Cabin.</p>
+
+  <ol class="steps">
+    <li>Reference <code>FactCapacity</code>, the query that has already unpivoted <code>ShopCapacity</code>, and reduce it to the trade column.</li>
+    <li>Reference <code>HeavyPreInput</code> and reduce it to the trade column.</li>
+    <li>Append the two into one stack. No rename is needed here, provided the unpivot named its output column Trade and did not leave the default name in place.</li>
+    <li>Trim the text, then remove nulls and empty strings.</li>
+    <li>Remove duplicates. Five rows remain, and that is the entire dimension.</li>
+    <li>Stop. There is no attribute table to join and no unknown member to add.</li>
+  </ol>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">DimTrade</span></div>
+    <pre><code><span class="k">let</span>
+    <span class="c">// FactCapacity is ShopCapacity after the unpivot, so Trade</span>
+    <span class="c">// is a value here and a column header in the source</span>
+    FromCapacity <span class="op">=</span>
+        <span class="k">Table.SelectColumns</span>( <span class="t">FactCapacity</span>, {<span class="s">"Trade"</span>} ),
+
+    FromPreInput <span class="op">=</span>
+        <span class="k">Table.SelectColumns</span>( <span class="t">HeavyPreInput</span>, {<span class="s">"Trade"</span>} ),
+
+    Stacked <span class="op">=</span>
+        <span class="k">Table.Combine</span>( {FromCapacity, FromPreInput} ),
+
+    Trimmed <span class="op">=</span>
+        <span class="k">Table.TransformColumns</span>(
+            Stacked, {{<span class="s">"Trade"</span>, <span class="k">Text.Trim</span>, <span class="k">type text</span>}} ),
+
+    NoBlanks <span class="op">=</span>
+        <span class="k">Table.SelectRows</span>( Trimmed,
+            <span class="k">each</span> <span class="col">[Trade]</span> <span class="op">&lt;&gt;</span> <span class="k">null</span>
+                 <span class="k">and</span> <span class="col">[Trade]</span> <span class="op">&lt;&gt;</span> <span class="s">""</span> ),
+
+    DimTrade <span class="op">=</span> <span class="k">Table.Distinct</span>( NoBlanks )
+<span class="k">in</span>
+    DimTrade</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">FromCapacity</div><div class="linex-v">Point at <code>FactCapacity</code> and not at <code>Table.ColumnNames( ShopCapacity )</code>. Reading the headers looks like the shorter route and it returns StationCode and Month along with the four trades, so you would have to strip two names by hand. That exclusion list is one more thing a human maintains, and the day planning adds a Notes column to the workbook it starts admitting a trade called Notes. Reading the unpivoted column instead means the values come from a column whose only content is trades.</div></div>
+    <div class="linex-row"><div class="linex-k">Both named Trade</div><div class="linex-v">This works because the unpivot renamed its output. <code>Table.UnpivotOtherColumns</code> produces columns called Attribute and Value, and Attribute has to become Trade at that step, not at this one. Leave it as Attribute and <code>Table.Combine</code> aligns nothing: you get two columns, each mostly null, and <code>Table.Distinct</code> returns 4 plus 5 = 9 rows that all look plausible in the preview.</div></div>
+    <div class="linex-row"><div class="linex-k">NoBlanks</div><div class="linex-v">Neither source has a blank trade today. The guard stays because the pre-input pack is a planner's workbook, and workbooks behave the way workbooks behave. A row with hours in it and the trade cell left empty is an ordinary Friday. DimStation got an UNASSIGNED member and this dimension gets none, because there is no blank here to catch. Add the member on the day the data needs it.</div></div>
+    <div class="linex-row"><div class="linex-k">Table.Distinct</div><div class="linex-v">The key is the whole row, as it will be for DimCertification later in this chapter. Meridian has no trade master, no skill grouping and no rate band, so there is nothing honest to attach. Resist in particular the temptation to add a flag saying whether the trade appears in the capacity workbook. That is a fact about this quarter's rows, it will be wrong the moment planning rosters a cabin technician, and freezing it into a dimension puts a measurable thing where a descriptive thing belongs.</div></div>
+  </div>
+
+  <details class="expand" open>
+    <summary>Trace the trade union by hand, row by row</summary>
+    <div class="expand-body">
+      <p>The unpivot turns 7 capacity rows times 4 trade columns into 28 rows, so the capacity side contributes 28 trade values, 7 each of Airframe, Avionics, Engine and NDT. The pre-input pack contributes its 8 rows: Airframe 4 times, on WO-1001, WO-1003, WO-1006 and WO-1008, then one each of Avionics, Engine, Cabin and NDT. The append is therefore 28 plus 8 = 36 values, made up of Airframe 11, Avionics 8, Engine 8, NDT 8 and Cabin 1, and 11 plus 8 plus 8 plus 8 plus 1 = 36 confirms nothing was dropped on the way in. Deduplicating 36 values leaves 5. A result of 4 rows means you appended the capacity side only. A result of 9 means the two columns never shared a name.</p>
+    </div>
+  </details>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Building the trade list from the pre-input pack alone and letting the coverage check bless it. Today that check passes. <code>HeavyPreInput</code> happens to name all four capacity trades as well as Cabin, so the check comes back empty against both facts and the model ships. The list is complete by accident rather than by construction. Delete one row, the 2.0 NDT hours on WO-1008, and the dimension drops to four members while the 13 planned NDT hours in the capacity workbook lose their home. A check that passes on today's rows tells you about today's rows. A rule that keeps passing next quarter is a different thing, and construction is what buys it.</p>
+  </aside>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <p>Take the four column headers out of the capacity workbook and call that the trade list, on the reasonable sounding grounds that the resource manager is the person who owns trades.</p>
+      <p>Available hours by trade then reads Airframe 34.0, Avionics 4.0, Engine 5.0 and NDT 2.0. Those four add to 34.0 plus 4.0 plus 5.0 plus 2.0 = 45.0. The card above the chart says 57.0, because the unmatched 12.0 is still in the total, parked behind the blank member the engine added the moment it met a fact key the dimension did not contain.</p>
+      <p>No error, no warning, and the one work order in the quarter whose entire package is cabin work has no bar at all.</p>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <p>Union both producers. Five members, with Cabin among them whether or not anybody has rostered for it.</p>
+      <p>The same chart now reads Cabin 12.0 against a planned capacity of 0, alongside Airframe 34.0 against 80, Avionics 4.0 against 44, Engine 5.0 against 39 and NDT 2.0 against 13. The labelled rows add to the total, and the one line with a zero on the supply side is the line a planner reads first.</p>
+      <p>That 12.0 is 21.1 percent of the 57.0 available hours, computed as 12.0 divided by 57.0, and it sits on a single work order out of eight.</p>
+    </div>
+  </div>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>With four members, a demand against capacity chart is four comfortable bars adding to 45.0 against 176 planned hours of capacity. Everything inside its limit, nothing to discuss, meeting over. Two things are wrong with that picture and only one of them is the dimension. The missing bar is the dimension. The other is that the 57.0 covers heavy and cabin work only, because light maintenance never gets a pre-input pack, so the demand side is understated by whatever the line work consumes and the chart flatters the shop twice over.</p>
+  </div>
+
+  <p>The comparison also holds only at trade and quarter grain, which is worth knowing before somebody asks for it by month. Capacity sits at station and month. A pre-input row has a work order, a trade and an hours figure, and no date of any kind. So a monthly demand against capacity chart has to borrow a date from the work order, and then decide which of the three dates on it counts. That is an easy problem to solve and a decision somebody has to make out loud. A chart that splits by month before anybody has made it is answering a question nobody asked.</p>
+
+  <p>Now the payoff, and it is an operations finding. Cabin carries 12.0 planned hours against zero planned capacity. Read that the way the production controller reads it. The work package says the cabin job needs twelve hours of somebody's time, and the roster for the quarter puts nobody in that trade at any of the four stations, in any month. That is his answer, and it is the opposite of the comfortable one his four bar chart gave him. The five member dimension made a fact that had been sitting in the data all along reachable by a visual. The gap itself was already there, and it stays there until somebody rosters for it. With a four member trade list, nothing in the report could have got near it.</p>
+
+  <p>Then stop short of the conclusion, because two different situations produce this identical row and nothing in the extracts separates them. Either nobody was rostered for cabin work, which is a resourcing gap somebody has to answer for before the aircraft is in the bay. Or the capacity workbook runs a coarser trade list than the planning module does, and the people who will do the job are already counted inside Airframe. Cabin work frequently uses trades other than airframe, which is the usual reason a cabin code turns up in a planning extract and is missing from a capacity workbook. Shops genuinely differ on whether cabin is a trade of its own or a specialism sitting inside another one. Your model has produced a question. Production control owns the answer, and it is worth having in writing before the number reaches a page.</p>
+
+  <p>One more detail sharpens the question, and stops short of settling it. The only labor ever booked against WO-1004 is 10.0 hours from TECH-07, an identifier that appears nowhere in the HR (human resources) extract. One row takes you exactly this far. The single job with no planned capacity is also the single job whose hours were booked by a technician the roster does not know about. Whether that means a contractor nobody set up in the system, or somebody mistyping a digit, one row of data cannot settle. That combination is worth raising with a human being.</p>
+
+  <p>Finish the build the way this chapter finishes every other one. The grain sentence is one row per trade that either producer names. The key is Trade, with 5 distinct values across 5 rows. The coverage check is two anti joins, one for each fact that uses the key. An anti join returns the rows on one side that have no match on the other, so it is the question "which keys does the fact use that the dimension has never heard of" written down. <code>FactCapacity[Trade]</code> holds 4 distinct values with none missing. <code>FactPreInput[Trade]</code>, which is <code>HeavyPreInput</code> typed and keyed, holds 5 with none missing. Build the dimension from the capacity workbook alone and the second check returns exactly one row, Cabin, which is this whole section compressed into one output. The model figure later in this chapter leaves out DimTrade and <code>FactPreInput</code>, because that figure is the twelve table core model and the pre-input pack arrives with the heavy maintenance extension. <code>FactCapacity</code> is drawn there, with its <code>Trade</code> column listed and no trade dimension yet attached to it.</p>
+
+  <h3>DimAircraft, where the dimension you were given is the incomplete one</h3>
+
+  <p>The finance manager wants labor hours split by aircraft type, because she is preparing a customer conversation about the A320 fleet. Your chart gives her three types adding to 50.0 hours. She has already seen the quarter total on another page and it says 62.0. Twelve hours have gone somewhere between the two pages, and she asks the obvious question.</p>
+
+  <p>Here the source did ship a dimension, which makes this the most dangerous case in the chapter. <code>AircraftRegistry</code> has 6 tails, maintained on a spreadsheet by the customer service desk, and it is stale in the way fleet spreadsheets always are. <code>WorkOrders</code> references 5 distinct tails. The two lists overlap, and neither one contains the other.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 3.3</span> Coverage check across both sources. The union is 7, which is larger than either input.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">ACREG</th>
+            <th scope="col">In AircraftRegistry</th>
+            <th scope="col">In WorkOrders</th>
+            <th scope="col">Consequence if you use the registry alone</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">N771QR</td><td>Yes</td><td>Yes</td><td class="muted">None</td></tr>
+          <tr><td class="key">N448LM</td><td>Yes</td><td>Yes</td><td class="muted">None</td></tr>
+          <tr><td class="key">N902TT</td><td>Yes</td><td>Yes</td><td class="muted">None</td></tr>
+          <tr><td class="key">N615RB</td><td>Yes</td><td>Yes</td><td class="muted">None</td></tr>
+          <tr><td class="key">N120CE</td><td>Yes</td><td>No</td><td>Member with no facts, harmless</td></tr>
+          <tr><td class="key">N553KD</td><td>Yes</td><td>No</td><td>Member with no facts, harmless</td></tr>
+          <tr class="row-bad"><td class="key">N338WA</td><td>No</td><td>Yes</td><td>WO-1006 orphans, 12.0 hours go blank</td></tr>
+          <tr class="row-total"><td>Union</td><td class="num">6</td><td class="num">5</td><td>7 rows in the built dimension</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Notice the asymmetry. N120CE and N553KD sit in the registry with no work orders against them, and that costs you nothing. A dimension member with no facts is legitimate. It returns blank measures and drops out of visuals, unless you switch on "show items with no data". N338WA is the expensive case, and it is where the finance manager's twelve hours went. The fact references a key the dimension does not contain, and the engine has to put those rows somewhere.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">DimAircraft</span></div>
+    <pre><code><span class="k">let</span>
+    Registry <span class="op">=</span>
+        <span class="k">Table.SelectColumns</span>( <span class="t">AircraftRegistry</span>,
+            {<span class="s">"ACREG"</span>, <span class="s">"AircraftType"</span>, <span class="s">"Operator"</span>,
+             <span class="s">"EngineType"</span>, <span class="s">"YearBuilt"</span>} ),
+
+    FactTails <span class="op">=</span>
+        <span class="k">Table.Distinct</span>(
+            <span class="k">Table.SelectColumns</span>( <span class="t">WorkOrders</span>, {<span class="s">"ACREG"</span>} ) ),
+
+    <span class="c">// registry first: its rows win the deduplication</span>
+    Stacked <span class="op">=</span> <span class="k">Table.Combine</span>( {Registry, FactTails} ),
+
+    Deduped <span class="op">=</span> <span class="k">Table.Distinct</span>( Stacked, {<span class="s">"ACREG"</span>} ),
+
+    Filled <span class="op">=</span>
+        <span class="k">Table.TransformColumns</span>( Deduped,
+            {
+                {<span class="s">"AircraftType"</span>,
+                 <span class="k">each if</span> _ <span class="op">=</span> <span class="k">null</span> <span class="k">then</span> <span class="s">"Unknown type"</span>
+                      <span class="k">else</span> _, <span class="k">type text</span>},
+                {<span class="s">"Operator"</span>,
+                 <span class="k">each if</span> _ <span class="op">=</span> <span class="k">null</span> <span class="k">then</span> <span class="s">"Unknown operator"</span>
+                      <span class="k">else</span> _, <span class="k">type text</span>},
+                {<span class="s">"EngineType"</span>,
+                 <span class="k">each if</span> _ <span class="op">=</span> <span class="k">null</span> <span class="k">then</span> <span class="s">"Unknown engine"</span>
+                      <span class="k">else</span> _, <span class="k">type text</span>}
+            } )
+<span class="k">in</span>
+    Filled</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Stacked</div><div class="linex-v"><code>Table.Combine</code> with mismatched column sets fills the absent columns with null, so the N338WA row arrives carrying an aircraft registration and four nulls. That is the shape you want going into the deduplication.</div></div>
+    <div class="linex-row"><div class="linex-k">Deduped</div><div class="linex-v">Append order decides the outcome here. <code>Table.Distinct</code> with a key column keeps the first row it meets for each key, so putting <code>Registry</code> first means the described rows win. The bare fact key then survives only where the registry had nothing to say. Reverse the append order and you wipe out the attributes for all five tails that appear in both lists.</div></div>
+    <div class="linex-row"><div class="linex-k">Filled</div><div class="linex-v">Literal text, not a blank. "Unknown type" is a value a report reader can see, filter on, count and complain about. A null is a value they scroll past.</div></div>
+    <div class="linex-row"><div class="linex-k">YearBuilt</div><div class="linex-v">Deliberately left null. Every other unknown gets a label, but a year is a number that measures will average, and inventing 0 or 1900 would poison the average silently. When the unknown value feeds arithmetic, leave it blank; when it feeds a label, fill it.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 3.4</span> DimAircraft after the append, seven rows. The last one was recovered from a fact.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">ACREG</th>
+            <th scope="col">AircraftType</th>
+            <th scope="col">Operator</th>
+            <th scope="col">EngineType</th>
+            <th scope="col" class="num">YearBuilt</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">N771QR</td><td>A320-200</td><td>Cascade Air</td><td>CFM56-5B</td><td class="num">2009</td></tr>
+          <tr><td class="key">N448LM</td><td>B737-800</td><td>Cascade Air</td><td>CFM56-7B</td><td class="num">2013</td></tr>
+          <tr><td class="key">N902TT</td><td>E175</td><td>Northwind Regional</td><td>CF34-8E</td><td class="num">2016</td></tr>
+          <tr><td class="key">N615RB</td><td>A320-200</td><td>Northwind Regional</td><td>CFM56-5B</td><td class="num">2011</td></tr>
+          <tr><td class="key">N120CE</td><td>B737-800</td><td>Sierra Charter</td><td>CFM56-7B</td><td class="num">2007</td></tr>
+          <tr><td class="key">N553KD</td><td>E175</td><td>Sierra Charter</td><td>CF34-8E</td><td class="num">2018</td></tr>
+          <tr class="row-good"><td class="key">N338WA</td><td>Unknown type</td><td>Unknown operator</td><td>Unknown engine</td><td class="num muted">(blank)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Now the payoff. Put the two versions of the chart side by side, because the principle is easier to believe with the arithmetic attached. The measure is total labor hours, sliced by <code>DimAircraft[AircraftType]</code>, with the filter travelling from DimAircraft to FactWorkOrder to FactLabor.</p>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <p>Load <code>AircraftRegistry</code> as the dimension, unchanged, six rows.</p>
+      <figure class="tbl">
+        <figcaption><span class="tbl-num">Table 3.5</span> Labor hours by aircraft type with the registry used as shipped.</figcaption>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th scope="col">AircraftType</th><th scope="col" class="num">Labor hours</th></tr></thead>
+            <tbody>
+              <tr><td>A320-200</td><td class="num">23.5</td></tr>
+              <tr><td>B737-800</td><td class="num">9.0</td></tr>
+              <tr><td>E175</td><td class="num">17.5</td></tr>
+              <tr class="row-bad"><td>(Blank)</td><td class="num">12.0</td></tr>
+              <tr class="row-total"><td>Total</td><td class="num">62.0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+      <p>The three real types sum to 23.5 plus 9.0 plus 17.5 = 50.0. The remaining 12.0 belongs to WO-1006 on N338WA and sits in a row with no name, no operator and no way to drill into it.</p>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <p>Load the built <code>DimAircraft</code>, seven rows, with the recovered key labelled.</p>
+      <figure class="tbl">
+        <figcaption><span class="tbl-num">Table 3.6</span> The same measure after the dimension is built. The 12.0 has a name.</figcaption>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th scope="col">AircraftType</th><th scope="col" class="num">Labor hours</th></tr></thead>
+            <tbody>
+              <tr><td>A320-200</td><td class="num">23.5</td></tr>
+              <tr><td>B737-800</td><td class="num">9.0</td></tr>
+              <tr><td>E175</td><td class="num">17.5</td></tr>
+              <tr class="row-good"><td>Unknown type</td><td class="num">12.0</td></tr>
+              <tr class="row-total"><td>Total</td><td class="num">62.0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+      <p>Same 62.0 total, same 12.0. The 12.0 now carries a label the finance manager can act on, and clicking it filters to N338WA and WO-1006. Her missing twelve hours were on an airframe the registry has never listed.</p>
+    </div>
+  </div>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>Both versions total 62.0, which is why this defect survives review. Nobody reconciles a breakdown against its own total. The reader sees three aircraft types adding to 50.0. The fourth row never registers, because a blank category label reads as visual noise, and she leaves believing the fleet consumed 50 labor hours. That understates it by 19.4 percent, computed as 12.0 divided by 62.0. The engine did nothing wrong here. It added the blank member because you asked it to relate a fact key to a dimension that did not contain that key.</p>
+  </div>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Never let a fact contain a key value that the dimension does not contain. Not a blank, not an orphan, not a code that arrived last Tuesday. If you cannot describe the value, add it anyway with an explicit unknown label, because a labelled unknown gets investigated and an unlabelled blank gets ignored.</p>
+  </aside>
+
+  <p>That rule is only useful if you test it, and the test is three lines of DAX you can run in a table visual after every refresh.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Coverage assertion, should return zero rows</span></div>
+    <pre><code>Missing Aircraft Keys <span class="op">=</span>
+<span class="k">EXCEPT</span> (
+    <span class="k">DISTINCT</span> ( <span class="t">FactWorkOrder</span><span class="col">[ACREG]</span> ),
+    <span class="k">DISTINCT</span> ( <span class="t">DimAircraft</span><span class="col">[ACREG]</span> )
+)</code></pre>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>EXCEPT</code> and not a <code>FILTER</code> wrapped around <code>NOT CONTAINS</code>. Both return the same rows. <code>EXCEPT</code> is a set operator, so the engine resolves it as one set difference rather than iterating the fact key list and probing the dimension once per value. It also reads as the question you are actually asking: which fact keys are missing from the dimension. The <code>CONTAINS</code> form states that question backwards. It invites the classic error of putting the arguments in the wrong order, which returns dimension members with no facts, a completely different and usually harmless condition. Note that <code>EXCEPT</code> matches columns by position, so both arguments must be single column tables in the same order.</p>
+  </div>
+
+  <h3>DimPart, built out of the fact that uses it</h3>
+
+  <p>The finance manager comes back a week later wanting parts cost grouped by category, so she can see how much of the quarter went on brakes. Meridian has no part master anywhere. Nobody holds a list that says BRK-2210 is a brake. You have seven rows in a stores issue log and a customer waiting.</p>
+
+  <p><code>PartsIssued</code> has 7 rows carrying 4 distinct part numbers, and that is the entire universe of parts as far as this model is concerned. When the only producer of a key is a single fact, the fact is where the dimension comes from.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">DimPart</span></div>
+    <pre><code><span class="k">let</span>
+    Keys <span class="op">=</span>
+        <span class="k">Table.Distinct</span>(
+            <span class="k">Table.SelectColumns</span>( <span class="t">PartsIssued</span>,
+                {<span class="s">"PartNumber"</span>} ) ),
+
+    Prefix <span class="op">=</span>
+        <span class="k">Table.AddColumn</span>( Keys, <span class="s">"Prefix"</span>,
+            <span class="k">each</span> <span class="k">Text.BeforeDelimiter</span>( <span class="col">[PartNumber]</span>, <span class="s">"-"</span> ),
+            <span class="k">type text</span> ),
+
+    Category <span class="op">=</span>
+        <span class="k">Table.AddColumn</span>( Prefix, <span class="s">"PartCategory"</span>,
+            <span class="k">each if</span> <span class="col">[Prefix]</span> <span class="op">=</span> <span class="s">"BRK"</span> <span class="k">then</span> <span class="s">"Brakes"</span>
+            <span class="k">else if</span> <span class="col">[Prefix]</span> <span class="op">=</span> <span class="s">"HYD"</span> <span class="k">then</span> <span class="s">"Hydraulics"</span>
+            <span class="k">else if</span> <span class="col">[Prefix]</span> <span class="op">=</span> <span class="s">"ENG"</span> <span class="k">then</span> <span class="s">"Engine"</span>
+            <span class="k">else if</span> <span class="col">[Prefix]</span> <span class="op">=</span> <span class="s">"AVI"</span> <span class="k">then</span> <span class="s">"Avionics"</span>
+            <span class="k">else</span> <span class="s">"Unmapped prefix"</span>, <span class="k">type text</span> ),
+
+    Class <span class="op">=</span>
+        <span class="k">Table.AddColumn</span>( Category, <span class="s">"PartClass"</span>,
+            <span class="k">each if</span> <span class="col">[Prefix]</span> <span class="op">=</span> <span class="s">"BRK"</span> <span class="k">then</span> <span class="s">"Consumable"</span>
+                 <span class="k">else</span> <span class="s">"Rotable"</span>, <span class="k">type text</span> ),
+
+    DimPart <span class="op">=</span>
+        <span class="k">Table.SelectColumns</span>( Class,
+            {<span class="s">"PartNumber"</span>, <span class="s">"PartCategory"</span>, <span class="s">"PartClass"</span>} )
+<span class="k">in</span>
+    DimPart</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Text.BeforeDelimiter</div><div class="linex-v">Split on the delimiter, because that encodes the rule that actually exists, which is "everything before the hyphen". <code>Text.Start( [PartNumber], 3 )</code> returns BRK today as well, so the two look interchangeable. <code>Text.Start</code> hard codes the assumption that every prefix is exactly three characters, and the first four character prefix the stores system invents will produce a silently truncated category.</div></div>
+    <div class="linex-row"><div class="linex-k">else "Unmapped prefix"</div><div class="linex-v">The catch all branch earns its place. It decides whether a new prefix shows up as a visible label in a report or as a blank that nobody investigates. Put an unmapped count on your refresh check page.</div></div>
+    <div class="linex-row"><div class="linex-k">Prefix dropped</div><div class="linex-v">The helper column comes out at the end. Leave it visible and report authors get a second way to group parts, one you never documented and never intended. Two groupings that agree today will not agree forever.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 3.7</span> DimPart, four rows derived entirely from the fact table.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">PartNumber</th><th scope="col">PartCategory</th><th scope="col">PartClass</th></tr></thead>
+        <tbody>
+          <tr><td class="key">BRK-2210</td><td>Brakes</td><td>Consumable</td></tr>
+          <tr><td class="key">HYD-4471</td><td>Hydraulics</td><td>Rotable</td></tr>
+          <tr><td class="key">ENG-8802</td><td>Engine</td><td>Rotable</td></tr>
+          <tr><td class="key">AVI-1130</td><td>Avionics</td><td>Rotable</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>So the finance manager gets her brakes figure. Now say the caveat out loud, because you should be able to state both halves of it in a design review. Extracting a category out of a key is acceptable here and a smell in general. Acceptable, because no alternative source exists and the mapping is small enough to audit by eye. A smell, because the source system is encoding meaning inside an identifier, and encodings drift. The day stores renumbers a brake assembly from BRK-2210 to ASM-2210, for a purchasing reason that has nothing to do with you, that part changes category. Every historical parts cost by category figure moves with it. DimPart has no memory of what BRK used to mean. The permanent fix is a part master that stores owns, and the prefix parse is what you run until somebody funds one.</p>
+
+  <h3>DimWOType, three rows and the argument for bothering</h3>
+
+  <p>The shift supervisor filters the page to LAS to look at one station, and the work order type slicer beside it loses two of its three options. He calls you and says the report is broken. The slicer is behaving exactly as it was built to, he is right to call, and the fix is a three row table.</p>
+
+  <p><code>WorkOrders[WOType]</code> holds three values across eight rows. Scheduled sits on WO-1001, WO-1003, WO-1006 and WO-1008. AOG (aircraft on ground, unplanned work that the shop learns about when the defect is reported) sits on WO-1002, WO-1005 and WO-1007. Mod sits on WO-1004 alone. Meridian has no work order type master anywhere, and the column has no blank and no orphan in it. This is the smallest built dimension in the model and the one most likely to be skipped, so be explicit about what building it buys and what it costs.</p>
+
+  <p>The case for skipping it is real. <code>WOType</code> is already on the fact, it has three values, and dragging <code>FactWorkOrder[WOType]</code> onto a slicer works today. That is the degenerate dimension argument from <a class="xref" href="#ch-01">Chapter 1</a>, and for a key with no attributes it is the right call. The question is whether this key has attributes, and it does: a definition that operations cares about, a display order that is not alphabetical, and the fact that AOG means unplanned while the other two do not.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">DimWOType</span></div>
+    <pre><code><span class="k">let</span>
+    Keys <span class="op">=</span>
+        <span class="k">Table.Distinct</span>(
+            <span class="k">Table.SelectColumns</span>( <span class="t">WorkOrders</span>, {<span class="s">"WOType"</span>} ) ),
+
+    Attributes <span class="op">=</span> <span class="k">#table</span>(
+        <span class="k">type table</span> [ WOType <span class="op">=</span> text, WOTypeDesc <span class="op">=</span> text,
+                     WOTypeSort <span class="op">=</span> <span class="k">Int64.Type</span>,
+                     IsUnplanned <span class="op">=</span> logical ],
+        {
+            {<span class="s">"Scheduled"</span>, <span class="s">"Planned input, booked in advance"</span>,
+             <span class="n">1</span>, <span class="k">false</span>},
+            {<span class="s">"AOG"</span>, <span class="s">"Aircraft on ground, unplanned"</span>,
+             <span class="n">2</span>, <span class="k">true</span>},
+            {<span class="s">"Mod"</span>, <span class="s">"Modification or upgrade"</span>,
+             <span class="n">3</span>, <span class="k">false</span>}
+        } ),
+
+    Joined <span class="op">=</span>
+        <span class="k">Table.NestedJoin</span>( Keys, {<span class="s">"WOType"</span>},
+            Attributes, {<span class="s">"WOType"</span>}, <span class="s">"attr"</span>,
+            <span class="k">JoinKind.LeftOuter</span> ),
+
+    DimWOType <span class="op">=</span>
+        <span class="k">Table.ExpandTableColumn</span>( Joined, <span class="s">"attr"</span>,
+            {<span class="s">"WOTypeDesc"</span>, <span class="s">"WOTypeSort"</span>, <span class="s">"IsUnplanned"</span>} )
+<span class="k">in</span>
+    DimWOType</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Keys</div><div class="linex-v">The key list comes from the fact, not from the three strings you are about to type underneath. Type them and a fourth type arriving next quarter, Warranty say, has no row in the dimension and its work orders fall behind the blank member. Derive the list and the new code arrives in the dimension by itself, with a null description that somebody notices on the first report that groups by it.</div></div>
+    <div class="linex-row"><div class="linex-k">WOTypeSort</div><div class="linex-v">An integer, because Scheduled, AOG, Mod is the order the shop thinks in and alphabetical order is AOG, Mod, Scheduled. Setting the Sort by Column property on <code>WOTypeDesc</code> to this column is a manual step in the model that no query can do for you, and it is forgotten roughly as often as the same step on month names.</div></div>
+    <div class="linex-row"><div class="linex-k">IsUnplanned</div><div class="linex-v">A logical column holding the definition of unplanned work in one row of one table. The alternative is every measure that cares testing <code>WOType = "AOG"</code> for itself, which works and which scatters the rule across the model. When Meridian adds an AOG-Ferry code, one row changes here and nothing else does.</div></div>
+    <div class="linex-row"><div class="linex-k">JoinKind.LeftOuter</div><div class="linex-v">Left outer and not inner, for the same reason as DimStation. An inner join silently drops any key the attribute table has no entry for, which is the one case you need to see.</div></div>
+    <div class="linex-row"><div class="linex-k">No unknown member</div><div class="linex-v">DimStation got an UNASSIGNED row and DimAircraft got a recovered one. This dimension gets neither, because <code>WorkOrders[WOType]</code> has no blank and no orphan. Adding an unknown member anyway would put a row in every slicer that can never be selected usefully. Add the member when the data needs it, not as a habit.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 3.8</span> DimWOType, three rows, with what each type accounts for across the eight work orders.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">WOType</th>
+            <th scope="col">WOTypeDesc</th>
+            <th scope="col" class="num">Work orders</th>
+            <th scope="col" class="num">Labor hours</th>
+            <th scope="col" class="num">Quoted</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">Scheduled</td><td>Planned input, booked in advance</td><td class="num">4</td><td class="num">38.0</td><td class="num">28,000</td></tr>
+          <tr><td class="key">AOG</td><td>Aircraft on ground, unplanned</td><td class="num">3</td><td class="num">14.0</td><td class="num">6,100</td></tr>
+          <tr><td class="key">Mod</td><td>Modification or upgrade</td><td class="num">1</td><td class="num">10.0</td><td class="num">4,000</td></tr>
+          <tr class="row-total"><td>Total</td><td class="muted">3 types</td><td class="num">8</td><td class="num">62.0</td><td class="num">38,100</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Check that arithmetic against <a class="xref" href="#ch-00">Chapter 0</a> before you use it. Scheduled hours are WO-1001 at 13.5 plus WO-1003 at 12.5 plus WO-1006 at 12.0 plus WO-1008 at nothing, which is 38.0. AOG is WO-1002 at 9.0 plus WO-1005 at nothing plus WO-1007 at 5.0, which is 14.0. Mod is WO-1004 at 10.0. Those add to 62.0. Quoted runs 3,000 plus 12,500 plus 7,500 plus 5,000 = 28,000 for Scheduled, 3,200 plus 2,000 plus 900 = 6,100 for AOG, 4,000 for Mod, and 28,000 plus 6,100 plus 4,000 = 38,100.</p>
+
+  <p>Here is the behaviour behind the supervisor's phone call, and you can reproduce it in two minutes. Put a station slicer and a work order type slicer on a page. Set the station slicer to LAS, which has exactly one work order, WO-1007, an AOG job. If the type slicer reads <code>FactWorkOrder[WOType]</code>, Scheduled and Mod vanish from it. The station selection filtered the fact, and the slicer is reading the surviving rows of that fact. If it reads <code>DimWOType[WOType]</code>, all three options stay put, because filter flows from the dimension into the fact and never back up the other relationship. So point his slicer at the dimension and the list stops moving. He was right to call: with the fact column feeding the slicer, he could not tell whether Mod was absent because LAS does no mods, or because somebody had removed the option.</p>
+
+  <p>The cost is honest and small. You have added a table, a relationship and a maintenance job, all to hold three strings that were already in the model. If Meridian had shipped a work order type master, this whole section would be one merge. Whatever you gain here, you do not gain it in bytes. Three distinct values cost two bits per row on the fact either way, and building the dimension leaves that column exactly where it was.</p>
+
+  <h3>DimCertification and BridgeTechCert, from a delimited column</h3>
+
+  <p>The production controller wants to know how many hours went to work needing an NDT ticket, because he is deciding whether to send a second technician for the qualification. The certifications are in the model. They are sitting three to a cell in one text column, which means no visual can group by them. Getting from that column to his number takes one new table and one uncomfortable piece of arithmetic.</p>
+
+  <p><code>Technicians[Certifications]</code> holds multiple values per row, delimited by a semicolon. TECH-04 carries "A&amp;P; Avionics; Engine Run". A&amp;P is Airframe and Powerplant, the Federal Aviation Administration mechanic certification. Meridian uses A&amp;P and the European licence categories appear nowhere, which tells you which authority the shop answers to. A column shaped like this cannot be filtered or grouped reliably. "Avionics" as a substring appears inside three different technicians' text, and a text filter for it stops matching anything useful the moment somebody reorders their list. Split it to rows.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">BridgeTechCert</span></div>
+    <pre><code><span class="k">let</span>
+    Kept <span class="op">=</span>
+        <span class="k">Table.SelectColumns</span>( <span class="t">Technicians</span>,
+            {<span class="s">"TechnicianID"</span>, <span class="s">"Certifications"</span>} ),
+
+    <span class="c">// split on the semicolon only, then trim</span>
+    ToList <span class="op">=</span>
+        <span class="k">Table.TransformColumns</span>( Kept,
+            {{<span class="s">"Certifications"</span>,
+              <span class="k">each</span> <span class="k">Text.Split</span>( <span class="k">Text.From</span>( _ ), <span class="s">";"</span> ),
+              <span class="k">type list</span>}} ),
+
+    ToRows <span class="op">=</span>
+        <span class="k">Table.ExpandListColumn</span>( ToList, <span class="s">"Certifications"</span> ),
+
+    Clean <span class="op">=</span>
+        <span class="k">Table.TransformColumns</span>( ToRows,
+            {{<span class="s">"Certifications"</span>, <span class="k">Text.Trim</span>, <span class="k">type text</span>}} ),
+
+    Renamed <span class="op">=</span>
+        <span class="k">Table.RenameColumns</span>( Clean,
+            {{<span class="s">"Certifications"</span>, <span class="s">"CertCode"</span>}} ),
+
+    BridgeTechCert <span class="op">=</span> <span class="k">Table.Distinct</span>( Renamed )
+<span class="k">in</span>
+    BridgeTechCert</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Text.Split on ";"</div><div class="linex-v">Split on the delimiter you can rely on, then trim what is left. Splitting on <code>"; "</code> works on every current row, because every current row has the space. Then a single row typed as "A&amp;P;NDT" produces one certification called "A&amp;P;NDT" and quietly creates a fifth member of DimCertification.</div></div>
+    <div class="linex-row"><div class="linex-k">ExpandListColumn</div><div class="linex-v">This is the step that changes the grain. Six technician rows become ten technician and certification rows, which is why this output cannot live on DimTechnician: loading it there would duplicate TECH-04 three times and break the uniqueness property from the start of this chapter.</div></div>
+    <div class="linex-row"><div class="linex-k">Table.Distinct</div><div class="linex-v">Guards against the same certification being listed twice on one technician, which is a data entry outcome you will eventually meet. A duplicate pair in a bridge multiplies that technician's contribution to a certification, and unlike a duplicate dimension key the engine will not warn you.</div></div>
+  </div>
+
+  <p><code>DimCertification</code> is then the distinct <code>CertCode</code> from this output: A&amp;P, Avionics, NDT and Engine Run, four rows. Build it from the bridge rather than typing it, so that a new certification appearing in HR cannot reach the bridge without also reaching the dimension. Two queries, one dependency, and the coverage property from the start of this chapter now holds by construction. Vigilance stops being part of the design.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">DimCertification</span></div>
+    <pre><code><span class="k">let</span>
+    Codes <span class="op">=</span>
+        <span class="k">Table.SelectColumns</span>( <span class="t">BridgeTechCert</span>,
+            {<span class="s">"CertCode"</span>} ),
+
+    DimCertification <span class="op">=</span> <span class="k">Table.Distinct</span>( Codes )
+<span class="k">in</span>
+    DimCertification</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">BridgeTechCert</div><div class="linex-v">Reference the bridge, not <code>Technicians</code>. The bridge has already been split, trimmed and deduplicated, so the dimension inherits every one of those cleaning steps for free and cannot drift away from the values the bridge actually holds. Point this query at the raw delimited column instead and you have written the split twice.</div></div>
+    <div class="linex-row"><div class="linex-k">No attributes</div><div class="linex-v">The code is the whole row. Meridian has no certification master, no issuing authority, no expiry, so there is nothing honest to add and a fabricated grouping column would be worse than none. Add columns when a source for them exists.</div></div>
+    <div class="linex-row"><div class="linex-k">The cost</div><div class="linex-v">Deriving the dimension from the bridge means a certification that nobody currently holds cannot appear in the model at all. If Meridian needs to report on a qualification the shop is trying to hire for, this build cannot show it, and you will need a maintained list upstream of the bridge instead. That is a real limitation of the pattern, not a detail to wave past.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 3.9</span> DimCertification, four rows, with the bridge rows each one accounts for.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">CertCode</th><th scope="col">Held by</th><th scope="col" class="num">Bridge rows</th></tr></thead>
+        <tbody>
+          <tr><td class="key">A&amp;P</td><td class="muted">TECH-01, TECH-02, TECH-04</td><td class="num">3</td></tr>
+          <tr><td class="key">Avionics</td><td class="muted">TECH-03, TECH-04, TECH-06</td><td class="num">3</td></tr>
+          <tr><td class="key">NDT</td><td class="muted">TECH-01, TECH-03</td><td class="num">2</td></tr>
+          <tr><td class="key">Engine Run</td><td class="muted">TECH-04, TECH-05</td><td class="num">2</td></tr>
+          <tr class="row-total"><td>Total</td><td class="muted">4 codes</td><td class="num">10</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 3.10</span> BridgeTechCert in full, ten rows. Two keys, no measures, no descriptive columns.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">TechnicianID</th><th scope="col">CertCode</th></tr></thead>
+        <tbody>
+          <tr><td class="key">TECH-01</td><td>A&amp;P</td></tr>
+          <tr><td class="key">TECH-01</td><td>NDT</td></tr>
+          <tr><td class="key">TECH-02</td><td>A&amp;P</td></tr>
+          <tr><td class="key">TECH-03</td><td>Avionics</td></tr>
+          <tr><td class="key">TECH-03</td><td>NDT</td></tr>
+          <tr><td class="key">TECH-04</td><td>A&amp;P</td></tr>
+          <tr><td class="key">TECH-04</td><td>Avionics</td></tr>
+          <tr><td class="key">TECH-04</td><td>Engine Run</td></tr>
+          <tr><td class="key">TECH-05</td><td>Engine Run</td></tr>
+          <tr><td class="key">TECH-06</td><td>Avionics</td></tr>
+          <tr class="row-total"><td>Rows</td><td class="num">10</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Row counts per technician are 2, 1, 2, 3, 1 and 1, and 2 plus 1 plus 2 plus 3 plus 1 plus 1 = 10. A <span class="bridge-tag">Bridge</span> is its own kind of table, sitting outside <span class="fact-tag">Fact</span> and <span class="dim-tag">Dimension</span> both. It holds a relationship written down as rows, one row for each pairing that exists, and that is the only way a relational model can carry a many to many association. It has no measures on it, and it has no descriptive attributes and no single column key either, which is why it fits neither of the other two categories. A bridge exists to be traversed by a filter, and nobody should be reading it. Hide it from the field list. An author who drops <code>BridgeTechCert[CertCode]</code> onto a visual instead of <code>DimCertification[CertCode]</code> gets a result that looks plausible and behaves differently under cross filtering.</p>
+
+  <p>Now the production controller gets his NDT number, and it comes with a warning about the arithmetic. Grouping the 62.0 total labor hours by certification produces rows of 39.0, 10.5, 12.0 and 23.5, which add to 85.0. Those four rows are the correct answer to the question "hours performed by somebody holding this certification". TECH-04 holds three certifications, so every hour he books lands under all three of them. The number the production controller came for is the NDT row, 12.0 hours, and it overlaps the other rows on purpose. Those 12.0 hours are all TECH-01's, because TECH-01 and TECH-03 are the only two NDT holders and TECH-03 booked nothing this quarter. <a class="xref" href="#ch-14">Chapter 14</a> deals with how to put that on a page without anybody reading 85.0 as a total.</p>
+
+  <h3>DimDate, the dimension that has no source at all</h3>
+
+  <p>The finance manager selects Feb in a month slicer and asks for the year to date labor hours. The card returns February's number and labels it year to date. Nothing errors, nothing goes blank, and the page answers a different question from the one printed on it. That failure has one cause and one setting behind it, and both are in this section.</p>
+
+  <p>Every date column in the model needs one shared calendar, and there are six date columns across four facts. Meridian's period runs 2025-01-01 to 2025-03-31, which is 31 plus 28 plus 31 = 90 days.</p>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Grain</div><div class="kv-v">One row per calendar day</div></div>
+    <div class="kv-item"><div class="kv-k">Rows</div><div class="kv-v">90</div></div>
+    <div class="kv-item"><div class="kv-k">Range</div><div class="kv-v">2025-01-01 to 2025-03-31</div></div>
+    <div class="kv-item"><div class="kv-k">Key</div><div class="kv-v">DimDate[Date]</div></div>
+  </div>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">DimDate as a calculated table</span></div>
+    <pre><code>DimDate <span class="op">=</span>
+<span class="k">VAR</span> FirstDay <span class="op">=</span> <span class="k">DATE</span> ( <span class="n">2025</span>, <span class="n">1</span>, <span class="n">1</span> )
+<span class="k">VAR</span> LastDay <span class="op">=</span> <span class="k">DATE</span> ( <span class="n">2025</span>, <span class="n">3</span>, <span class="n">31</span> )
+<span class="k">RETURN</span>
+<span class="k">ADDCOLUMNS</span> (
+    <span class="k">CALENDAR</span> ( FirstDay, LastDay ),
+    <span class="s">"Year"</span>, <span class="k">YEAR</span> ( <span class="col">[Date]</span> ),
+    <span class="s">"MonthNo"</span>, <span class="k">MONTH</span> ( <span class="col">[Date]</span> ),
+    <span class="s">"MonthName"</span>, <span class="k">FORMAT</span> ( <span class="col">[Date]</span>, <span class="s">"mmm"</span> ),
+    <span class="s">"MonthKey"</span>, <span class="k">YEAR</span> ( <span class="col">[Date]</span> ) <span class="op">*</span> <span class="n">100</span> <span class="op">+</span> <span class="k">MONTH</span> ( <span class="col">[Date]</span> ),
+    <span class="s">"MonthStart"</span>,
+        <span class="k">DATE</span> ( <span class="k">YEAR</span> ( <span class="col">[Date]</span> ), <span class="k">MONTH</span> ( <span class="col">[Date]</span> ), <span class="n">1</span> ),
+    <span class="s">"Quarter"</span>, <span class="s">"Q"</span> <span class="op">&amp;</span> <span class="k">QUARTER</span> ( <span class="col">[Date]</span> ),
+    <span class="s">"DayOfWeek"</span>, <span class="k">WEEKDAY</span> ( <span class="col">[Date]</span>, <span class="n">2</span> ),
+    <span class="s">"IsWeekend"</span>, <span class="k">WEEKDAY</span> ( <span class="col">[Date]</span>, <span class="n">2</span> ) <span class="op">&gt;</span> <span class="n">5</span>
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">ADDCOLUMNS</div><div class="linex-v">One expression, holding all eight columns at once. That gives you one object to review, one place to change the fiscal logic, and no risk of a colleague deleting the column that a sort order depends on. Adding the eight as separate calculated columns through the interface scatters all three of those. The trade off is that you cannot edit a single attribute without reopening the whole table definition.</div></div>
+    <div class="linex-row"><div class="linex-k">WEEKDAY( , 2 )</div><div class="linex-v">Return type 2 makes Monday 1 and Sunday 7, so the weekend test is one comparison against 5. The default return type 1 starts the week on Sunday, which would need <code>= 1 || = 7</code> and would also make any day of week sort order start on the wrong day.</div></div>
+    <div class="linex-row"><div class="linex-k">MonthKey</div><div class="linex-v">2025 times 100 plus 1 = 202501. An integer month key sorts correctly by nature, joins to <code>FactCapacity[MonthKey]</code> without date coercion, and costs one byte column instead of a text column with 3 distinct values that sorts alphabetically.</div></div>
+    <div class="linex-row"><div class="linex-k">MonthName</div><div class="linex-v"><code>FORMAT</code> returns text, so MonthName sorts as Feb, Jan, Mar until you set its Sort by Column property to MonthNo. Setting that property is required, and it is the single most common omission in a hand built calendar.</div></div>
+    <div class="linex-row"><div class="linex-k">QUARTER</div><div class="linex-v"><code>QUARTER</code> returns the integer 1 to 4 with no format string to get wrong, and the concatenation makes it Q1. The habit people carry over from Excel and from report builders is <code>FORMAT( [Date], "q" )</code>. The list of custom date codes that DAX documents does not include q at all, so whatever a q returns here is undocumented behaviour, and you would be trusting it to survive the next version and the next locale. That is a thin thing to hang a column on.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>CALENDAR</code> and not <code>CALENDARAUTO</code>. <code>CALENDARAUTO</code> scans every date column in the model and returns whole years spanning the minimum and maximum it finds. Here that gives 2025-01-01 to 2025-12-31: 365 rows for 90 days of data, and nine months of empty rows that report readers will slice into and find blank. Worse, the range becomes a function of the model's contents. The day somebody adds a source with a date typed as 1900-01-01, your calendar grows by 125 years and the model doubles in size, with nobody having changed a line of code. <code>CALENDAR</code> with explicit bounds fails loudly instead. Data outside the range simply does not match, and an orphan check catches it.</p>
+  </div>
+
+  <p>The Power Query version does the same work upstream, and for the same reasons given for DimStation it is the one to prefer in a new model.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">DimDate</span></div>
+    <pre><code><span class="k">let</span>
+    FirstDay <span class="op">=</span> <span class="k">#date</span>( <span class="n">2025</span>, <span class="n">1</span>, <span class="n">1</span> ),
+    LastDay  <span class="op">=</span> <span class="k">#date</span>( <span class="n">2025</span>, <span class="n">3</span>, <span class="n">31</span> ),
+    DayCount <span class="op">=</span> <span class="k">Duration.Days</span>( LastDay <span class="op">-</span> FirstDay ) <span class="op">+</span> <span class="n">1</span>,
+
+    Dates <span class="op">=</span>
+        <span class="k">List.Dates</span>( FirstDay, DayCount,
+            <span class="k">#duration</span>( <span class="n">1</span>, <span class="n">0</span>, <span class="n">0</span>, <span class="n">0</span> ) ),
+
+    Base <span class="op">=</span>
+        <span class="k">Table.TransformColumnTypes</span>(
+            <span class="k">Table.FromList</span>( Dates,
+                <span class="k">Splitter.SplitByNothing</span>(), {<span class="s">"Date"</span>} ),
+            {{<span class="s">"Date"</span>, <span class="k">type date</span>}} ),
+
+    A <span class="op">=</span> <span class="k">Table.AddColumn</span>( Base, <span class="s">"Year"</span>,
+            <span class="k">each</span> <span class="k">Date.Year</span>( <span class="col">[Date]</span> ), <span class="k">Int64.Type</span> ),
+    B <span class="op">=</span> <span class="k">Table.AddColumn</span>( A, <span class="s">"MonthNo"</span>,
+            <span class="k">each</span> <span class="k">Date.Month</span>( <span class="col">[Date]</span> ), <span class="k">Int64.Type</span> ),
+    C <span class="op">=</span> <span class="k">Table.AddColumn</span>( B, <span class="s">"MonthName"</span>,
+            <span class="k">each</span> <span class="k">Date.ToText</span>( <span class="col">[Date]</span>, <span class="s">"MMM"</span> ), <span class="k">type text</span> ),
+    D <span class="op">=</span> <span class="k">Table.AddColumn</span>( C, <span class="s">"MonthKey"</span>,
+            <span class="k">each</span> <span class="col">[Year]</span> <span class="op">*</span> <span class="n">100</span> <span class="op">+</span> <span class="col">[MonthNo]</span>, <span class="k">Int64.Type</span> ),
+    E <span class="op">=</span> <span class="k">Table.AddColumn</span>( D, <span class="s">"MonthStart"</span>,
+            <span class="k">each</span> <span class="k">Date.StartOfMonth</span>( <span class="col">[Date]</span> ), <span class="k">type date</span> ),
+    F <span class="op">=</span> <span class="k">Table.AddColumn</span>( E, <span class="s">"Quarter"</span>,
+            <span class="k">each</span> <span class="s">"Q"</span> <span class="op">&amp;</span>
+                 <span class="k">Text.From</span>( <span class="k">Date.QuarterOfYear</span>( <span class="col">[Date]</span> ) ),
+            <span class="k">type text</span> ),
+    G <span class="op">=</span> <span class="k">Table.AddColumn</span>( F, <span class="s">"DayOfWeek"</span>,
+            <span class="k">each</span> <span class="k">Date.DayOfWeek</span>( <span class="col">[Date]</span>, <span class="k">Day.Monday</span> ) <span class="op">+</span> <span class="n">1</span>,
+            <span class="k">Int64.Type</span> ),
+    DimDate <span class="op">=</span> <span class="k">Table.AddColumn</span>( G, <span class="s">"IsWeekend"</span>,
+            <span class="k">each</span> <span class="col">[DayOfWeek]</span> <span class="op">&gt;</span> <span class="n">5</span>, <span class="k">type logical</span> )
+<span class="k">in</span>
+    DimDate</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">DayCount</div><div class="linex-v"><code>Duration.Days</code> of the difference gives 89, and the plus 1 makes 90 because both endpoints are included. Off by one here produces a calendar that stops on 2025-03-30, and the only symptom is that one day of March data goes missing from every date sliced visual.</div></div>
+    <div class="linex-row"><div class="linex-k">List.Dates</div><div class="linex-v">Generates the sequence directly with a one day step, which guarantees contiguity by construction. The alternative of pulling distinct dates out of the facts produces a calendar with holes wherever the shop was quiet, and holes are the one thing a date table must not have.</div></div>
+    <div class="linex-row"><div class="linex-k">Date.DayOfWeek</div><div class="linex-v">This function is zero based, so the plus 1 aligns it with the DAX <code>WEEKDAY( , 2 )</code> convention. Keep the two versions of the calendar numerically identical or you will spend an afternoon on a discrepancy that is entirely of your own making.</div></div>
+  </div>
+
+  <h4>Mark as Date Table, and what it actually does</h4>
+
+  <p>Marking a table as the date table changes how the engine behaves, which is why the finance manager's card came back wrong. You nominate the date column, and the engine records that this column is a contiguous, unique, day grain date key for the whole table. The consequence that matters lives inside the time intelligence functions. <code>DATESYTD</code>, <code>TOTALYTD</code>, <code>DATEADD</code> and <code>SAMEPERIODLASTYEAR</code> all work the same way. Each one returns a set of dates and applies that set as a filter. To do it safely, each one must first clear whatever date filters are already in play. When the table is marked, that implicit clearing is a <code>REMOVEFILTERS</code> over the entire date table, every column of it. When the table is unmarked, the clearing reaches only the date column passed into the function.</p>
+
+  <p>That difference is the whole reason the setting exists. Put <code>DimDate[MonthName]</code> in a slicer, select Feb, and ask for a year to date total. With the table marked, the function clears the February filter along with everything else on DimDate, and the year to date figure comes back correct. Leave it unmarked and the February filter survives. It intersects with the year to date date set, and you get February's number wearing a year to date label. That is exactly what happened on her page, and marking the table is the whole fix.</p>
+
+  <p>Contiguity is the price of that guarantee. Time intelligence treats the date column as a continuous axis and shifts along it by position, so a missing day breaks every shift that crosses it. Power BI therefore refuses to mark a table with gaps, duplicates or blanks in the nominated column. Filtering weekends out of the calendar is how people usually break this. Exclude weekends with a column such as <code>IsWeekend</code>, never by deleting rows.</p>
+
+  <p>Here is the inconvenient consequence for Meridian specifically. The calendar covers 90 days, so any measure that shifts a year backwards returns blank. There are no 2024 rows to shift to. Year over year is out of reach in this model, and no amount of DAX will bring it into reach. If the business asks for it, the answer is to extend the calendar and load prior year facts. A cleverer measure will not do it.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 940 640" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="386.0" y="20.0" width="160.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="397.0" y="37.0" class="d-t" fill="#1B5A68">DimDate</text><line x1="386.0" y1="46.0" x2="546.0" y2="46.0" stroke="#1B5A68" stroke-width="1"/><text x="397.0" y="58.0" class="d-m" font-weight="600" fill="#1B5A68">Date</text><text x="397.0" y="73.5" class="d-m">MonthStart</text><rect x="26.0" y="168.0" width="168.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="37.0" y="185.0" class="d-t" fill="#1B5A68">DimAircraft</text><line x1="26.0" y1="194.0" x2="194.0" y2="194.0" stroke="#1B5A68" stroke-width="1"/><text x="37.0" y="206.0" class="d-m" font-weight="600" fill="#1B5A68">ACREG</text><text x="37.0" y="221.5" class="d-m">AircraftType</text><rect x="748.0" y="168.0" width="166.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="759.0" y="185.0" class="d-t" fill="#1B5A68">DimStation</text><line x1="748.0" y1="194.0" x2="914.0" y2="194.0" stroke="#1B5A68" stroke-width="1"/><text x="759.0" y="206.0" class="d-m" font-weight="600" fill="#1B5A68">StationCode</text><text x="759.0" y="221.5" class="d-m">StationName</text><rect x="26.0" y="300.0" width="168.0" height="55.5" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="37.0" y="317.0" class="d-t" fill="#1B5A68">DimWOType</text><line x1="26.0" y1="326.0" x2="194.0" y2="326.0" stroke="#1B5A68" stroke-width="1"/><text x="37.0" y="338.0" class="d-m" font-weight="600" fill="#1B5A68">WOType</text><rect x="378.0" y="156.0" width="190.0" height="102.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="389.0" y="173.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="378.0" y1="182.0" x2="568.0" y2="182.0" stroke="#AE4419" stroke-width="1"/><text x="389.0" y="194.0" class="d-m" font-weight="600" fill="#AE4419">WorkOrderID</text><text x="389.0" y="209.5" class="d-m">ACREG</text><text x="389.0" y="225.0" class="d-m">StationCode</text><text x="389.0" y="240.5" class="d-m">OpenedDate</text><rect x="748.0" y="300.0" width="166.0" height="86.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="759.0" y="317.0" class="d-t" fill="#AE4419">FactCapacity</text><line x1="748.0" y1="326.0" x2="914.0" y2="326.0" stroke="#AE4419" stroke-width="1"/><text x="759.0" y="338.0" class="d-m">StationCode</text><text x="759.0" y="353.5" class="d-m">MonthStart</text><text x="759.0" y="369.0" class="d-m">Trade</text><rect x="330.0" y="336.0" width="190.0" height="102.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="341.0" y="353.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="330.0" y1="362.0" x2="520.0" y2="362.0" stroke="#AE4419" stroke-width="1"/><text x="341.0" y="374.0" class="d-m">WorkOrderID</text><text x="341.0" y="389.5" class="d-m">TechnicianID</text><text x="341.0" y="405.0" class="d-m">WorkDate</text><text x="341.0" y="420.5" class="d-m">Hours</text><rect x="552.0" y="336.0" width="176.0" height="86.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="563.0" y="353.0" class="d-t" fill="#AE4419">FactParts</text><line x1="552.0" y1="362.0" x2="728.0" y2="362.0" stroke="#AE4419" stroke-width="1"/><text x="563.0" y="374.0" class="d-m">WorkOrderID</text><text x="563.0" y="389.5" class="d-m">PartNumber</text><text x="563.0" y="405.0" class="d-m">IssueDate</text><rect x="66.0" y="452.0" width="180.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="77.0" y="469.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="66.0" y1="478.0" x2="246.0" y2="478.0" stroke="#1B5A68" stroke-width="1"/><text x="77.0" y="490.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="77.0" y="505.5" class="d-m">EmployeeType</text><rect x="552.0" y="476.0" width="176.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="563.0" y="493.0" class="d-t" fill="#1B5A68">DimPart</text><line x1="552.0" y1="502.0" x2="728.0" y2="502.0" stroke="#1B5A68" stroke-width="1"/><text x="563.0" y="514.0" class="d-m" font-weight="600" fill="#1B5A68">PartNumber</text><text x="563.0" y="529.5" class="d-m">PartCategory</text><rect x="66.0" y="560.0" width="180.0" height="71.0" rx="5" fill="#F5F0DC" stroke="#78641F" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="77.0" y="577.0" class="d-t" fill="#78641F">BridgeTechCert</text><line x1="66.0" y1="586.0" x2="246.0" y2="586.0" stroke="#78641F" stroke-width="1"/><text x="77.0" y="598.0" class="d-m">TechnicianID</text><text x="77.0" y="613.5" class="d-m">CertCode</text><rect x="330.0" y="560.0" width="176.0" height="55.5" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="341.0" y="577.0" class="d-t" fill="#1B5A68">DimCertification</text><line x1="330.0" y1="586.0" x2="506.0" y2="586.0" stroke="#1B5A68" stroke-width="1"/><text x="341.0" y="598.0" class="d-m" font-weight="600" fill="#1B5A68">CertCode</text><line x1="466.0" y1="91.0" x2="473.0" y2="156.0" class="d-line"/><text x="458.7" y="110.4" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="462.4" y="145.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="194.0" y1="192.8" x2="378.0" y2="191.7" class="d-line"/><text x="209.1" y="205.3" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="363.1" y="204.3" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="748.0" y1="192.8" x2="568.0" y2="191.7" class="d-line"/><text x="733.1" y="187.3" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="583.1" y="186.3" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="194.0" y1="316.6" x2="378.0" y2="237.6" class="d-line"/><text x="211.3" y="322.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="367.8" y="255.3" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="831.0" y1="239.0" x2="831.0" y2="300.0" class="d-line"/><text x="822.0" y="257.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="822.0" y="288.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="444.5" y1="258.0" x2="434.5" y2="336.0" class="d-line"/><text x="433.7" y="275.2" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="427.5" y="323.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="530.0" y1="258.0" x2="604.8" y2="336.0" class="d-line"/><text x="533.9" y="278.6" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="587.9" y="334.9" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="246.0" y1="469.8" x2="349.0" y2="438.0" class="d-line"/><text x="263.0" y="477.4" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="337.3" y="454.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="640.0" y1="476.0" x2="640.0" y2="422.5" class="d-line"/><text x="649.0" y="464.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="649.0" y="441.0" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="120.0" y1="523.0" x2="120.0" y2="560.0" class="d-line"/><text x="111.0" y="541.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="111.0" y="548.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="330.0" y1="585.0" x2="246.0" y2="592.0" class="d-line"/><text x="314.3" y="580.7" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="260.2" y="585.2" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><path d="M546.0,55.5 C700,55.5 830,240.0 831.0,300.0" class="d-line" fill="none" stroke-dasharray="5 4"/><text x="600.0" y="96.0" class="d-lbl" fill="#77746B">month grain only, see chapter 16</text><rect x="246.0" y="448.0" width="288.0" height="84.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="260.0" y="470.0" class="d-t" fill="#17160F">Twelve tables</text><text x="260.0" y="490.0" class="d-s">Four facts, seven dimensions, one bridge.</text><text x="260.0" y="506.0" class="d-s">Nine of the twelve do not exist in the source</text><text x="260.0" y="522.0" class="d-s">and are built in Power Query. Dashed edges mark them.</text></svg></div><figcaption><span class="fig-num">Figure 3.1</span>The finished Meridian model. Nine of the twelve tables are built, not sourced.</figcaption></figure>
+
+  <p>Look at the figure in two passes. First pass, ignore the lines and count the shapes. Twelve tables, and the note printed with them breaks that twelve down as four facts, seven dimensions and one bridge. The note also records that nine of the twelve are absent from the source and get built in Power Query. Count them off against the boxes. DimStation, DimWOType, DimPart, DimCertification and BridgeTechCert have no source table of their own. Each one was reconstructed out of columns buried inside tables built for another purpose. DimDate is the extreme case. It has no source anywhere in the six extracts and is generated from two dates and a step. DimAircraft and DimTechnician arrived as source extracts, and both had to be repaired and extended before they could be used. FactCapacity only takes the shape drawn here after the unpivot. That leaves three tables, FactWorkOrder, FactLabor and FactParts, which loaded more or less as they arrived. Three tables out of twelve. That ratio is the honest picture of what modelling work looks like on operational data.</p>
+
+  <p>Second pass, follow the lines out of DimStation. Every solid line in the figure carries a 1 at one end and a * at the other. That pair of labels is the whole statement of direction. The 1 marks the one side, the * marks the many side, and filter flows from the 1 towards the *. DimStation reaches <span class="fact-tag">FactWorkOrder</span> and <span class="fact-tag">FactCapacity</span> directly, which is why one station slicer can drive both actual hours and planned hours. Look for a line from DimStation to DimTechnician and you will find none, even though <code>DimTechnician[HomeStation]</code> holds station codes. That omission is deliberate. Adding the line would create a second route from DimStation to FactLabor, one through FactWorkOrder and one through DimTechnician, and the engine cannot choose between two paths. HomeStation stays a descriptive attribute. Note also the single line into BridgeTechCert from each side, and that the bridge sits between two dimensions rather than between a dimension and a fact. That placement is the visual signature of a many to many association.</p>
+
+  <p>One line is drawn differently from the rest. The curve from DimDate to FactCapacity is dashed and labelled <em>month grain only</em>, because that join is made on <code>MonthStart</code> rather than on a day, unlike every other link out of DimDate. The label is a warning left in the picture on purpose: the relationship is genuine, it simply answers nothing below month level. <a class="xref" href="#ch-16">Chapter 16</a> is where that costs something.</p>
+
+  <h3>Testing the tables you built</h3>
+
+  <p>You are in a design review and somebody asks the fair question: how do you know these eight tables are right. You have about a minute, and the answer that works is a table of checks that ran during the last refresh. Saying that you built them carefully buys you nothing in that room.</p>
+
+  <p>Everything above is a claim. Eight tables now exist that no source system shipped, and each one asserts a grain, a unique key and a complete list of allowed values. Grain is the sentence that says what one row of the table means. <a class="xref" href="#ch-01">Chapter 1</a> tested the grain of the six source tables with a candidate key check, which is a count of distinct key values set against a count of rows. Run that same check here. Then run the second half of it, the half the source tables did not need: does the key list cover every value the facts actually hold.</p>
+
+  <p>Start with the sentences, because a built table needs a grain sentence exactly as much as an extract does. It is easier to write a wrong one when you built the table yourself. You already know what you meant, so nobody checks.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 3.11</span> Grain sentence and candidate key check for the eight tables built so far in this chapter. Distinct counts taken from the tables and traces printed above.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Built table</th>
+            <th scope="col">One row is</th>
+            <th scope="col">Key</th>
+            <th scope="col" class="num">Distinct</th>
+            <th scope="col" class="num">Rows</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row" class="key">DimStation</th><td>one station code any Meridian system can name, plus one member standing for work whose station is missing</td><td>StationCode</td><td class="num">5</td><td class="num">5</td></tr>
+          <tr><th scope="row" class="key">DimTrade</th><td>one trade that either the capacity workbook or the pre-input pack names</td><td>Trade</td><td class="num">5</td><td class="num">5</td></tr>
+          <tr><th scope="row" class="key">DimAircraft</th><td>one airframe that the registry lists or a work order references</td><td>ACREG</td><td class="num">7</td><td class="num">7</td></tr>
+          <tr><th scope="row" class="key">DimPart</th><td>one part number stores has issued at least once</td><td>PartNumber</td><td class="num">4</td><td class="num">4</td></tr>
+          <tr><th scope="row" class="key">DimWOType</th><td>one type of work order the shop floor system can raise</td><td>WOType</td><td class="num">3</td><td class="num">3</td></tr>
+          <tr><th scope="row" class="key">DimCertification</th><td>one certification code held by at least one technician on the roster</td><td>CertCode</td><td class="num">4</td><td class="num">4</td></tr>
+          <tr><th scope="row" class="key">BridgeTechCert</th><td>one technician holding one certification</td><td>TechnicianID + CertCode</td><td class="num">10</td><td class="num">10</td></tr>
+          <tr><th scope="row" class="key">DimDate</th><td>one calendar day in the reporting period</td><td>Date</td><td class="num">90</td><td class="num">90</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Seven of the eight have a single column key and pass. The bridge is the one that cannot, and that is by design. <code>TechnicianID</code> alone has 6 distinct values across its 10 rows and <code>CertCode</code> alone has 4, so neither column identifies a row and only the pair does. Six technicians times four certifications gives 24 possible pairs, of which 10 exist. A table whose only key is the whole row is the shape of a bridge, and it is why a bridge can never sit on the one side of a relationship.</p>
+
+  <p>Note what the DimCertification sentence gives away. It says "held by at least one technician on the roster", not "recognised by Meridian", because the query derives the list from the bridge. The sentence is the honest description of what the query built, and writing it forced the limitation into the open. That is most of what grain sentences are for on tables you assembled yourself.</p>
+
+  <p>Now the coverage half. The check is one anti join per relationship, so write it as a function too and point it at every pair.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">fnMissingKeys</span></div>
+    <pre><code><span class="c">// fnMissingKeys( FactLabor, "TechnicianID",</span>
+<span class="c">//     Technicians, "TechnicianID" ) returns one row: TECH-07</span>
+<span class="k">let</span>
+    fnMissingKeys <span class="op">=</span>
+        ( Fact <span class="k">as table</span>, FactKey <span class="k">as text</span>,
+          Dim <span class="k">as table</span>, DimKey <span class="k">as text</span> ) <span class="k">as table</span> <span class="op">=&gt;</span>
+        <span class="k">let</span>
+            FactKeys <span class="op">=</span> <span class="k">Table.Distinct</span>(
+                <span class="k">Table.SelectColumns</span>( Fact, {FactKey} ) ),
+            DimKeys <span class="op">=</span> <span class="k">Table.Distinct</span>(
+                <span class="k">Table.SelectColumns</span>( Dim, {DimKey} ) ),
+            Missing <span class="op">=</span> <span class="k">Table.NestedJoin</span>(
+                FactKeys, {FactKey},
+                DimKeys,  {DimKey},
+                <span class="s">"match"</span>, <span class="k">JoinKind.LeftAnti</span> )
+        <span class="k">in</span>
+            <span class="k">Table.SelectColumns</span>( Missing, {FactKey} )
+<span class="k">in</span>
+    fnMissingKeys</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">JoinKind.LeftAnti</div><div class="linex-v">The anti join is the question written down in one step, and it never carries the matched dimension rows through only to throw them away. The alternative people write is <code>JoinKind.LeftOuter</code> followed by an expand and a filter for nulls. That outer form is three steps, and three steps can be reordered by the next person to open the query.</div></div>
+    <div class="linex-row"><div class="linex-k">FactKey and DimKey</div><div class="linex-v">Two separate parameters because <code>Table.NestedJoin</code> takes a key list for each side and the two columns do not have to share a name. That is not hypothetical here: <code>Technicians[HomeStation]</code> and <code>DimStation[StationCode]</code> hold the same key under two names, and a function that demanded matching names could not check that pair at all.</div></div>
+    <div class="linex-row"><div class="linex-k">Table.Distinct on both sides</div><div class="linex-v">On the dimension side it is redundant if the dimension is really a dimension. Leave it in anyway: this function gets pointed at half finished tables, and a duplicated dimension key would otherwise multiply the fact key rows in the join and give you an answer whose row count means nothing.</div></div>
+    <div class="linex-row"><div class="linex-k">Making it fail</div><div class="linex-v">Wrap the call as <code>if Table.IsEmpty( fnMissingKeys( ... ) ) then Source else error "coverage"</code> and the refresh stops. Do that where a gap is genuinely unacceptable. Meridian is the case where you must not: TECH-07 and WO-1009 are known, tolerated orphans, so a hard error would block every refresh over data the business considers normal. Put the output on a page somebody reads instead, and reserve the error for a dimension you control end to end.</div></div>
+    <div class="linex-row"><div class="linex-k">Against the DAX form</div><div class="linex-v">The <code>EXCEPT</code> expression earlier in this chapter asks the same question, at query time, over data that is already loaded. Use it when the queries are out of your hands. This version answers during refresh, before anybody has looked at a number, which is where you want the answer if you can get it there.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 3.12</span> Coverage of all sixteen key relationships in the core Meridian model, before the heavy maintenance extension adds any. DimTechnician is counted as the HR extract delivers it, six rows, before any unknown member is added. Two rows are red on purpose.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">One side</th>
+            <th scope="col" class="num">Keys</th>
+            <th scope="col">Many side</th>
+            <th scope="col" class="num">Distinct keys used</th>
+            <th scope="col" class="num">Missing</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">DimStation[StationCode]</td><td class="num">5</td><td class="key">FactWorkOrder[StationCode]</td><td class="num">4</td><td class="num">0</td></tr>
+          <tr><td class="key">DimStation[StationCode]</td><td class="num">5</td><td class="key">FactCapacity[StationCode]</td><td class="num">4</td><td class="num">0</td></tr>
+          <tr><td class="key">DimAircraft[ACREG]</td><td class="num">7</td><td class="key">FactWorkOrder[ACREG]</td><td class="num">5</td><td class="num">0</td></tr>
+          <tr><td class="key">DimWOType[WOType]</td><td class="num">3</td><td class="key">FactWorkOrder[WOType]</td><td class="num">3</td><td class="num">0</td></tr>
+          <tr><td class="key">DimPart[PartNumber]</td><td class="num">4</td><td class="key">FactParts[PartNumber]</td><td class="num">4</td><td class="num">0</td></tr>
+          <tr><td class="key">DimCertification[CertCode]</td><td class="num">4</td><td class="key">BridgeTechCert[CertCode]</td><td class="num">4</td><td class="num">0</td></tr>
+          <tr><td class="key">DimTechnician[TechnicianID]</td><td class="num">6</td><td class="key">BridgeTechCert[TechnicianID]</td><td class="num">6</td><td class="num">0</td></tr>
+          <tr class="row-bad"><td class="key">DimTechnician[TechnicianID]</td><td class="num">6</td><td class="key">FactLabor[TechnicianID]</td><td class="num">5</td><td class="num cell-bad">1</td></tr>
+          <tr><td class="key">DimDate[Date]</td><td class="num">90</td><td class="key">FactLabor[WorkDate]</td><td class="num">7</td><td class="num">0</td></tr>
+          <tr><td class="key">DimDate[Date]</td><td class="num">90</td><td class="key">FactParts[IssueDate]</td><td class="num">7</td><td class="num">0</td></tr>
+          <tr><td class="key">DimDate[Date]</td><td class="num">90</td><td class="key">FactWorkOrder[OpenedDate]</td><td class="num">8</td><td class="num">0</td></tr>
+          <tr><td class="key">DimDate[Date]</td><td class="num">90</td><td class="key">FactWorkOrder[PromisedDate]</td><td class="num">8</td><td class="num">0</td></tr>
+          <tr><td class="key">DimDate[Date]</td><td class="num">90</td><td class="key">FactWorkOrder[ClosedDate]</td><td class="num">6</td><td class="num">0</td></tr>
+          <tr><td class="key">DimDate[MonthStart]</td><td class="num">3</td><td class="key">FactCapacity[MonthStart]</td><td class="num">3</td><td class="num">0</td></tr>
+          <tr><td class="key">FactWorkOrder[WorkOrderID]</td><td class="num">8</td><td class="key">FactLabor[WorkOrderID]</td><td class="num">6</td><td class="num">0</td></tr>
+          <tr class="row-bad"><td class="key">FactWorkOrder[WorkOrderID]</td><td class="num">8</td><td class="key">FactParts[WorkOrderID]</td><td class="num">6</td><td class="num cell-bad">1</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Fourteen clean rows and two failures, and the two failures are the ones this dataset keeps on purpose. <code>FactLabor</code> books 10.0 hours to TECH-07, who is absent from the HR extract. <code>FactParts</code> charges 4,900 dollars to WO-1009, a work order Meridian has never raised. Both are fixed the same way DimAircraft was, by appending the distinct fact key and labelling it, and <a class="xref" href="#ch-19">Chapter 19</a> covers what that does to the numbers on a report page. So that is your answer in the design review. The table above found both of them during a refresh, before anybody sat down in a meeting.</p>
+
+  <p>Read the ClosedDate row carefully as well, because a zero there is easy to misread. Six distinct close dates, no missing keys, and two work orders, WO-1004 and WO-1008, that carry no close date at all. A foreign key is the column on the fact that points at a dimension, and <code>ClosedDate</code> is one. A blank foreign key is not an orphan. It matches nothing, it contributes to nothing, and this check will never report it. Counting closed work orders therefore needs a test of its own, and a coverage check will not supply it.</p>
+
+  <details class="expand" open>
+    <summary>Why DimStation needs both fact columns checked, not one</summary>
+    <div class="expand-body">
+      <p>Take the two station rows of Table 3.12 apart. <code>FactWorkOrder[StationCode]</code> holds MSP, TUS, LAS and, after the blank on WO-1005 is mapped, UNASSIGNED. Four distinct values, all present in DimStation. <code>FactCapacity[StationCode]</code> holds MSP, TUS, LAS and PHX. Also four distinct values, also all present. Neither fact uses all five members, and no single fact would have told you the dimension was complete.</p>
+      <p>Now build DimStation from the work orders alone, which is the shortcut in the Common mistake box at the top of this chapter, and re-run both rows. Against <code>FactWorkOrder</code> it still reports zero missing, so the check passes and you ship. Against <code>FactCapacity</code> it reports one: PHX, carrying 8 plus 4 plus 3 plus 1 = 16 planned hours. Planned hours by station now reads MSP 90, TUS 50, LAS 20 and a blank row of 16, and the quarter total of 176 is still correct, which is exactly why nobody catches it.</p>
+      <p>The UNASSIGNED member goes the other way. It appears in <code>FactWorkOrder</code> and never in <code>FactCapacity</code>, because planning does not publish hours for a station that does not exist. A dimension member with no rows in one of its facts is normal, and a coverage check only ever reads in one direction: from the keys a fact uses, to the list the dimension allows.</p>
+    </div>
+  </details>
+
+  <p>Those two station rows are what the word conformed means in practice. <code>DimStation</code> is conformed because one member list, one set of codes and one set of names serves both <code>FactWorkOrder</code> and <code>FactCapacity</code>. MSP therefore means the same thing on both sides of a utilisation figure, and a single slicer drives both. The same holds for <code>DimDate</code>, which serves six date columns across four facts, and for <code>DimTechnician</code>, which serves <code>FactLabor</code> and the bridge. Every dimension here is conformed by construction, because each key list was built from the union of every producer of the key. Whichever table you happened to open first has no say in it.</p>
+
+  <p>The counter case is worth naming, so the word does not turn into decoration. Build a station list from <code>WorkOrders</code> for the work order report, and a second one from <code>ShopCapacity</code> for the planning report. Both reports are individually correct. Put them side by side and MSP reads 34.5 hours against 90 planned in one, and 34.5 against 90 in the other, right up until the day somebody adds PHX to the second list and leaves the first alone. Two lists that agree today are still two lists, and two lists drift.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Conformance is a property of the member list, not of the relationship. Two facts joined to two separate station tables holding identical values will produce identical numbers and still be unconformed, because nothing keeps them identical: the next refresh, the next station code, the next person to edit one query. Test for conformance with one question. Is there exactly one query that decides what a station is? Whether the numbers currently agree is a weaker question, and it is the one people ask instead. At Meridian the answer to the real question is DimStation, whose inputs are all three producers of the code, which is why PHX cannot be lost and a blank cannot get in.</p>
+  </aside>
+
+  <h3>CrewCodeMap, the table that exists because you typed it</h3>
+
+  <p>The resource manager wants hours by crew before his Monday call. You have the tables, so you build it in four minutes. Four rows come back. Three carry a crew name, the fourth carries no label at all, and 10.0 hours are sitting in it. He points at the unlabelled row and asks whose crew that is. Nobody at the table can answer him, and the reason is a spreadsheet on your laptop.</p>
+
+  <p>Two tables produce that visual. <code>CrewAssignment</code> comes out of the roster system and has 7 rows, one per technician, each carrying a crew code. A crew code is the shop's identifier for a working team, and it looks like CRW-AF1. <code>CrewCodeMap</code> has 6 rows and turns a crew code into two readable things: a crew name and a service line. A service line is the kind of work Meridian sells, and there are four of them, Line, Light, Heavy, and Cabin and IFE. Almost every planning number the shop reports is grouped by service line, so the map decides where the hours land.</p>
+
+  <p><span class="derived-tag">Built</span> Every key list in this chapter so far came out of a column that some system produces. The station codes come from three extracts, the part numbers come from the stores issue log, the certifications come from an HR column. <code>CrewCodeMap</code> breaks that pattern. The roster system issues the crew codes and nothing anywhere issues their meaning. No source system holds this table, no extract refreshes it, and the dataset records its source as the analyst. That is you. Six typed rows decide the service line of every hour that reaches a report through a crew.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 3.13</span> CrewCodeMap as the analyst types it, six rows, set against what the roster and the timesheets actually did.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">CrewCode</th>
+            <th scope="col">CrewName</th>
+            <th scope="col">ServiceLine</th>
+            <th scope="col">Technicians on it</th>
+            <th scope="col" class="num">Hours booked</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">CRW-AF1</td><td>Airframe Heavy</td><td>Heavy</td><td class="muted">TECH-01, TECH-02</td><td class="num">28.5</td></tr>
+          <tr><td class="key">CRW-AV1</td><td>Avionics Heavy</td><td>Heavy</td><td class="muted">TECH-03</td><td class="num">0.0</td></tr>
+          <tr><td class="key">CRW-CAB</td><td>Cabin and IFE</td><td>Cabin and IFE</td><td class="muted">TECH-04</td><td class="num">10.5</td></tr>
+          <tr><td class="key">CRW-LN1</td><td>Line Operations</td><td>Line</td><td class="muted">TECH-05</td><td class="num">13.0</td></tr>
+          <tr><td class="key">CRW-LT1</td><td>Light Maintenance A</td><td>Light</td><td class="muted">TECH-06</td><td class="num">0.0</td></tr>
+          <tr class="row-bad"><td class="key">CRW-LT2</td><td>Light Maintenance B</td><td>Light</td><td class="cell-bad">nobody</td><td class="num">0.0</td></tr>
+          <tr class="row-bad"><td class="key">CRW-XX9</td><td class="cell-bad">no row in the map</td><td class="cell-bad">no row in the map</td><td class="muted">TECH-07</td><td class="num cell-bad">10.0</td></tr>
+          <tr class="row-total"><td>Total</td><td class="muted">7 codes across the two lists</td><td class="muted">4 service lines</td><td class="muted">7 technicians</td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Two lists of six that overlap on five. The roster uses 6 distinct crew codes across its 7 technician rows, the map holds 6 crew codes, and only 5 of them appear on both sides. That is the same shape as DimAircraft earlier in this chapter, where the registry held 6 tails and the work orders referenced 5 and the union came to 7. The difference is that the registry has a keeper at the customer service desk. The crew map has you.</p>
+
+  <p>Read the two red rows, because they are the two ways a mapping table goes wrong and they point in opposite directions. CRW-XX9 is on the roster and missing from the map, so the 10.0 hours TECH-07 booked to WO-1004 have no crew name and no service line. That is 16.1 percent of the quarter, computed as 10.0 divided by 62.0, against a visual whose total still reads a correct 62.0. Look back at Table 3.12 and you will find the same technician in the red row there: <code>FactLabor</code> books hours to TECH-07 and the HR extract has never heard of him. The roster system is the one list that does know him, and it puts him on CRW-XX9. So two lists have a hole, the HR extract and the crew map, and both holes sit on the same 10.0 hours.</p>
+
+  <p>CRW-LT2 is the other direction. Light Maintenance B is in the map and no technician is assigned to it, so it contributes nothing to any measure. A dimension member with no facts is ordinary and this chapter has already kept two of them on purpose, PHX with its 16 planned hours and no work orders, and N120CE with no activity at all. What separates those from CRW-LT2 is ownership. PHX sits in a workbook the resource manager maintains, so you can ask him whether Phoenix is a real station and get an answer. Nobody maintains the crew map, so nobody can tell you whether Light Maintenance B is a crew that exists and is currently unstaffed, or a crew that was disbanded last spring and never deleted. The row is evidence that the map and the roster have drifted, and the evidence has been sitting there quietly.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Tidying the map. A row with no hours against it looks like clutter, so during a cleanup somebody deletes CRW-LT2 and the file gets shorter. What went with it was the only visible sign that the typed map no longer matches the roster. The next report reads clean, and the question of whether Light Maintenance B still exists is now unaskable, because there is nothing left to ask about. Keep the row. Let the check flag it every refresh until a human answers.</p>
+  </aside>
+
+  <p>So hold the map as a proper table with a proper build, the same as every other dimension in this chapter. Seven steps, and the last one happens outside Power Query altogether.</p>
+
+  <ol class="steps">
+    <li>Move the map into a workbook in a shared location, on one worksheet, formatted as a named Excel table called CrewCodeMap with the three columns it has today.</li>
+    <li>Create a query parameter called CrewMapPath holding the full path to that file, so the path lives in one place a person can see.</li>
+    <li>Load the named table, set the three columns to text, trim the crew code and the service line, and drop any row with a blank crew code.</li>
+    <li>Assert that the crew code is unique and fail the refresh when it is not.</li>
+    <li>Reference that query and append a labelled row for every crew code the roster uses that the map has no entry for. This is the DimAircraft append from earlier in this chapter, done again on a different key.</li>
+    <li>Build the exception query, load it, and put it on a page the resource scheduler actually opens.</li>
+    <li>Write down who owns the map and how a change to it gets agreed.</li>
+  </ol>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">CrewCodeMapSource</span></div>
+    <pre><code><span class="k">let</span>
+    <span class="c">// one workbook, one named table, one owner</span>
+    Source <span class="op">=</span>
+        <span class="k">Excel.Workbook</span>(
+            <span class="k">File.Contents</span>( <span class="t">CrewMapPath</span> ), <span class="k">true</span> ),
+
+    Map <span class="op">=</span>
+        Source{[ Item <span class="op">=</span> <span class="s">"CrewCodeMap"</span>,
+                 Kind <span class="op">=</span> <span class="s">"Table"</span> ]}<span class="col">[Data]</span>,
+
+    Typed <span class="op">=</span>
+        <span class="k">Table.TransformColumnTypes</span>( Map,
+            {{<span class="s">"CrewCode"</span>, <span class="k">type text</span>},
+             {<span class="s">"CrewName"</span>, <span class="k">type text</span>},
+             {<span class="s">"ServiceLine"</span>, <span class="k">type text</span>}} ),
+
+    Trimmed <span class="op">=</span>
+        <span class="k">Table.TransformColumns</span>( Typed,
+            {{<span class="s">"CrewCode"</span>, <span class="k">Text.Trim</span>, <span class="k">type text</span>},
+             {<span class="s">"ServiceLine"</span>, <span class="k">Text.Trim</span>, <span class="k">type text</span>}} ),
+
+    NoBlanks <span class="op">=</span>
+        <span class="k">Table.SelectRows</span>( Trimmed,
+            <span class="k">each</span> <span class="col">[CrewCode]</span> <span class="op">&lt;&gt;</span> <span class="k">null</span>
+                 <span class="k">and</span> <span class="col">[CrewCode]</span> <span class="op">&lt;&gt;</span> <span class="s">""</span> ),
+
+    CrewCodeMapSource <span class="op">=</span>
+        <span class="k">if</span> <span class="k">Table.IsDistinct</span>(
+               <span class="k">Table.SelectColumns</span>( NoBlanks, {<span class="s">"CrewCode"</span>} ) )
+        <span class="k">then</span> NoBlanks
+        <span class="k">else error</span> <span class="s">"CrewCodeMap: duplicate crew code"</span>
+<span class="k">in</span>
+    CrewCodeMapSource</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">CrewMapPath</div><div class="linex-v">A query parameter and not a path typed into the step. The file will move, because files that people edit always move, and a parameter turns that into one edit in a dialog instead of a hunt through M under time pressure. Note where the file has to live: somewhere the resource scheduler can open it. A mapping only one person can reach has already failed, whatever the query does.</div></div>
+    <div class="linex-row"><div class="linex-k">Kind = "Table"</div><div class="linex-v">Point at a named Excel table inside the workbook, not at the worksheet. <code>Kind = "Sheet"</code> reads the used range, so the day somebody types a note two rows under the data, that note arrives as a crew code with a null service line. A named table has an edge the person editing the file can see on screen, which is the only kind of boundary a hand maintained file ever respects.</div></div>
+    <div class="linex-row"><div class="linex-k">Trimmed</div><div class="linex-v">Both text columns, for the reason this chapter keeps repeating. <code>"CRW-LT1 "</code> and <code>"CRW-LT1"</code> are one crew code to your eye and two to a join. A person typing into a spreadsheet produces trailing spaces the way a system never does, and <code>ServiceLine</code> gets the same treatment because it is the value every planning visual groups by.</div></div>
+    <div class="linex-row"><div class="linex-k">Table.IsDistinct and error</div><div class="linex-v">The Making it fail note above said to reserve a hard refresh failure for a dimension you control end to end. This is that dimension. TECH-07 and WO-1009 are orphans the business tolerates, so blocking a refresh over them would be wrong. A crew code typed twice is your own defect in your own file. It fans every technician on that crew across two rows. Stop the refresh and fix the file.</div></div>
+    <div class="linex-row"><div class="linex-k">Why not an inline table</div><div class="linex-v">DimStation keeps its four station names in an inline <code>#table</code> written into the query, and that was defensible: four rows, no other editor, no expected change. The crew map fails both halves of that test. The resource scheduler has to be able to read it, and the row that is missing today can only be filled in by him. A mapping that changes on somebody else's schedule belongs in data, where they can reach it.</div></div>
+  </div>
+
+  <p>The second query is short enough to describe. Reference <code>CrewCodeMapSource</code>, run the coverage check to find the crew codes the roster uses that the map has no row for, add <code>CrewName</code> as "Unknown crew" and <code>ServiceLine</code> as "Unmapped", and append. That is the move that recovered N338WA into DimAircraft, applied to a different key. The loaded <code>CrewCodeMap</code> then has 7 rows, and the 10.0 hours reach a report under a label somebody can click instead of a blank somebody scrolls past.</p>
+
+  <p>Now the check, and it is the piece most people never write. Point <code>fnMissingKeys</code> at the crew code in both directions.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">CrewMapExceptions</span></div>
+    <pre><code><span class="k">let</span>
+    NotMapped <span class="op">=</span>
+        <span class="k">fnMissingKeys</span>( <span class="t">CrewAssignment</span>, <span class="s">"CrewCode"</span>,
+            <span class="t">CrewCodeMapSource</span>, <span class="s">"CrewCode"</span> ),
+
+    NotStaffed <span class="op">=</span>
+        <span class="k">fnMissingKeys</span>( <span class="t">CrewCodeMapSource</span>, <span class="s">"CrewCode"</span>,
+            <span class="t">CrewAssignment</span>, <span class="s">"CrewCode"</span> ),
+
+    Flagged <span class="op">=</span>
+        <span class="k">Table.AddColumn</span>( NotMapped, <span class="s">"Issue"</span>,
+            <span class="k">each</span> <span class="s">"On the roster, missing from the map"</span>,
+            <span class="k">type text</span> ),
+
+    Idle <span class="op">=</span>
+        <span class="k">Table.AddColumn</span>( NotStaffed, <span class="s">"Issue"</span>,
+            <span class="k">each</span> <span class="s">"In the map, nobody assigned to it"</span>,
+            <span class="k">type text</span> ),
+
+    CrewMapExceptions <span class="op">=</span>
+        <span class="k">Table.Combine</span>( {Flagged, Idle} )
+<span class="k">in</span>
+    CrewMapExceptions</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Called twice</div><div class="linex-v">The first call is the ordinary coverage check from the previous section, keys used against keys allowed. The second call swaps the arguments, which the EXCEPT box earlier in this chapter described as the classic error, returning dimension members with no facts, a usually harmless condition. On a table you type by hand it is the interesting one. It is how you learn that the map has stopped matching the roster while every number on every page still adds up.</div></div>
+    <div class="linex-row"><div class="linex-k">CrewCodeMapSource</div><div class="linex-v">Point the check at the typed file, before the recovered row is appended. Run it against the loaded <code>CrewCodeMap</code> instead and it returns nothing at all, because that table already contains a row for CRW-XX9 that the query invented. A dimension that heals itself hides the gap it healed. Check the source, load the healed version, and never let the two swap places.</div></div>
+    <div class="linex-row"><div class="linex-k">Issue</div><div class="linex-v">Two plain English sentences instead of a code or a flag. The person who can fix either row reads a page, not your query, and "On the roster, missing from the map" tells him what to do without a legend. A column called <code>ExceptionType</code> holding 1 and 2 would need you in the room.</div></div>
+    <div class="linex-row"><div class="linex-k">Table.Combine</div><div class="linex-v">Both tables carry <code>CrewCode</code> and <code>Issue</code> under the same names, so the append stacks them into one list. Same rule as the station union at the top of this chapter. <code>Table.Combine</code> aligns on column name, so a rename in one branch and not the other gives you two half empty columns and a result that looks fine in the preview.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 3.14</span> CrewMapExceptions on today's data. Two rows, and both of them are questions for a person to answer. No query can answer either one.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">CrewCode</th>
+            <th scope="col">Issue</th>
+            <th scope="col">What it costs today</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-bad"><td class="key">CRW-XX9</td><td>On the roster, missing from the map</td><td>10.0 hours with no service line, 16.1 percent of the quarter</td></tr>
+          <tr><td class="key">CRW-LT2</td><td>In the map, nobody assigned to it</td><td class="muted">Nothing yet, and that is why it survives</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Here is the part the query cannot do. The check tells you CRW-XX9 exists and is unmapped. It cannot tell you whether that crew does light work or heavy work, and no amount of M will decide it, because the fact is not in any file you can read. Somebody in the roster office knows. Until you ask, the honest label for those 10.0 hours is Unmapped, and a report that shows an Unmapped row is doing its job. The technical fix makes the gap visible. The gap itself closes in a conversation.</p>
+
+  <p>That is the governance point, and it is worth stating flatly because it is the one thing in this chapter you cannot solve with a query. This map has no owner, no change control and no test. Without an owner, the day a new crew code is issued nobody is responsible for adding it, and your first warning is a blank row in a meeting. Without change control, nobody records who changed a service line or when, so a number that moved between two months has no explanation anybody can retrieve. Without a test, both kinds of drift stay invisible: codes arriving upstream that never reach the map, and rows in the map that stopped meaning anything. A mapping table with those three holes in it rots quietly, one row at a time, while every total on every page keeps reconciling. Nothing breaks, so nothing gets escalated.</p>
+
+  <p>So fix it in the shop as well as in the model. Name a person in resource scheduling who owns the crew list, and get his agreement in writing that a new crew code comes with a service line on the day it is issued. Put <code>CrewMapExceptions</code> in front of him on the same cadence as the month end submission, since he is already looking at hours then. Add two columns to the file that the model will never load, one for who last changed the row and one for when. None of that is Power Query, and all of it is the reason the map still works in a year. The most fragile object in a Meridian dashboard is six rows long, it lives in a spreadsheet, and the tool that keeps it alive is a named human being.</p>
+
+  <p>Which answers the resource manager, most of the way. The unlabelled 10.0 belongs to TECH-07, whose crew code is CRW-XX9, and after the append the row on his visual reads Unknown crew instead of nothing. Which service line those hours belong to is a question for the roster office, and you can now put it to them in one sentence with the number attached.</p>
+
+  <h3>Reference, duplicate, and keeping staging out of the model</h3>
+
+  <p>Everything above depends on one habit. Use Reference, not Duplicate, when a query starts from another query's output. Duplicate copies the M script, so you get two scripts that agree today and drift the first time somebody fixes a type conversion in one of them. Reference points at the upstream result instead, so a change made once flows downstream to everything built on it.</p>
+
+  <p>A reference re-evaluates, and that is the cost you pay. Each downstream query triggers its own run of the upstream chain, so three references over <code>WorkOrders</code> can mean three reads of the source. On eight rows that is free. On eight million rows it is expensive, and the fix is a staging layer that lands the data once. <a class="xref" href="#ch-05">Chapter 5</a> covers that layer along with query folding. Turn off Enable load on every staging query. A query with load disabled still runs during refresh and still feeds its consumers. What it stops doing is occupying model memory and offering report authors a half finished table to build visuals on.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>Built dimensions are small: DimStation 5 rows, DimPart 4, DimAircraft 7, DimDate 90. Storage is the smaller bill here. The one you pay is refresh time. Every union re-reads its sources, so the station list alone touches <code>WorkOrders</code>, <code>Technicians</code> and <code>ShopCapacity</code> again, on top of the reads that load the facts. Set that against a breakdown which quietly excludes 12.0 of 62.0 hours and it is an easy trade. Set it against a source that takes four minutes to query and you will want the staging layer first.</p>
+  </aside>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>A dimension needs four properties: a unique key, no blank in the key, complete coverage of every key value in every fact that references it, and stability of meaning across refreshes. Coverage is the one people miss.</li>
+      <li>Build the key list from the union of every source that produces the key. At Meridian only <code>ShopCapacity</code> knows PHX exists, and only <code>WorkOrders</code> knows N338WA exists.</li>
+      <li>An unmatched fact key keeps its measure and loses its label. Labor hours by aircraft type totals 62.0 either way, and with the incomplete registry the visible types sum to 50.0 while 12.0 sits in a blank row.</li>
+      <li>Fill unknown text attributes with a readable label, leave unknown numeric attributes blank so nothing averages them.</li>
+      <li>A bridge is a relationship stored as a table. It has no measures and no unique key, it belongs hidden, and it makes category subtotals exceed the grand total by design.</li>
+      <li>Build the small dimensions too. <code>DimWOType</code> holds three rows that were already on the fact, and what it buys is a stable slicer list, a non-alphabetical sort order and one place to say what AOG means.</li>
+      <li>Every built table gets the same treatment as a source table: a grain sentence, a candidate key check, and then a coverage check per relationship. Fourteen of the sixteen key relationships in the core model come back clean, and the two that do not are TECH-07 and WO-1009.</li>
+      <li>Conformed means one query decides what a station is, not that two station lists currently agree. Checking <code>DimStation</code> against <code>FactWorkOrder</code> alone passes and still loses PHX and its 16 planned hours.</li>
+      <li>The one table in this model that no system produces is <code>CrewCodeMap</code>, six rows you type yourself, and it decides the service line of every hour that reaches a report through a crew. CRW-XX9 is missing from it, so 10.0 of the 62.0 hours land unmapped, and CRW-LT2 sits in it with nobody assigned. Give it an owner first, then a labelled unknown member, then a check that runs in both directions.</li>
+      <li>Mark as Date Table gives time intelligence functions an implicit <code>REMOVEFILTERS</code> across the whole date table. Skip it and year to date measures silently inherit filters from your own month and year columns.</li>
+      <li>Power Query is the right home for a built dimension. The DAX calculated table is the fallback for when the queries are out of your control, and it hides the logic from anyone auditing the model.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="02.html"><span class="pn-dir">Previous</span><span class="pn-t">Why the star schema is the right shape</span></a><a class="pn" href="04.html"><span class="pn-dir">Next</span><span class="pn-t">Power Query or DAX: deciding where work belongs</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Relationship mechanics: cardinality, direction, active and inactive</title>
+</head>
+<body data-ch="06">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">06</span><span class="tb-title">Relationship mechanics: cardinality, direction, active and inactive</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-06">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 3 . Relationships and filter flow</div>
+    <h2 class="chapter-title"><span class="chapter-num">06</span>Relationship mechanics: cardinality, direction, active and inactive</h2>
+    <p class="chapter-lede">After this chapter you can look at any line in the Meridian model diagram and say what the engine stores for it, what it asserts about the data, and which refresh will break it. You will also know why three of the four cardinality options are usually a sign that something upstream is unfinished.</p>
+  </div>
+
+  <h3>What the engine stores when you draw a line</h3>
+
+  <p>The production controller stops at your desk with a printout. He wants labor hours by technician, and your report gives TECH-04 six hours flat. His whiteboard says ten and a half. Nothing errored. The refresh ran clean at six that morning, and the line joining the labor table to the technician table sits in the model diagram looking perfectly healthy. Four and a half hours have gone somewhere anyway.</p>
+
+  <p>You probably learned relationships as a picture. You drag a column onto another column, a line appears, and the report starts working. That picture hides the thing you need to understand, so start underneath it.</p>
+
+  <p>A relationship is a declared mapping. It ties exactly one column on one table to exactly one column on another. When you create it, Power BI does not write a join and it does not run one at query time the way a SQL engine would. It builds a structure and stores it beside those two columns. Every column has already been encoded down to integers by then. Text columns get dictionary encoding: each distinct value is handed an internal identifier, and the column is physically stored as a long run of those identifiers. Many numeric columns get value encoding instead. Different scheme, same consequence for us. The engine compares integers. The relationship is an index built on top of that encoding, and it answers one question fast. Given a set of values on the one side, which row positions on the many side carry them?</p>
+
+  <p>The engine builds that structure at refresh, which is the moment the model pulls a fresh copy of the data from the source. You pay for it once. Every visual that uses it afterwards reads something that already exists. The structure is asymmetric too, in a way a SQL join never is. In SQL you write an ON clause, and both tables are then equally available to the WHERE clause, so asking about direction there means nothing. Here the stored structure is tuned for one job: turning one side values into many side row positions. That asymmetry is where the cross filter direction setting comes from. Direction falls out of how the mapping is stored.</p>
+
+  <p>Carry one practical consequence with you. What travels along a relationship is a set of values. When a visual filters <code>DimStation</code> to MSP and TUS, the engine resolves those two station codes to their identifiers. It uses the relationship index to find the matching row positions on the fact table. Then it scans only those rows. No joined table is ever built anywhere in the process. That is why a model with a dozen small dimensions around a fact stays quick under a filter, and why a single wide table with everything flattened into it does not.</p>
+
+  <dl class="defs">
+    <dt>Fact table</dt><dd>A table of events, one row per thing that happened. <code>FactLabor</code> holds one row per booking of hours by a technician against a work order.</dd>
+    <dt>Dimension table</dt><dd>A table of the things you describe events by, one row each. <code>DimTechnician</code> holds one row per technician.</dd>
+    <dt>Grain</dt><dd>What one row of a table means, written in one sentence. The grain of <code>FactLabor</code> is one row per labor booking.</dd>
+    <dt>Cardinality</dt><dd>Your assertion about uniqueness on each side of the mapping. It is a claim about the data, and the engine will hold you to it on every refresh.</dd>
+    <dt>Cross filter direction</dt><dd>Which way filters are allowed to travel along the mapping once it exists.</dd>
+    <dt>Active relationship</dt><dd>The one relationship on a given path between two tables that filters are allowed to use without being asked.</dd>
+    <dt>Weak relationship</dt><dd>Microsoft's term, also written as limited, for a relationship the engine cannot treat as a clean one to many. Many to many relationships are weak. They behave differently, and the differences are not cosmetic.</dd>
+  </dl>
+
+  <h3>Cardinality is a claim about uniqueness</h3>
+
+  <p>The dropdown offers four options. There are only three ideas in it, because two of the options are the same relationship written with the tables in the other order. Take them one at a time.</p>
+
+  <h4>Many to one</h4>
+
+  <p>Many to one means the column on the first table you selected has repeated values and the column on the second table is unique. This is the default, and it is what you should have on nearly every relationship in a working model. In Meridian, <span class="dim-tag">Dimension</span> <code>DimTechnician</code> sits on the one side with seven rows, one per technician identifier, and <span class="fact-tag">Fact</span> <code>FactLabor</code> sits on the many side with eight rows. Three technician identifiers appear twice in the labor table: TECH-02, TECH-04 and TECH-05. Five distinct identifiers across eight rows. That is a textbook many side.</p>
+
+  <p>That count only holds because Power Query trims <code>FactLabor[TechnicianID]</code> on the way in. Power Query is the load and transform layer, the place where data is cleaned on its way into the model. Untrimmed, row L-505 carries "TECH-04 " with a trailing space. The column then holds six distinct values where only five technicians exist, and the relationship still builds without a murmur, because nothing on the many side has to be unique. The 4.5 hours on that row leave TECH-04 and land on the blank row. TECH-04 falls from 10.5 hours to 6.0.</p>
+
+  <p>So the production controller's whiteboard was right. The report was right too, about a set of rows that no longer contained L-505. Cardinality validation was never going to catch it, because cardinality validation only ever looks at the one side.</p>
+
+  <p>The engine requires one thing of the one side: the key column must contain unique values and no blanks. It will not accept a duplicate, and if a duplicate arrives during a refresh the refresh fails with an error naming the relationship. That failure is loud, which is the good case.</p>
+
+  <p>Here is the part people miss. Power BI infers cardinality from the data that happens to be loaded on the day you create the relationship. It scans the two columns, sees that one of them has no repeats, and fills in the dropdown accordingly. That inference is a snapshot of one moment. The source system promised you nothing. <code>DimAircraft</code> in the Meridian model is unique on <code>ACREG</code>, the aircraft registration, because a Power Query step appends the registry to the distinct tails found in the work orders and then removes duplicates. Delete that step, reorder it, or let a tail arrive with different casing or a trailing space, and the one side stops being unique. What fails is the relationship you created in January and have not looked at since. The error names that relationship. The query step that actually caused it goes unmentioned.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Accepting the inferred cardinality without checking whether uniqueness is guaranteed or merely current. Ask a harder question at creation time: what upstream step or source rule makes it impossible for a duplicate to arrive? Uniqueness today answers nothing. If the answer is a Power Query step you wrote, that step is now load bearing and should be commented as such. If the answer is that the source system holds a primary key on the column, you are safe. If the answer is "it just is", you have a relationship that will fail on a refresh you did not schedule, at a time you did not choose, with an error message that blames the wrong object.</p>
+  </aside>
+
+  <h4>One to one</h4>
+
+  <p>The planner is at your desk now, and she is annoyed. Last month's review put average turnaround at 12.0 days. This month's pack says 12.17. Nothing about January changed, no work order moved, and she signed the baseline herself in December. Two systems in this model record when a check started, and somebody has quietly begun reading the other one.</p>
+
+  <p>One to one means both columns are unique. That is a precise statement with a blunt implication: the two tables are at the same grain and describe the same thing. In almost every case where you find yourself reaching for it, the correct action is to merge the two tables in Power Query. A one to one relationship is usually a merge you have not done yet.</p>
+
+  <p>Meridian has exactly one pair of tables that would honestly carry that setting, and the shipped model leaves the relationship out, because merging them is the right answer. The pair is <code>HMCCSchedule</code> and <span class="fact-tag">Fact</span> <code>FactWorkOrder</code>. HMCC stands for Heavy Maintenance Control Centre. That is the function that owns the heavy check schedule: which aircraft is in which hangar bay, on which planned dates, for which customer. Be careful with those four letters. Work order is a universal term and HMCC is a local one. Plenty of shops call the same function production control, maintenance control, or the base maintenance control centre. On the line maintenance side the equivalent is Maintenance Operations Control, or MOC. The function always exists. The label on the tab does not always say HMCC.</p>
+
+  <p>The extract carries seven columns: <code>WorkOrderID</code>, <code>ServiceLine</code>, <code>CheckType</code>, <code>Customer</code>, <code>Bay</code>, <code>PlannedStart</code> and <code>PlannedFinish</code>. Service line is the kind of maintenance the work belongs to, and this shop runs three of them. Light is line maintenance. It is worked on the ramp, at the gate or in a line hangar, often overnight, and it covers service checks, defect rectification and aircraft on ground recovery. Heavy is a hangar visit. The aircraft comes out of service, goes up on jacks and is opened up, for days or for several weeks. Cabin and IFE is the third, where IFE stands for In-Flight Entertainment. It covers seats, monuments such as galleys and lavatories, and the seat-back and head-end entertainment units. Check type names the visit itself. A C-check is a heavy scheduled visit. A defect rectification is a light one. Bay is the physical dock the aircraft occupies, which is why it is blank on WO-1005, the same work order that has no station code. <code>Customer</code> is blank on WO-1006, for the same reason its aircraft registration N338WA is missing from the registry.</p>
+
+  <p>Now the grain, which is the only thing that decides cardinality. <code>HMCCSchedule</code> holds eight rows and <code>FactWorkOrder</code> holds eight rows. <code>WorkOrderID</code> appears once and only once in each. Both key columns are unique and neither contains a blank, so Power BI reads the pair as one to one, and here it has the evidence to say so. Compare the two planning tables sitting next to it, which look similar and are not. <code>FactPreInput</code> also has eight rows, and they cover only five work orders. Its grain is one row per work order per trade, and WO-1001 carries an airframe row and an avionics row. Pre-input is the planning step that happens weeks before the aircraft arrives, where a planner builds the work package and totals up the planned hours per trade. <code>FactForecast</code> has eight rows across the same five work orders. Its grain is one row per work order per revision, and three of those checks were re-forecast once as findings landed. Three tables, eight rows each, three different grains. Only one of them is a candidate for one to one.</p>
+
+  <p>So the relationship is available and it is honest, and you should still not create it. Merge the two in Power Query instead. Here is the argument from the top of this section, made concrete. Two systems are describing one thing, and the thing is a work order. The shop floor export knows when it opened and what it was quoted at. The control board knows what service line it belongs to and which bay it went into. No report author cares which system a column came from. Merged, <code>ServiceLine</code> is a field on the fact table and a service line split is a single hop. Related, it stays a separate table in the field list holding six descriptive columns, and every report that mentions a service line has to reach through it. Look at what that costs here. <code>ServiceLine</code> and <code>CheckType</code> exist nowhere else in the model. Without the merge, the four heavy work orders, the three light ones and the single cabin and IFE one can only be told apart by way of a second table. Once merged, the distinct values in those columns are what the service line, check type and customer dimensions get built from.</p>
+
+  <p>There is also a mechanical reason, and it is the part of one to one that catches people. Cross filter direction is fixed at Both and the dropdown is greyed out. You cannot set it to single. The lock follows from the storage. Direction exists because the stored mapping is asymmetric, one side values translated into many side row positions. When both sides are unique, there is no many side left to be asymmetric about. What remains is a one for one lookup that reads correctly in either direction, so the engine offers both and leaves you nothing to switch off. The consequences are real. A slicer on <code>Bay</code> reduces <code>FactWorkOrder</code>, which is what you wanted. A visual filtered to one work order also reduces <code>HMCCSchedule</code>, which you did not ask for and will not notice. The link also counts as a two way path when Power BI looks for a second route between two tables. A one to one added for convenience can be the reason a relationship elsewhere in the diagram turns dashed.</p>
+
+  <p>The merge is two steps and one decision. Steps first.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">FactWorkOrder, HMCC columns merged in</span></div>
+    <pre><code><span class="k">let</span>
+    Source <span class="op">=</span> WorkOrdersCleaned,
+    Joined <span class="op">=</span> <span class="k">Table.NestedJoin</span>(
+        Source, {<span class="s">"WorkOrderID"</span>},
+        HMCCSchedule, {<span class="s">"WorkOrderID"</span>},
+        <span class="s">"HMCC"</span>, <span class="k">JoinKind.LeftOuter</span>
+    ),
+    Expanded <span class="op">=</span> <span class="k">Table.ExpandTableColumn</span>(
+        Joined, <span class="s">"HMCC"</span>,
+        { <span class="s">"ServiceLine"</span>, <span class="s">"CheckType"</span>, <span class="s">"Customer"</span>,
+          <span class="s">"Bay"</span>, <span class="s">"PlannedStart"</span>, <span class="s">"PlannedFinish"</span> },
+        { <span class="s">"ServiceLine"</span>, <span class="s">"CheckType"</span>, <span class="s">"Customer"</span>,
+          <span class="s">"Bay"</span>, <span class="s">"PlannedStart"</span>, <span class="s">"PlannedFinish"</span> }
+    )
+<span class="k">in</span>
+    Expanded</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v">Starts from the cleaned work order query, after the blank station on WO-1005 has been mapped to UNASSIGNED. Merge onto the keys the model will actually use, not onto the raw export.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>Table.NestedJoin</code> rather than <code>Table.Join</code>. <code>NestedJoin</code> parks the matches in a column that you expand yourself, so the choice of which columns cross over is a visible step someone can read six months later. <code>Table.Join</code> brings the whole second table across in one move, including its own copy of the key you joined on, and you then delete columns afterwards.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v"><code>JoinKind.LeftOuter</code>, and not <code>Inner</code>. The two key lists match row for row today. Left outer keeps all eight work orders on the refresh where the control board has not been updated yet. A missing schedule row then shows up as a null in a column. An inner join would drop that work order out of the model, and report the loss to you as a smaller row count, which is the same trap as the DirectQuery setting at the end of this chapter.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 8</div><div class="linex-v">Expand by an explicit list. Click the expand arrow and you take the default, which selects everything the nested table happens to hold. The control board is a hand maintained workbook. Naming the six columns keeps a seventh, added by a planner on a Tuesday, out of your fact table on Wednesday.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 10</div><div class="linex-v">These six come across and sit alongside the columns already on the work order. <code>PlannedStart</code> lands beside <code>OpenedDate</code>, and <code>PlannedFinish</code> beside <code>PromisedDate</code>. That deliberate duplication is the subject of the next paragraph.</div></div>
+  </div>
+
+  <p>Now the decision. Merging two systems into one table is clean only while the two systems agree, and here they do not. Seven of the eight rows line up exactly. Every <code>PlannedStart</code> equals the matching <code>OpenedDate</code>, and every <code>PlannedFinish</code> equals the matching <code>PromisedDate</code>. WO-1003 breaks the pattern. The control board says the C-check on N902TT started on 2025-01-13. The shop floor export says the work order opened on 2025-01-14. One row, one day, and neither figure is a typo. The aircraft was booked into bay TUS-H1 for the thirteenth and arrived on the fourteenth. That is ordinary. Planned input dates and actual input dates routinely differ, because aircraft arrive late. The control board records what was planned. The shop floor export records what happened. Two systems, two owners, and neither column is wrong.</p>
+
+  <p>Do not let the size of the gap fool you. Turnaround time is the headline number in a hangar. It runs from input, when the aircraft is inducted into the bay, to output, when it leaves. WO-1003 closed on 2025-02-05. Measured from the opened date that check ran 22 days. Measured from the control board's planned start it ran 23.</p>
+
+  <details class="expand" open>
+    <summary>Trace this by hand, row by row: which date moves the average</summary>
+    <div class="expand-body">
+      <p>Six of the eight work orders are closed, so six of them have a turnaround time at all. WO-1004 and WO-1008 are still open and drop out of the calculation, which is a separate trap worth naming: an average turn time that silently excludes every job still sitting in the hangar.</p>
+      <p>Measured from <code>OpenedDate</code>, the six run 10, 5, 22, 2, 30 and 3 days, which is WO-1001, WO-1002, WO-1003, WO-1005, WO-1006 and WO-1007 in that order. They total 72 days, and 72 divided by 6 is 12.0 days.</p>
+      <p>Now swap in the control board start on every row. Seven of the eight planned starts equal the opened date, so five of the six closed rows do not move at all. Only WO-1003 changes. 2025-02-05 minus 2025-01-13 is 23 days, where the opened date gave 22. The total becomes 73 and the average becomes 73 divided by 6, which is 12.17 days.</p>
+      <p>One row out of eight, one day out of 72, and the number read out in the monthly review is no longer the number on last month's slide. That is the planner's 12.0 against this month's 12.17. Nobody in that meeting will know which of the two you used unless you tell them.</p>
+    </div>
+  </details>
+
+  <p>This is what the merge actually forces on you, and it is worth being precise about. Two related tables let both dates sit in the model while nobody commits to either. That feels like caution, and it hands the decision to whichever report author happens to pick a field. The merge makes the choice visible. The two columns land side by side in one table, and somebody has to write down which one the turnaround measure uses. Keep both columns. Name them so nobody has to guess: <code>OpenedDate</code> for the actual induction, <code>PlannedStart</code> for the control board's plan. Then put the choice in the measure description, where the next analyst will find it. A conversation nobody minuted is worth nothing six months out.</p>
+
+  <p>Which date the turnaround measure uses is a decision, and the maintenance lifecycle gives you a steer. The turnaround clock starts when the aircraft physically arrives and is inducted. It stops when certifying staff issue the CRS, the Certificate of Release to Service, which is the signed statement that the aircraft is fit to fly. <code>OpenedDate</code> and <code>ClosedDate</code> record those two events. A turnaround measure built on them measures what the term actually means, and on that basis WO-1003 ran 22 days and the planner's 12.0 stands. <code>PlannedStart</code> answers a different question: whether the slot the customer booked held. Both columns have a reader, and neither substitutes for the other. The indefensible model is the one where two measures on two pages answer the same question differently and neither says so. Write the local definition down, get somebody in production control to agree it, and put it in the model description.</p>
+
+  <p>One cost of merging that nobody mentions until the morning it happens. The control board is very often a spreadsheet somebody keeps by hand. After the merge, that spreadsheet writes columns straight into your fact table. Rename a column on it and the fact query fails, and a failed fact query takes the whole model down. Leave the tables apart and the same rename breaks one side table, which you could disable while you sorted it out. Merging is still the right call. Expand by name, as the code above does, and accept that you have taken on a dependency the model diagram will never show you.</p>
+
+  <p>Every one of those is an argument about how to merge. The case for keeping two same grain tables apart is narrower than it looks.</p>
+
+  <p>There is a legitimate case. You split a wide table on purpose, for one of two reasons. A group of columns is sensitive, and you want row level security or object level security applied to a narrower surface. Row level security limits which rows a given user can see. Object level security hides whole columns or tables from them. The other reason is size: a group of columns is large and rarely used, and you would keep it away from the columns most reports scan. For Meridian, that would mean keeping the seven row <code>DimTechnician</code> as it is, and holding pay band and personal detail in a separate table keyed on <code>TechnicianID</code>. Both are unique on that key, so the relationship is genuinely one to one.</p>
+
+  <p>Two things about it are not negotiable. First, a one to one relationship is bidirectional by definition, and the cross filter dropdown is fixed at Both. You cannot make it single direction. A filter on the sensitive companion table then reduces the technician list everywhere in the report, including in visuals that have nothing to do with pay. The link also counts as a two way path when Power BI checks the model for ambiguity, so adding it can get an unrelated relationship elsewhere deactivated. Second, the two tables will not stay perfectly aligned. <code>DimTechnician</code> contains a built row for TECH-07, the orphan identifier from <code>FactLabor</code>. No companion table sourced from human resources, HR, will ever have a matching row for it. That asymmetry is normal, and it is exactly the sort of thing that makes one to one uncomfortable in practice.</p>
+
+  <p>Uncomfortable is vague, so put a number on it. The asymmetry here is one row, and one row is enough to move a total that six people are reading.</p>
+
+  <details class="expand" open>
+    <summary>Trace this by hand, row by row: the six row companion</summary>
+    <div class="expand-body">
+      <p>Load the companion table straight from the HR extract and it arrives with six rows, TECH-01 through TECH-06. <code>DimTechnician</code> has seven, because the build adds TECH-07 to catch the orphan identifier that L-506 books ten hours against. Both key columns are unique and neither contains a blank, so Power BI creates the relationship as one to one and reports no problem with it.</p>
+      <p>Now put any column from that companion table anywhere a filter can live: a slicer, a matrix row, a visual level filter. The direction is Both and you cannot set it to Single, so the companion filters <code>DimTechnician</code>, and <code>DimTechnician</code> filters <code>FactLabor</code> down the ordinary many to one relationship. Select every member of the companion column, which a report author reads as selecting everything, and the technician set that survives is still only the six rows HR knows about. TECH-07 is not in the companion table, so there is nothing there for it to survive on.</p>
+      <p>Labor hours then read 52.0 instead of 62.0. The ten hours on L-506 have not been reclassified and they have not moved to a blank row. They have been filtered out of the model, and there is no row anywhere in the visual to account for them. Put <code>DimAircraft[AircraftType]</code> on rows at the same time and A320-200 drops from 23.5 to 13.5, because WO-1004 is an A320 work order and L-506 is the only labor booked to it. Nothing errors. The page simply shows a smaller number than the page next to it.</p>
+    </div>
+  </details>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Accept a one to one relationship only when two things are true at once. You genuinely cannot merge the two tables, because one of them needs a narrower security surface or carries columns too wide to sit beside the ones every report scans. And the two key lists are guaranteed to stay identical row for row, held that way by the same upstream rule, for as long as the model lives. Meridian fails the second test by exactly one row. If you have to keep the split anyway, build the companion from the same key list the dimension is built from, appending an unknown row for TECH-07 the way <code>DimAircraft</code> appends N338WA, rather than loading it straight from the source and hoping the two lists stay level.</p>
+  </aside>
+
+  <h4>Many to many</h4>
+
+  <p>The finance manager wants one number for the month: how busy was the shop. Planned hours sit in the capacity workbook. Booked hours sit in the labor table. He cannot see why dividing one by the other is a day's work, and until you look at what those two tables actually have in common, neither can you.</p>
+
+  <p>Many to many means neither column is unique. Power BI will create it without complaint and without asking you for a bridge table. Internally it builds one anyway: a hidden table of the distinct values of the joining column, which it uses to route the filter from one side across to the other. You never see this table and you cannot reference it.</p>
+
+  <p>The result is what the documentation calls a weak or limited relationship. Weak relationships behave differently in two ways that matter. First, no blank row is added to hold unmatched values. A key that is present on one side and absent on the other is dropped from cross filtering, and it lands nowhere you can see it. Second, the relationship does not extend the propagation chain the way a regular relationship does. A filter that arrives at a table through a weak link is not guaranteed to carry on to the next table beyond it. If you are relying on a three table chain and one of the links is weak, check the middle result yourself.</p>
+
+  <p>The Meridian version of this mistake is tempting. You want utilisation, which is labor hours over planned hours. Planned hours live in <span class="fact-tag">Fact</span> <code>FactCapacity</code>, which sits at station and month grain, with one row per trade inside each station month. The shortest looking route is to pull a station column onto <code>FactLabor</code> in Power Query, then relate <code>FactCapacity[StationCode]</code> straight to it. Power BI accepts it. Neither side is unique, so you get many to many.</p>
+
+  <details class="expand" open>
+    <summary>Trace this by hand, row by row</summary>
+    <div class="expand-body">
+      <p><code>FactCapacity</code> has 28 rows because the seven wide planning rows were unpivoted across four trade columns. Grouped by station code, those 28 rows fall out as follows: MSP has three station months (January, February, March) times four trades, which is 12 rows. TUS has two station months times four trades, which is 8. LAS has one station month times four trades, which is 4. PHX has one station month times four trades, which is 4. That is 12 plus 8 plus 4 plus 4, or 28 rows, which matches the table.</p>
+      <p><code>FactLabor</code> has 8 rows. Taking each labor row's station from its work order: L-501 and L-502 belong to WO-1001 at MSP, L-503 belongs to WO-1002 at MSP, and L-507 belongs to WO-1006 at MSP, so MSP carries 4 rows. L-504 and L-505 belong to WO-1003 at TUS and L-506 belongs to WO-1004 at TUS, so TUS carries 3 rows. L-508 belongs to WO-1007 at LAS, so LAS carries 1 row. That is 4 plus 3 plus 1, or 8 rows.</p>
+      <p>MSP appears 12 times on one side and 4 times on the other. Neither column is unique, so the cardinality is many to many and there is nothing you can set to change that.</p>
+    </div>
+  </details>
+
+  <p>What makes this genuinely awkward is that the arithmetic often looks right. Filter to MSP through the capacity table and labor hours come back as 34.5, which is the correct answer. The damage is structural. You now have two station columns in the field list, and report authors will click whichever one they land on first. PHX exists only in the planning workbook, so it vanishes from any visual built from the labor side. A planner wants PHX sitting on that visual with 16 planned hours against zero labor hours, because the gap is the finding. The blank station on WO-1005 has nowhere sensible to live either. And no blank row is created, so a station code that fails to match is dropped in silence, where a visible blank would have sent somebody looking.</p>
+
+  <p>The right answer is <span class="dim-tag">Dimension</span> <code>DimStation</code> in the middle. Five rows, unique on <code>StationCode</code>, one to many out to <code>FactWorkOrder</code> and one to many out to <code>FactCapacity</code>. Station becomes one field. PHX shows 16 planned hours against zero labor. MSP January reads 22.5 over 30, which is 75.0 percent, and the all stations all months figure of 62.0 over 176 comes out at 35.2 percent in a single visual. That is the finance manager's one number, and a five row table is what it took.</p>
+
+  <p>Which leaves the question of when many to many is the correct setting rather than a symptom. The test is three questions, and a yes to any one of them means you build the dimension. Can you list the distinct values of the joining column? If you can, you can load them as a table, and in Meridian you can: four station codes across all three sources plus one blank, which is an append step and a remove duplicates step. Do you need unmatched keys to stay visible? A weak relationship adds no blank row, so an unmatched code simply goes missing, and PHX takes its 16 planned hours with it. Does a filter have to continue past this hop to a third table? Propagation is not guaranteed to extend beyond a weak link, so a station selection that has to reach <code>FactLabor</code> through <code>FactWorkOrder</code> cannot lean on it.</p>
+
+  <p>That leaves a narrow legitimate case. The joining column is an attribute rather than an entity, so a table built on it would hold one column and nothing anybody wants to slice by. You accept losing the blank row and the onward propagation, and in exchange you avoid carrying a table that earns nothing. Nothing in Meridian qualifies. Station, month and work order are all entities with attributes the shop cares about. That is why all three end up as tables, and why none of them ends up as a many to many.</p>
+
+  <h4>One to many</h4>
+
+  <p>One to many is many to one with the tables named in the other order. That is the whole difference. Power BI reports cardinality relative to the sequence in which you picked the two tables. Drag <code>FactLabor[TechnicianID]</code> onto <code>DimTechnician[TechnicianID]</code> and you get many to one. Do it the other way and you get one to many. The model you end up with is identical in both cases. Stop treating them as two concepts and you will read the relationship list twice as fast.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 06.1</span> The four options, what each asserts about the data, and the verdict for Meridian.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Option</th><th scope="col">What it asserts</th><th scope="col">Meridian example</th><th scope="col">Verdict</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Many to one</th><td>First column repeats, second is unique and non blank</td><td><code>FactLabor[TechnicianID]</code> to <code>DimTechnician[TechnicianID]</code></td><td>The default. Correct almost everywhere.</td></tr>
+          <tr><th scope="row">One to many</th><td>The same assertion, tables named in the other order</td><td><code>DimTechnician[TechnicianID]</code> to <code>FactLabor[TechnicianID]</code></td><td>The same relationship, named backwards.</td></tr>
+          <tr class="row-bad"><th scope="row">One to one</th><td>Both columns unique. Two tables at the same grain</td><td>None in the shipped model</td><td>Rare. Usually a merge you have not done.</td></tr>
+          <tr class="row-bad"><th scope="row">Many to many</th><td>Neither column is unique</td><td><code>FactCapacity[StationCode]</code> to a station column on <code>FactLabor</code></td><td>Weak relationship. A dimension is missing.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h3>Cross filter direction, briefly</h3>
+
+  <p>Once the mapping exists, direction decides which way filters are permitted to move along it. Single means filters travel from the one side to the many side only: <code>DimTechnician</code> filters <code>FactLabor</code>, and nothing about <code>FactLabor</code> reaches back to reduce the technician list. Both means filters travel either way.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 350" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><line x1="450" y1="14" x2="450" y2="336" stroke="#D2CDC0" stroke-width="1" stroke-dasharray="4 4"/><text x="24.0" y="26.0" class="d-t" fill="#1B5A68">Single, the default</text><text x="474.0" y="26.0" class="d-t" fill="#AE4419">Both, bidirectional</text><rect x="24.0" y="46.0" width="175.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="35.0" y="63.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="24.0" y1="72.0" x2="199.0" y2="72.0" stroke="#1B5A68" stroke-width="1"/><text x="35.0" y="84.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="35.0" y="99.5" class="d-m">EmployeeType</text><rect x="24.0" y="176.0" width="175.0" height="71.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="35.0" y="193.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="24.0" y1="202.0" x2="199.0" y2="202.0" stroke="#AE4419" stroke-width="1"/><text x="35.0" y="214.0" class="d-m">TechnicianID</text><text x="35.0" y="229.5" class="d-m">Hours</text><line x1="112.0" y1="122.0" x2="112.0" y2="176.0" class="d-line-hot" marker-end="url(#ah)"/><text x="103.0" y="140.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="103.0" y="164.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="214.0" y="96.0" class="d-s">A selection on DimTechnician</text><text x="214.0" y="111.0" class="d-s">reaches FactLabor.</text><text x="214.0" y="141.0" class="d-s">A selection on FactLabor</text><text x="214.0" y="156.0" class="d-s">does not reach DimTechnician.</text><rect x="24.0" y="262.0" width="400.0" height="68.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="38.0" y="282.0" class="d-t" fill="#2B6140">One path, one answer</text><text x="38.0" y="300.0" class="d-s">The engine resolves a filter with a lookup. Every measure that</text><text x="38.0" y="314.0" class="d-s">touches these two tables behaves the same way in every visual.</text><rect x="474.0" y="46.0" width="175.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="485.0" y="63.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="474.0" y1="72.0" x2="649.0" y2="72.0" stroke="#1B5A68" stroke-width="1"/><text x="485.0" y="84.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="485.0" y="99.5" class="d-m">EmployeeType</text><rect x="474.0" y="176.0" width="175.0" height="71.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="485.0" y="193.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="474.0" y1="202.0" x2="649.0" y2="202.0" stroke="#AE4419" stroke-width="1"/><text x="485.0" y="214.0" class="d-m">TechnicianID</text><text x="485.0" y="229.5" class="d-m">Hours</text><line x1="562" y1="122" x2="562" y2="176" class="d-line-hot" marker-end="url(#ah)" marker-start="url(#ah)"/><text x="553.0" y="140.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="553.0" y="164.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="664.0" y="96.0" class="d-s">Now a selection on FactLabor</text><text x="664.0" y="111.0" class="d-s">also narrows DimTechnician,</text><text x="664.0" y="141.0" class="d-s">which is what makes a slicer</text><text x="664.0" y="156.0" class="d-s">hide unused technicians.</text><rect x="474.0" y="262.0" width="400.0" height="80.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="488.0" y="282.0" class="d-t" fill="#98281E">Convenient, and the usual source of ambiguity</text><text x="488.0" y="300.0" class="d-s">The engine must now build a set on the one side rather than do a</text><text x="488.0" y="314.0" class="d-s">lookup, and it pays that cost on every query, not only the</text><text x="488.0" y="328.0" class="d-s">ones that actually need it.</text></svg></div><figcaption><span class="fig-num">Figure 6.1</span>What actually changes when a relationship is set to Both.</figcaption></figure>
+
+  <p>Both panels show the same pair of tables, <code>DimTechnician</code> above <code>FactLabor</code>, with nothing changed but the setting. The left panel is headed Single, the default. One arrow runs down from the dimension to the fact. The note beside it says that a selection on <code>DimTechnician</code> reaches <code>FactLabor</code>, and that a selection on <code>FactLabor</code> stops where it started. The right panel is headed Both, bidirectional. That same line is now double headed, and the note beside it gives the reason people turn it on. A selection on <code>FactLabor</code> narrows <code>DimTechnician</code>, which is what makes a slicer hide technicians with no hours. Read the two cards underneath as the verdict. The green one calls the single version one path, one answer. The red one calls the same convenience the usual source of ambiguity. That is the mechanism behind a complaint you will eventually hear: somebody changed one relationship setting, and a measure on a different page started returning a different number.</p>
+
+  <p>The default for many to one and one to many is Single, and the default is correct. Leave it alone. A dimension exists in order to filter facts. The reverse question, something like "which stations had any labor at all this quarter", is a question you answer with a measure rather than with a model setting. This matters enough to have its own chapter for one reason. Both changes what a filter means across the whole model, and it does so quietly, well beyond the relationship you changed. <a class="xref" href="#ch-08">Chapter 8</a> takes that apart properly, including the cases where Both is the right answer. For now the setting is one checkbox with two values, and a default you should have a written reason to override.</p>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Default cardinality</div><div class="kv-v">Many to one</div></div>
+    <div class="kv-item"><div class="kv-k">Default cross filter</div><div class="kv-v">Single</div></div>
+    <div class="kv-item"><div class="kv-k">One to one cross filter</div><div class="kv-v">Both, and locked</div></div>
+    <div class="kv-item"><div class="kv-k">Many to many cross filter</div><div class="kv-v">Both by default</div></div>
+    <div class="kv-item"><div class="kv-k">Active by default</div><div class="kv-v">Yes, if no path exists</div></div>
+  </div>
+
+  <h3>Active and inactive relationships</h3>
+
+  <p>The finance manager asks how many work orders January had. Your report says three. The shift supervisor, reading the same page over his shoulder, says two, because two is what came out of the hangar that month. Nobody is wrong. Eight work orders, one date table, and three different dates on each row.</p>
+
+  <p>Only one relationship may be active on any given path between two tables. Additional relationships between the same pair are stored in the model, drawn in the diagram as dashed lines, and they do nothing until a measure asks for one by name. Dormant is the better word for them. They are still validated and still built at every refresh, which is why an inactive relationship can fail a refresh on a duplicate key.</p>
+
+  <p>Meridian has three date columns on <code>FactWorkOrder</code> and one date table. <code>OpenedDate</code> holds the active relationship, because it is the one date every work order carries. <code>ClosedDate</code> is blank on the two jobs still in the hangar, so a default path built on that column would drop them from a count without saying so. <code>PromisedDate</code> and <code>ClosedDate</code> get relationships too, both inactive. The three tell genuinely different stories, and the numbers make that concrete.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 360" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="40.0" y="120.0" width="178.0" height="86.5" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="51.0" y="137.0" class="d-t" fill="#1B5A68">DimDate</text><line x1="40.0" y1="146.0" x2="218.0" y2="146.0" stroke="#1B5A68" stroke-width="1"/><text x="51.0" y="158.0" class="d-m" font-weight="600" fill="#1B5A68">Date</text><text x="51.0" y="173.5" class="d-m">MonthName</text><text x="51.0" y="189.0" class="d-m">Quarter</text><rect x="470.0" y="74.0" width="210.0" height="117.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="481.0" y="91.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="470.0" y1="100.0" x2="680.0" y2="100.0" stroke="#AE4419" stroke-width="1"/><text x="481.0" y="112.0" class="d-m" font-weight="600" fill="#AE4419">WorkOrderID</text><text x="481.0" y="127.5" class="d-m">OpenedDate</text><text x="481.0" y="143.0" class="d-m">PromisedDate</text><text x="481.0" y="158.5" class="d-m">ClosedDate</text><text x="481.0" y="174.0" class="d-m">QuotedAmount</text><line x1="218.0" y1="150.0" x2="470.0" y2="122.0" class="d-line-hot" marker-end="url(#ah)"/><text x="300.0" y="128.0" class="d-lbl" fill="#AE4419">active</text><line x1="218.0" y1="176.0" x2="470.0" y2="152.0" class="d-line-off"/><text x="300.0" y="164.0" class="d-lbl" fill="#77746B">inactive</text><line x1="218.0" y1="200.0" x2="470.0" y2="182.0" class="d-line-off"/><text x="300.0" y="200.0" class="d-lbl" fill="#77746B">inactive</text><text x="690.0" y="122.0" class="d-m" fill="#AE4419" font-weight="600">OpenedDate</text><text x="690.0" y="152.0" class="d-m" fill="#77746B">PromisedDate</text><text x="690.0" y="182.0" class="d-m" fill="#77746B">ClosedDate</text><rect x="40.0" y="236.0" width="400.0" height="106.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="54.0" y="258.0" class="d-t" fill="#17160F">One date table, three roles</text><text x="54.0" y="278.0" class="d-m">Work Orders Opened  = COUNTROWS ( FactWorkOrder )</text><text x="54.0" y="296.0" class="d-m">Work Orders Closed  = CALCULATE ( [Opened],</text><text x="54.0" y="312.0" class="d-m">        USERELATIONSHIP ( DimDate[Date],</text><text x="54.0" y="328.0" class="d-m">                          FactWorkOrder[ClosedDate] ) )</text><rect x="470.0" y="236.0" width="400.0" height="106.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="484.0" y="258.0" class="d-t" fill="#2B6140">Why it matters</text><text x="484.0" y="278.0" class="d-m">January by opened date:  3 work orders</text><text x="484.0" y="296.0" class="d-m">January by closed date:   2 work orders</text><text x="484.0" y="316.0" class="d-s">Same slicer, same table, different question.</text><text x="484.0" y="334.0" class="d-s" font-style="italic">One date table keeps the slicer honest.</text></svg></div><figcaption><span class="fig-num">Figure 6.2</span>One date table, three relationships to the same fact, only one of them active.</figcaption></figure>
+
+  <p>One date table on the left, three lines into <code>FactWorkOrder</code> on the right, with the three target columns printed beside the fact box in the order the lines meet them. Only the top line, the one landing on <code>OpenedDate</code>, is solid, and it is the one labelled active. The two below it are dashed and labelled inactive, and they are stored, validated and rebuilt at every refresh exactly like the solid one. The only thing they lack is permission to carry a filter unless a measure asks for them by name. The card headed Why it matters puts the consequence in numbers: the same January selection returns 3 work orders by opened date and 2 by closed date.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 06.2</span> The same eight work orders counted by month through each of the three date relationships.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Relationship</th><th scope="col">State</th><th scope="col" class="num">Jan</th><th scope="col" class="num">Feb</th><th scope="col" class="num">Mar</th><th scope="col" class="num">Total</th></tr></thead>
+        <tbody>
+          <tr><td><code>DimDate[Date]</code> to <code>FactWorkOrder[OpenedDate]</code></td><td>Active</td><td class="num">3</td><td class="num">3</td><td class="num">2</td><td class="num">8</td></tr>
+          <tr><td><code>DimDate[Date]</code> to <code>FactWorkOrder[PromisedDate]</code></td><td>Inactive</td><td class="num">2</td><td class="num">3</td><td class="num">3</td><td class="num">8</td></tr>
+          <tr><td><code>DimDate[Date]</code> to <code>FactWorkOrder[ClosedDate]</code></td><td>Inactive</td><td class="num">2</td><td class="num">2</td><td class="num">2</td><td class="num">6</td></tr>
+          <tr class="row-total"><td>Rows on the blank date row, closed relationship only</td><td class="muted">WO-1004 and WO-1008</td><td class="num muted">.</td><td class="num muted">.</td><td class="num muted">.</td><td class="num">2</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Try to make a second one active and Power BI stops you. Depending on where you do it, you either get a refusal naming the existing active relationship, or, in the Manage relationships dialog, the tool deactivates the one that was active so that only one survives. Neither behaviour is arbitrary. Suppose two active paths ran from <code>DimDate</code> to <code>FactWorkOrder</code>. A filter of January against a count of work orders would then have two defensible answers, 3 by opened date and 2 by closed date, and the engine has no basis for preferring either. So it holds one path open and no more. The finance manager's three and the shift supervisor's two both live in that one table. Getting both onto one page means writing the second as a measure that names the dormant relationship. That refusal is a feature. It is also the same check that will bite you later, when a well meant extra relationship creates a second route between two tables you thought were connected one way.</p>
+
+  <p>To use a dormant relationship, name it inside a measure.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Work Orders Closed</span></div>
+    <pre><code>Work Orders Closed <span class="op">=</span>
+<span class="k">CALCULATE</span>(
+    <span class="k">COUNTROWS</span>( <span class="t">FactWorkOrder</span> ),
+    <span class="k">USERELATIONSHIP</span>( <span class="t">DimDate</span><span class="col">[Date]</span>, <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> ),
+    <span class="k">NOT</span> <span class="k">ISBLANK</span>( <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 1</div><div class="linex-v">This has to be a measure. The relationship swap happens while a filter context exists, and a calculated column has no filter context at query time.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>CALCULATE</code> rather than <code>CALCULATETABLE</code> because the result is a single number for a card or a matrix cell. Both accept the same modifiers; the only difference is scalar against table, and <code>USERELATIONSHIP</code> is valid in either.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>COUNTROWS</code>, and not <code>COUNT( FactWorkOrder[WorkOrderID] )</code>. <code>COUNT</code> counts non blank values in a column, so it silently changes meaning the day that column contains a blank. The question is how many work orders, which is a question about rows.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v">The relationship swap. For the duration of this <code>CALCULATE</code> only, the closed date relationship becomes the active path from <code>DimDate</code> to <code>FactWorkOrder</code> and the opened date relationship steps aside. Nothing about the stored model changes.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v">Excludes the two work orders with no closed date. Without it the measure returns 6 across the quarter and 2 in each of the three months. With no date filter at all it returns 8. The two unmatched rows attach to the blank row on <code>DimDate</code>, and that blank row is included whenever nothing filters the date table.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>USERELATIONSHIP</code> rather than a second date table. Loading <code>DimDate</code> a second time and calling it <code>DimClosedDate</code> also works, and it has one real advantage: the two dates can then be sliced independently on the same page. The cost is that every date attribute exists twice, every slicer has to be duplicated, and a user who filters the quarter slicer is puzzled when half the page does not move. One date table with named relationships keeps a single slicer driving every date measure. Use the second table only when the report genuinely needs two independent date filters at once.</p>
+    <p><code>USERELATIONSHIP</code>, and not <code>CROSSFILTER</code>. They look similar and do unrelated jobs. <code>CROSSFILTER</code> changes the direction of a relationship that is already active. It cannot wake a dormant one. Reach for it here and you get either no effect or an error, depending on what else is set.</p>
+    <p><code>NOT ISBLANK</code>, and not a comparison against <code>BLANK()</code>. Comparing a column to blank drags in the engine's blank coercion rules, where blank equals zero for numeric types. Copy the same pattern onto an amount column later and it behaves in a way nobody expects. <code>ISBLANK</code> tests emptiness and nothing else.</p>
+  </div>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>A relationship is a design assertion about the data, and the engine will hold you to it. Most people add one so that a visual will work, which is how the assertion gets made by accident. Many to one asserts that a key is unique on the one side and stays unique through every future refresh. Single direction asserts that this dimension describes the fact, and that the fact says nothing back about the dimension. Active asserts that this, out of every possible route between these two tables, is the one route a report author gets without asking. Every one of those assertions is enforced. So when a relationship fails, look past the relationship. What changed is almost always the world the assertion described.</p>
+  </aside>
+
+  <h3>Four constraints people trip over</h3>
+
+  <h4>One column on each side, and no exceptions</h4>
+
+  <p>The planner is back, and she wants planned hours beside booked hours, by station and by month. It takes two columns to identify a capacity row, station and month, and Power BI will only let you draw a relationship on one. So you build a key out of both parts. It works. By the end of this section you will have deleted it.</p>
+
+  <p>A relationship uses exactly one column on each side. There is no composite key relationship in Power BI. If your two tables share a two part key, you build a single column that holds both parts and relate on that.</p>
+
+  <p>Build it in Power Query, and put a separator between the parts. The separator does real work. Join part A straight onto part B and you get a string that another pair of parts could also produce. A station code of AB with a month of C gives the same result as a station code of A with a month of BC. In Meridian that collision cannot happen today. Every station code is three characters and every month key is six digits, so the split point is always in the same place. That safety is a property of the seven rows currently in the planning workbook. Your model does nothing to hold it there. The day somebody adds a two character code, every affected row joins to the wrong parent and nothing errors.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">FactCapacity, station and month composite key</span></div>
+    <pre><code><span class="k">let</span>
+    Source <span class="op">=</span> ShopCapacityUnpivoted,
+    AddKey <span class="op">=</span> <span class="k">Table.AddColumn</span>(
+        Source,
+        <span class="s">"StationMonthKey"</span>,
+        <span class="k">each</span> [StationCode] <span class="op">&amp;</span> <span class="s">"|"</span> <span class="op">&amp;</span> <span class="k">Text.From</span>([MonthKey]),
+        <span class="k">type</span> <span class="k">text</span>
+    )
+<span class="k">in</span>
+    AddKey</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v">Starts from the unpivoted capacity table, so the key lands on all 28 rows and not on the 7 wide ones.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>Table.AddColumn</code> rather than <code>Table.TransformColumns</code> because you want a new column beside the two originals. Keep the parts. You will need them for grouping, and a key you cannot decompose is a key you cannot debug.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v">The pipe is the separator. It is chosen because it cannot occur in a station code or a month key, which is the only property a separator needs.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v"><code>Text.From</code>, and not <code>Number.ToText</code>. The planning workbook has already changed the type of that column once. <code>Text.From</code> converts whatever arrives, where <code>Number.ToText</code> errors on anything that is not a number. Also not <code>Text.Combine</code>, which ignores null items and hands back a shorter string, so a row with a missing station code would produce a key that looks perfectly valid.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 7</div><div class="linex-v">The type is declared, not inferred. A column typed as any will not participate in a relationship, and the failure message does not mention typing.</div></div>
+  </div>
+
+  <p>Now the inconvenient part. You should not do this in Meridian. The composite key gives you MSP|202501, and four trade rows share that value, so it repeats inside <code>FactCapacity</code>. The capacity table would have to be the many side, and you would need a new seven row station month table on the one side. That table is a junk dimension nobody wants to slice by, sitting next to two dimensions that already cover the same ground. Station and month are independent of each other. <code>DimStation</code> and <code>DimDate[MonthStart]</code> filter <code>FactCapacity</code> correctly on their own, and between them they give the planner her report. Build a concatenated key when the parts genuinely cannot be separated into dimensions of their own. Not before.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Before you concatenate, try to decompose. A two part key usually means two dimensions, and two dimensions give the report author two independent slicers plus everything each dimension knows. A concatenated key gives one slicer full of strings like MSP|202501 that nobody can read and nobody can filter usefully.</p>
+  </aside>
+
+  <h4>Data types must match</h4>
+
+  <p>A whole number key will not relate to a text key. The two columns can render identically in a table visual and still refuse to connect. The comparison happens on stored type, and the displayed text has no say in it. <code>DimDate[MonthKey]</code> holds 202501 as a whole number. Derive a month key on <code>FactCapacity</code> by taking the text "2025-01" and removing the dash, and what you have is the text "202501". The relationship dialog refuses to create the link. This is why the shipped model relates <code>DimDate[MonthStart]</code> to <code>FactCapacity[MonthStart]</code>, both typed as date. No derived key comes into it.</p>
+
+  <p>Fix types in Power Query. A type change there is one operation applied during load, and the relationship is built directly on the loaded column. A calculated column adds a second stored column, materialised after load, and that column cannot fold back to the source.</p>
+
+  <h4>The one side cannot contain blanks</h4>
+
+  <p>The engine reserves the blank slot on the one side for its own use, so a genuine blank in your key column collides with something already sitting there. What the engine puts in that slot is the unknown member. When the many side holds a key value with no match on the one side, Power BI adds a blank row to the one side table and attaches the unmatched fact rows to it. That is deliberate design, and the reason for it is arithmetic. A total should never come out quietly smaller than the sum of its parts.</p>
+
+  <p>Meridian shows it in one place. <code>FactParts</code> contains issue P-9007 against WO-1009, and WO-1009 does not exist in <code>FactWorkOrder</code>. So <code>FactWorkOrder</code> carries a blank row and P-9007 hangs off it. Total parts cost is 28,245 whatever you do. Slice by anything that comes from the work order table, though, and the labelled rows add up to 23,345, with 4,900 sitting in an unlabelled blank row at the bottom of the visual. Report consumers scroll past that row. They have been trained to read blanks as noise.</p>
+
+  <p>The other blank in the dataset behaves differently and is worth separating. WO-1005 has no station code at all, which puts a blank on the many side of the station relationship. Many side blanks are allowed. They fall to the blank row on <code>DimStation</code>. The build handles this one by mapping the blank to an UNASSIGNED member, so the report shows a named row where an anonymous one would have sat. Labor hours by station then read MSP 34.5, TUS 22.5, LAS 5.0, UNASSIGNED 0 and PHX 0, totalling 62.0. Every one of those rows means something to a reader.</p>
+
+  <h4>Circular paths are rejected</h4>
+
+  <p>Power BI will not accept a set of active relationships that lets a filter leave a table and arrive back at it. It applies the same refusal to a set that gives one table two routes to another. Meridian has a live example, deliberately left out of the model. <code>DimTechnician[HomeStation]</code> holds station codes, and relating it to <code>DimStation[StationCode]</code> is tempting. Do that and <code>DimStation</code> can reach <code>FactLabor</code> two ways, once through <code>FactWorkOrder</code> and once through <code>DimTechnician</code>. Filtering to MSP would then mean either "labor on work orders raised at MSP" or "labor by technicians based at MSP". Two different questions, two different answers. Power BI will not choose between them, so it deactivates one of the paths. <code>HomeStation</code> stays as a plain descriptive column. If the shop later wants hours by the technician's home station, that is a measure, and <a class="xref" href="#ch-07">Chapter 7</a> writes it.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 470" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="30.0" y="156.0" width="168.0" height="55.5" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="41.0" y="173.0" class="d-t" fill="#1B5A68">DimStation</text><line x1="30.0" y1="182.0" x2="198.0" y2="182.0" stroke="#1B5A68" stroke-width="1"/><text x="41.0" y="194.0" class="d-m" font-weight="600" fill="#1B5A68">StationCode</text><rect x="300.0" y="40.0" width="190.0" height="71.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="311.0" y="57.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="300.0" y1="66.0" x2="490.0" y2="66.0" stroke="#AE4419" stroke-width="1"/><text x="311.0" y="78.0" class="d-m">StationCode</text><text x="311.0" y="93.5" class="d-m">WorkOrderID</text><rect x="300.0" y="268.0" width="190.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="311.0" y="285.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="300.0" y1="294.0" x2="490.0" y2="294.0" stroke="#1B5A68" stroke-width="1"/><text x="311.0" y="306.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="311.0" y="321.5" class="d-m">HomeStation</text><rect x="614.0" y="152.0" width="190.0" height="86.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="625.0" y="169.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="614.0" y1="178.0" x2="804.0" y2="178.0" stroke="#AE4419" stroke-width="1"/><text x="625.0" y="190.0" class="d-m">WorkOrderID</text><text x="625.0" y="205.5" class="d-m">TechnicianID</text><text x="625.0" y="221.0" class="d-m">Hours</text><line x1="198.0" y1="176.0" x2="300.0" y2="92.0" class="d-line-hot" marker-end="url(#ah)"/><text x="215.3" y="176.9" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="294.1" y="112.0" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="490.0" y1="92.0" x2="614.0" y2="176.0" class="d-line-hot" marker-end="url(#ah)"/><text x="497.4" y="111.4" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="596.5" y="178.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="198.0" y1="200.0" x2="300.0" y2="300.0" class="d-line-hot" marker-end="url(#ah)" stroke-dasharray="6 4"/><text x="202.4" y="220.4" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="283.0" y="299.4" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="490.0" y1="300.0" x2="614.0" y2="216.0" class="d-line-hot" marker-end="url(#ah)" stroke-dasharray="6 4"/><text x="507.5" y="302.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="606.6" y="235.4" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="206.0" y="120.0" class="d-lbl" fill="#AE4419">path A</text><text x="206.0" y="274.0" class="d-lbl" fill="#AE4419">path B</text><rect x="30.0" y="364.0" width="400.0" height="92.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="44.0" y="386.0" class="d-t" fill="#98281E">Select MSP. Which answer is correct?</text><text x="44.0" y="408.0" class="d-s">path A, work performed at MSP</text><text x="414.0" y="408.0" class="d-m" text-anchor="end" fill="#98281E" font-weight="600">34.5 hours</text><text x="44.0" y="426.0" class="d-s">path B, hours booked by MSP-based technicians</text><text x="414.0" y="426.0" class="d-m" text-anchor="end" fill="#98281E" font-weight="600">28.5 hours</text><text x="44.0" y="448.0" class="d-s" font-style="italic">Both are defensible. Neither is what the axis label says.</text><rect x="454.0" y="364.0" width="416.0" height="92.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="468.0" y="386.0" class="d-t" fill="#77746B">Why the engine refuses to guess</text><text x="468.0" y="408.0" class="d-s">Two paths mean two possible results for one measure.</text><text x="468.0" y="426.0" class="d-s">Rather than choose silently, Power BI blocks the second</text><text x="468.0" y="444.0" class="d-s">active relationship. The fix is two named measures.</text></svg></div><figcaption><span class="fig-num">Figure 6.3</span>Two filter paths from DimStation to FactLabor, and two defensible answers for one label.</figcaption></figure>
+
+  <p>Follow the two routes leaving <code>DimStation</code> on the left. Both arrive at <code>FactLabor</code> on the right, one across the top through <code>FactWorkOrder</code> and one across the bottom by way of <code>DimTechnician</code>. The top route is labelled path A and drawn solid. The lower one is labelled path B and drawn dashed, which is what the model looks like after the engine has refused to leave a second route active. The red card underneath is the reason. Select MSP and path A gives 34.5 hours, the work performed at that station, while path B gives 28.5, the hours booked by technicians based there. Both are defensible, and neither is what a bare MSP label on an axis promises. That is the shape the engine will not leave fully active. Train your eye to catch it in a diagram before the tool catches it for you. By the time the tool tells you, you are usually looking at a relationship that has been silently dormant for a fortnight.</p>
+
+  <h3>Assume Referential Integrity</h3>
+
+  <p>There is a checkbox on the relationship editor called Assume Referential Integrity. It appears only for DirectQuery relationships, where the model queries the source live at report time. Import mode never offers it. So if your model is fully imported you can skip this section, though you should still know what the checkbox does before somebody hands you a DirectQuery model to fix.</p>
+
+  <p>What it does is narrow and specific. It tells the engine that it may write an inner join in the native query it sends to the source. Without the checkbox the engine writes an outer join, which is what preserves unmatched fact rows. Inner joins let the source apply predicates earlier and ship fewer rows back. On a large DirectQuery fact that is a real difference.</p>
+
+  <p>It is safe when two things are true and provable: every key value on the many side exists on the one side, and the many side key is never blank. Not "usually true". Provable, by a constraint in the source or a check you run.</p>
+
+  <p>The consequence when it is not true is the reason this setting has a bad reputation. Rows that do not match are dropped by the inner join. No error is raised. No blank row appears, because there is nothing left to put in it. The number simply gets smaller. In Meridian, tick this box on the relationship from <code>FactWorkOrder</code> to <code>FactParts</code> in a DirectQuery model and P-9007 drops out entirely. Total parts cost goes from 28,245 to 23,345, with nothing anywhere to tell you that 4,900 has left the building. Now tick it on the station relationship, in a version of the model that has not yet mapped WO-1005's blank station code to UNASSIGNED. That work order disappears from every station sliced result, for the same reason. A blank many side key matches nothing, and an inner join has nowhere to put a row that matches nothing. Once the build maps the blank to a real member, the setting is safe on that relationship. That is a decent illustration of how narrow the safe case is. It depends on a Power Query step, and the checkbox knows nothing about Power Query steps.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>Assume Referential Integrity trades correctness for speed. Most settings only trade one cost for another, so treat this one with more care than the rest. If a DirectQuery model is slow, exhaust the ordinary work first: reduce the number of visuals on the page, push aggregations into the source, and check whether an import mode aggregation table over the DirectQuery detail would solve it outright. Come back to this checkbox last, and only for relationships where the source enforces the foreign key itself.</p>
+  </aside>
+
+  <h3>Deciding, in one table</h3>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 06.3</span> Situation to setting, with the reason. Every row is a case that occurs in the Meridian model.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Situation</th><th scope="col">Cardinality</th><th scope="col">Direction</th><th scope="col">Why</th></tr></thead>
+        <tbody>
+          <tr class="row-good"><td>A dimension describing a fact: <code>DimTechnician</code> and <code>FactLabor</code></td><td>Many to one</td><td>Single</td><td>The dimension exists to filter the fact. Nothing about the fact needs to travel back.</td></tr>
+          <tr class="row-good"><td>A header and its lines: <code>FactWorkOrder</code> to <code>FactLabor</code></td><td>One to many</td><td>Single</td><td>The header is unique on <code>WorkOrderID</code>, so it acts as the one side even though it is a fact table.</td></tr>
+          <tr class="row-good"><td>One dimension serving two facts: <code>DimStation</code> to <code>FactWorkOrder</code> and to <code>FactCapacity</code></td><td>One to many, twice</td><td>Single</td><td>One station list filtering both facts is what makes a utilisation measure possible at all.</td></tr>
+          <tr class="row-good"><td>A second and third date column on the same fact</td><td>One to many</td><td>Single</td><td>Only one can be active. The others stay dormant until a measure names them.</td></tr>
+          <tr><td>Two tables at the same grain, split for security</td><td>One to one</td><td>Both, forced</td><td>Accept only if you cannot merge them. The direction is not yours to set.</td></tr>
+          <tr class="row-bad"><td>Two tables where neither key is unique</td><td>Many to many</td><td>Both by default</td><td>Stop and build the missing dimension. Here that is <code>DimStation</code>.</td></tr>
+          <tr class="row-bad"><td>An attribute that duplicates a key: <code>DimTechnician[HomeStation]</code></td><td>Do not create it</td><td>Not applicable</td><td>It gives <code>DimStation</code> two routes to <code>FactLabor</code>. Leave the column descriptive.</td></tr>
+          <tr><td>A bridge resolving a repeating attribute: <code>DimCertification</code> to <code>BridgeTechCert</code></td><td>One to many</td><td>Single at this stage</td><td>Getting a filter all the way through to labor takes more than direction, and the totals will not add to 62.0. That is its own chapter.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>One last note on the alternative to a physical relationship. <code>TREATAS</code> applies a set of values to a column as though a relationship existed, entirely inside a measure. That makes it the escape hatch for the case where a physical link would create ambiguity you cannot live with. It leaves no permanent path, so the ambiguity check never sees it. The cost is that the behaviour lives in one measure rather than in the model. A report author dragging raw columns onto a visual gets nothing. Prefer a physical relationship whenever the model can carry one honestly.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>A relationship is a stored mapping from one side values to many side row positions, built at refresh. Direction exists because that mapping is asymmetric.</li>
+      <li>Cardinality is inferred from the data present when you click OK. That makes it a snapshot of one refresh. Know what upstream rule keeps the one side unique, and write it down.</li>
+      <li>Many to one and one to many are the same relationship. One to one usually means a merge you have not done. Many to many usually means a dimension you have not built.</li>
+      <li>Meridian's one genuine one to one is <code>HMCCSchedule</code> to <code>FactWorkOrder</code>: eight rows each, one row per work order, both keys unique. Merge it in Power Query rather than relate it, and accept what the merge forces. The control board says WO-1003 started on 2025-01-13 and the shop floor says 2025-01-14. Somebody has to write down which date the turnaround measure uses, before an average of 12.0 days or 12.17 days means anything.</li>
+      <li>One to one is locked at Both, so the companion table filters the dimension whether you meant it to or not. A six row HR companion beside the seven row <code>DimTechnician</code> takes labor hours from 62.0 to 52.0 and A320-200 from 23.5 to 13.5, with nothing on the page to show where the hours went. Accept it only when you cannot merge and the two key lists are guaranteed identical forever.</li>
+      <li>Before accepting many to many, ask whether you can list the distinct values, whether unmatched keys need to stay visible, and whether a filter has to continue past that hop. A yes to any of the three means build the dimension.</li>
+      <li>Many to many produces a weak relationship: no blank row for unmatched values, and propagation that does not extend through the chain the way a regular relationship does.</li>
+      <li>One active relationship per path. Extra ones are stored and dormant, and a measure wakes one with <code>USERELATIONSHIP</code> inside <code>CALCULATE</code>. In Meridian, <code>OpenedDate</code> is active and <code>PromisedDate</code> and <code>ClosedDate</code> are not.</li>
+      <li>One column each side, matching data types, no blanks on the one side, no second route between two tables. Concatenate a composite key only when the parts cannot become dimensions of their own, and always with a separator.</li>
+      <li>Unmatched many side keys land on a blank row added to the one side. That is how 4,900 of the 28,245 parts cost ends up in a row report consumers ignore.</li>
+      <li>Assume Referential Integrity is DirectQuery only and drops unmatched fact rows without telling you. Turn it on only where the source enforces the key.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="05.html"><span class="pn-dir">Previous</span><span class="pn-t">Power Query mechanics that matter for modelling</span></a><a class="pn" href="07.html"><span class="pn-dir">Next</span><span class="pn-t">How a filter actually travels through the model</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Virtual relationships: TREATAS and friends</title>
+</head>
+<body data-ch="15">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">15</span><span class="tb-title">Virtual relationships: TREATAS and friends</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-15">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 5 . Hard modelling cases</div>
+    <h2 class="chapter-title"><span class="chapter-num">15</span>Virtual relationships: TREATAS and friends</h2>
+    <p class="chapter-lede">After this chapter you can push a filter from one table to another with no relationship between them, argue in a design review when that is the right call and when it is laziness, and recognise the two silent failures that make a TREATAS measure return blank with no error to explain it.</p>
+  </div>
+
+  <p class="lead">The production controller clicks 20 January on the date slicer, because that is the Monday he is asking about. Labor hours hold at 8.0, which is the time L-504 booked at TUS that day. Planned hours go blank. Utilisation divides one by the other, so it comes back empty too, and he wants to know which of the two numbers is broken. Both numbers are correct. The plan is stored by month, he asked for a day, and this chapter is about closing that gap without adding a relationship to the model.</p>
+
+  <p>A relationship is a standing instruction. Once it is in the model it applies to every query, every visual, every measure, and every user who opens the report at seven in the morning without asking you first. Most of the joins you need should work that way. A few should last for one calculation and then be gone, and the controller's question needs one of those. Some joins are true for exactly one measure. Some are true only for the question on one page. Some are true in a way the key columns cannot express. That is the gap <code>TREATAS</code> fills.</p>
+
+  <p>Meridian has three of these sitting in the model already. The certification bridge needs a filter to travel backwards up a many-to-many join. <code>FactCapacity</code> is keyed on station plus month, and no single column matches that pair. <code>DimTechnician[HomeStation]</code> holds station codes that would be useful as a filter, and the relationship list says in writing that it must never be related to <code>DimStation</code>. Three different problems, one function, no change to the model diagram.</p>
+
+  <p>That last part is the point people miss. <code>TREATAS</code> is not a shortcut for a relationship you were too busy to create. It is a way to keep a join out of the model on purpose.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 340" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="40.0" y="60.0" width="190.0" height="99.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="51.0" y="77.0" class="d-t" fill="#AE4419">FactCapacity</text><line x1="40.0" y1="86.0" x2="230.0" y2="86.0" stroke="#AE4419" stroke-width="1"/><text x="51.0" y="98.0" class="d-m">StationCode</text><text x="51.0" y="113.5" class="d-m">MonthKey</text><text x="51.0" y="129.0" class="d-m">PlannedHours</text><text x="51.0" y="145.5" class="d-s" font-style="italic">station and month grain</text><rect x="640.0" y="60.0" width="200.0" height="99.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="651.0" y="77.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="640.0" y1="86.0" x2="840.0" y2="86.0" stroke="#AE4419" stroke-width="1"/><text x="651.0" y="98.0" class="d-m">WorkOrderID</text><text x="651.0" y="113.5" class="d-m">WorkDate</text><text x="651.0" y="129.0" class="d-m">Hours</text><text x="651.0" y="145.5" class="d-s" font-style="italic">day grain</text><line x1="230" y1="104" x2="640" y2="104" class="d-line-dash" marker-end="url(#aht)"/><rect x="360" y="82" width="180" height="20" rx="4" fill="#FCFBF8" stroke="#1B5A68" stroke-width="1"/><text x="450.0" y="96.0" class="d-lbl" text-anchor="middle" fill="#1B5A68">TREATAS, no relationship</text><text x="40.0" y="176.0" class="d-s">A dashed teal line means a virtual relationship: it exists only for the duration of one measure.</text><rect x="40.0" y="196.0" width="400.0" height="128.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="54.0" y="218.0" class="d-t" fill="#17160F">Utilisation</text><text x="54.0" y="240.0" class="d-m">VAR Keys = SUMMARIZE (</text><text x="54.0" y="256.0" class="d-m">        FactLabor, DimStation[StationCode],</text><text x="54.0" y="272.0" class="d-m">        DimDate[MonthKey] )</text><text x="54.0" y="288.0" class="d-m">RETURN CALCULATE ( [Planned Hours],</text><text x="54.0" y="304.0" class="d-m">    TREATAS ( Keys, ... ) )</text><rect x="460.0" y="196.0" width="410.0" height="128.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="474.0" y="218.0" class="d-t" fill="#2B6140">When this beats a relationship</text><text x="474.0" y="238.0" class="d-s">The join is on two columns, and Power BI relationships</text><text x="474.0" y="252.0" class="d-s">take exactly one column on each side.</text><text x="474.0" y="272.0" class="d-s">The grain assumption stays visible in the measure</text><text x="474.0" y="286.0" class="d-s">instead of hiding in the model diagram.</text><text x="474.0" y="306.0" class="d-s" font-style="italic">Cost: evaluated per query, with no cached structure to help it.</text></svg></div><figcaption><span class="fig-num">Figure 15.1</span>A virtual relationship, drawn dashed because it exists only for the duration of one measure.</figcaption></figure>
+
+  <p>Look at the gap between the two tables, and at the one thing that crosses it. Nothing joins <code>FactCapacity</code> to <code>FactLabor</code> in the model, so the only connection drawn is a dashed teal arrow. Its label reads "TREATAS, no relationship". Read the grain printed under each table as well. Grain means what one row of a table stands for: station and month on the left, day on the right. Those two labels are why no relationship can be drawn there at all. A relationship stored in the model would be a solid line, and a solid line carries a promise with it. The engine validated the keys at refresh, built structures to make the join fast, and will apply it to every query whether you want it or not. The dashed arrow is a virtual relationship, which is a join that lives inside the measure that writes it and nowhere else. It costs nothing at refresh, it stays out of the model view, and it lasts exactly as long as the one <code>CALCULATE</code> that creates it. For the rest of this book a dashed teal line drawn between two tables means that: a join written in DAX, alive for one evaluation, invisible to anyone reading the diagram.</p>
+
+  <p>The two cards underneath the tables run ahead of the argument on purpose. The first is headed Utilisation and sketches the shape of the measure that writes this join: a <code>SUMMARIZE</code> over <code>FactLabor</code> feeding a <code>TREATAS</code> inside <code>CALCULATE</code>. Situation 3 builds that skeleton out in full under the name Planned Hours Where Work Happened. Situation 4 turns it into the ratio the card is named for, which is the number the production controller was staring at. The green card beside it gives the two conditions that make the virtual version the better call here. The join needs two columns, and a Power BI relationship takes exactly one column on each side. The grain assumption also stays where a reader can see it, in the text of the measure. The card names the price too: the whole thing is evaluated per query, with no cached structure to help it.</p>
+
+  <h3>What TREATAS actually does</h3>
+
+  <p>Before the four situations, the mechanism. The signature is short, and the second half of it repeats.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Signature</span></div>
+<pre><code><span class="k">TREATAS</span> ( &lt;table expression&gt;, &lt;column&gt; [, &lt;column&gt;] ... )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Argument 1</div><div class="linex-v">Any table expression. It can be a table in the model, a function that returns one, or a list of literal values you typed by hand. Its columns are what will be applied.</div></div>
+    <div class="linex-row"><div class="linex-k">Arguments 2 onward</div><div class="linex-v">One model column per column of the table expression, in the same order. These are the columns that will be filtered.</div></div>
+    <div class="linex-row"><div class="linex-k">Return</div><div class="linex-v">A table whose values are unchanged but whose lineage now points at the columns you named. Used as a filter argument to <code>CALCULATE</code>, it behaves exactly like a filter on those columns.</div></div>
+  </div>
+
+  <p>Lineage is the whole mechanism. Lineage is the tag every table expression in DAX carries, saying which model column each of its columns came from. <code>VALUES ( DimStation[StationCode] )</code> returns a one column table, and that column is tagged <code>DimStation[StationCode]</code>. Hand it to <code>CALCULATE</code> as a filter and <code>CALCULATE</code> knows what to filter, because the tag says so. A list you type yourself, such as <code>{ "MSP", "TUS" }</code>, arrives as two anonymous strings with the tag missing.</p>
+
+  <p><code>TREATAS</code> rewrites the tag. It takes the values as they are, changes nothing about them, and declares that column one is now <code>DimStation[StationCode]</code>. From that moment they behave as if they had been read from that column, which means they filter it, and the filter propagates outward along the real relationships exactly like any other.</p>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Argument type</div><div class="kv-v">Filter argument to CALCULATE</div></div>
+    <div class="kv-item"><div class="kv-k">Match rule</div><div class="kv-v">Value equality, type sensitive</div></div>
+    <div class="kv-item"><div class="kv-k">Column mapping</div><div class="kv-v">Positional, not by name</div></div>
+    <div class="kv-item"><div class="kv-k">Lifetime</div><div class="kv-v">One evaluation of one CALCULATE</div></div>
+  </div>
+
+  <p>Here is the smallest honest example in the Meridian model. MSP and TUS are the two base stations. LAS is a line station and PHX exists only in the planning workbook. Suppose one measure, and only one, should count hours at the base stations regardless of what the station slicer says.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Hours at Base Stations</span></div>
+<pre><code><span class="col">Hours at Base Stations</span> <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">TREATAS</span> (
+            { <span class="s">"MSP"</span>, <span class="s">"TUS"</span> },
+            <span class="t">DimStation</span><span class="col">[StationCode]</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>CALCULATE</code> and not <code>CALCULATETABLE</code>, because a visual needs one number in the cell. Both accept a <code>TREATAS</code> filter argument in the same way. The difference is what comes back: a table is what you want when the result feeds an iterator, and useless when it has to fill a cell.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v">The table constructor braces build a two row, one column table with no lineage. Written on its own as a filter argument it is rejected, because <code>CALCULATE</code> has no idea which column those strings belong to.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v">The target column. <code>DimStation[StationCode]</code> and not <code>FactWorkOrder[StationCode]</code>: filter the dimension and the filter reaches both <code>FactWorkOrder</code> and <code>FactCapacity</code> through the existing relationships. Filter the fact column directly and you have restricted one table and left the other wide open.</div></div>
+  </div>
+
+  <p>The result is 57.0 hours: 34.5 at MSP plus 22.5 at TUS. The UNASSIGNED member is excluded by the filter, which costs nothing here because WO-1005 has no labor rows at all, and LAS loses its 5.0 hours as intended.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 15.1</span> What the virtual filter keeps. Labor hours by station, with the two values pushed onto <code>DimStation[StationCode]</code>.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Station</th>
+            <th scope="col" class="num">Labor hours</th>
+            <th scope="col">In the TREATAS list</th>
+            <th scope="col" class="num">Counted</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-good"><td class="key">MSP</td><td class="num">34.5</td><td>Yes</td><td class="num">34.5</td></tr>
+          <tr class="row-good"><td class="key">TUS</td><td class="num">22.5</td><td>Yes</td><td class="num">22.5</td></tr>
+          <tr><td class="key">LAS</td><td class="num">5.0</td><td class="muted">No</td><td class="num muted">0</td></tr>
+          <tr><td class="key">PHX</td><td class="num">0</td><td class="muted">No</td><td class="num muted">0</td></tr>
+          <tr><td class="key">UNASSIGNED</td><td class="num">0</td><td class="muted">No</td><td class="num muted">0</td></tr>
+          <tr class="row-total"><td>Total</td><td class="num">62.0</td><td></td><td class="num">57.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Describe <code>TREATAS</code> as a lineage cast and the rest of its behaviour follows without being memorised. Column order matters, because the cast is positional. Data types matter, because the cast changes the tag and leaves the value alone. It costs what it costs, because nothing is stored. Calling it "a virtual relationship" repeats a phrase. Calling it "restamping the lineage of a table expression so CALCULATE filters the column you named" shows you understood it.</p>
+  </aside>
+
+  <h3>Situation 1: the join that must not become a relationship</h3>
+
+  <p>The shop manager wants a slicer of target utilisation by station, so a report user can look at only the stations held to a target of fifty percent or better. The targets live in a small table with two columns and four rows. Build it as a calculated table so it stays in the model without a query refresh dependency.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">TargetUtil, a disconnected table</span></div>
+<pre><code><span class="c">// Each target is that station's best Q1 month, from the</span>
+<span class="c">// utilisation figures: MSP 75%, TUS 50%, LAS 25%, PHX 0%.</span>
+<span class="t">TargetUtil</span> <span class="op">=</span>
+    <span class="k">DATATABLE</span> (
+        <span class="s">"StationCode"</span>, <span class="k">STRING</span>,
+        <span class="s">"TargetPct"</span>, <span class="k">DOUBLE</span>,
+        {
+            { <span class="s">"MSP"</span>, <span class="n">0.75</span> },
+            { <span class="s">"TUS"</span>, <span class="n">0.50</span> },
+            { <span class="s">"LAS"</span>, <span class="n">0.25</span> },
+            { <span class="s">"PHX"</span>, <span class="n">0.00</span> }
+        }
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v"><code>DATATABLE</code> and not the table constructor <code>{ ... }</code>. The constructor works and is shorter, but it names its columns <code>Value1</code> and <code>Value2</code> and infers their types from the first row. <code>DATATABLE</code> makes you declare both. Since <code>TREATAS</code> matches on value and is sensitive to type, a table whose types you declared yourself is worth the extra four lines.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v"><code>DOUBLE</code> and not <code>CURRENCY</code>. Utilisation is a ratio, and the fixed four decimal places of the currency type would quietly round a target expressed to more precision later.</div></div>
+  </div>
+
+  <p>Now the measure. The slicer sits on <code>TargetUtil[TargetPct]</code>, and whatever stations survive that selection have to filter the labor numbers.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Hours at Selected Targets</span></div>
+<pre><code><span class="col">Hours at Selected Targets</span> <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">TREATAS</span> (
+            <span class="k">VALUES</span> ( <span class="t">TargetUtil</span><span class="col">[StationCode]</span> ),
+            <span class="t">DimStation</span><span class="col">[StationCode]</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v"><code>VALUES</code> reads the station codes that survive whatever the user picked in the slicer. The slicer sits on <code>TargetUtil[TargetPct]</code>, a different column of the same disconnected table, so the selection filters <code>TargetUtil</code> itself and <code>VALUES</code> then reads the codes on the rows that are left. No relationship is involved in that step at all.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v">The one model column that receives the values. Note that <code>TargetUtil</code> stays disconnected: no relationship is created, and the only thing that ever crosses from it to the rest of the model is this one filter, inside this one measure.</div></div>
+  </div>
+
+  <p>Select the 0.75 and 0.50 targets in the slicer and <code>VALUES</code> returns MSP and TUS, so the measure reads 57.0 hours again. This time the report user drove it, and nothing is hard coded. Select nothing and all four stations pass through, which gives 62.0, because every hour Meridian booked in Q1 sits at MSP, TUS or LAS.</p>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>VALUES</code> and not <code>DISTINCT</code>. The two differ in one respect. When the column sits on the one side of a relationship, and the many side holds keys that match nothing, <code>VALUES</code> returns an extra blank row for those unmatched members. <code>DISTINCT</code> leaves that row out. <code>TargetUtil</code> is disconnected, so today both return the same four codes. I still write <code>VALUES</code>. If this table is ever related to something and an unmatched key appears, I want the blank member sitting visibly inside the filter where I can find it.</p>
+  </div>
+
+  <p>So why not relate <code>TargetUtil[StationCode]</code> to <code>DimStation[StationCode]</code> and stop writing DAX? Two reasons, both structural. Both columns are unique, so Power BI creates the relationship as one to one, and a one to one relationship always cross filters in both directions. The dialog gives you no option to make it single. The target table would then filter <code>DimStation</code> on every query in the report, which is the standing instruction this chapter exists to avoid. Try to route around that by relating <code>TargetUtil</code> straight to the facts and you hit the second reason. Relate it to both <code>FactCapacity[StationCode]</code> and <code>FactWorkOrder[StationCode]</code> and you have closed a loop, since <code>DimStation</code> already reaches both. Power BI accepts the first and refuses to activate the second.</p>
+
+  <p>Meridian has a second instance of this and it is written into the relationship list as a deliberate omission. <code>DimStation[StationCode]</code> is never related to <code>DimTechnician[HomeStation]</code>, because that would give <code>DimStation</code> two roads to <code>FactLabor</code>, one through <code>FactWorkOrder</code> and one through <code>DimTechnician</code>, which is the ambiguity case from <a class="xref" href="#ch-08">Chapter 8</a>. The relationship stays out. The question it would answer does not have to.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Hours by Home Station</span></div>
+<pre><code><span class="col">Labor Hours by Home Station</span> <span class="op">=</span>
+<span class="k">VAR</span> StationsInContext <span class="op">=</span> <span class="k">VALUES</span> ( <span class="t">DimStation</span><span class="col">[StationCode]</span> )
+<span class="k">RETURN</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">REMOVEFILTERS</span> ( <span class="t">DimStation</span> ),
+        <span class="k">TREATAS</span> (
+            StationsInContext,
+            <span class="t">DimTechnician</span><span class="col">[HomeStation]</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v">Capture the station codes visible right now, before anything is cleared. A <code>VAR</code> and not the expression written inline: a filter argument of <code>CALCULATE</code> is evaluated in the outer filter context anyway, so both forms return the same values, but the variable removes any need for the reader to know that rule to trust the measure.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v">This line is the one people leave out, and leaving it out is why the measure looks broken. <code>DimStation[StationCode]</code> is on the matrix rows, so it is already filtering <code>FactWorkOrder</code> through the physical relationship. Without <code>REMOVEFILTERS</code> the measure returns hours that are both at that station and worked by a technician homed there, so TUS reads 4.5 rather than 10.5 and LAS reads 5.0 rather than 13.0. <code>REMOVEFILTERS</code> and not <code>ALL</code>. Used as a filter modifier inside <code>CALCULATE</code> the two behave identically, and only one of them is named after the job it is doing.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 7 to 10</div><div class="linex-v">The captured codes are retagged onto <code>DimTechnician[HomeStation]</code>, a plain descriptive text column with no relationship attached to it. That is the whole trick: a column does not need to be a key to be filtered.</div></div>
+  </div>
+
+  <p>Put <code>DimStation[StationCode]</code> on the rows of a matrix and you get a second answer to the question "hours by station". Both answers are right. MSP shows 28.5, being TECH-01 at 12.0 plus TECH-02 at 16.5 plus TECH-06 at zero. TUS shows 10.5, from TECH-03 at zero and TECH-04 at 10.5. LAS shows 13.0, from TECH-05 alone. The UNASSIGNED row picks up TECH-07 and its 10.0 hours, because TECH-07's home station in <code>DimTechnician</code> is the unassigned member and DAX text matching ignores case. PHX comes back blank, since nobody is homed there. Total 62.0, same as before, distributed differently.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 15.2</span> Two correct answers to one question. Hours by the station that did the work, against hours by the technician's home station.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Station</th>
+            <th scope="col" class="num">By work order station</th>
+            <th scope="col" class="num">By technician home station</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row" class="key">MSP</th><td class="num">34.5</td><td class="num">28.5</td></tr>
+          <tr><th scope="row" class="key">TUS</th><td class="num">22.5</td><td class="num">10.5</td></tr>
+          <tr><th scope="row" class="key">LAS</th><td class="num">5.0</td><td class="num">13.0</td></tr>
+          <tr><th scope="row" class="key">PHX</th><td class="num">0</td><td class="num muted">blank</td></tr>
+          <tr><th scope="row" class="key">UNASSIGNED</th><td class="num">0</td><td class="num">10.0</td></tr>
+          <tr class="row-total"><td>Total</td><td class="num">62.0</td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>TECH-04 is why the two columns differ most sharply. Sandoval is homed at TUS and booked 6.0 hours on WO-1001 at MSP plus 4.5 on WO-1003 at TUS, so 6.0 hours change column when the definition of station changes. A relationship would force the model to pick one of these two meanings and make the other unreachable. Keeping it virtual means both stay available, each in a measure named for what it measures.</p>
+
+  <h3>Situation 2: replacing a bidirectional relationship</h3>
+
+  <p>The shift supervisor holds up his whiteboard and says the certification report is wrong. Every row on it reads 62.0. A&amp;P 62.0, Avionics 62.0, NDT 62.0, Engine Run 62.0. He is right, and the reason is a filter that stops halfway across the model. <code>DimCertification</code> filters <code>BridgeTechCert</code>, and the bridge sits on the many side of <code>DimTechnician</code>, so the filter arrives at the bridge and goes no further. <code>FactLabor</code> is left unfiltered, and every cell reports the whole quarter. This is the standard argument for bidirectional cross filtering, and it is the standard argument because the requirement is real.</p>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <p>Set the cross filter direction on <code>DimTechnician</code> to <code>BridgeTechCert</code> to Both. It takes four seconds and the numbers come out right.</p>
+      <p>What you have actually done is give every future measure in the model a filter path that runs backwards through the bridge. Any measure, on any page, written by anyone. The bridge is small today, at ten rows, so nothing hurts yet.</p>
+      <p>You have also added a second filter path between <code>DimCertification</code> and anything downstream of <code>DimTechnician</code>, which is how ambiguity errors arrive six months later in a model you no longer remember building.</p>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <p>Leave every relationship single direction. Read the technician list out of the bridge in the current filter context and push it onto the technician dimension inside one measure.</p>
+      <p>The join now exists in exactly one place, and that place has a name that says what it is for. Anyone reading the measure sees the join. Anyone reading the model diagram sees a model with no back doors in it.</p>
+      <p>The four certification numbers are identical to the bidirectional version. No model change, and no arrow to explain in a review.</p>
+    </div>
+  </div>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Hours by Certification</span></div>
+<pre><code><span class="col">Hours by Certification</span> <span class="op">=</span>
+    <span class="k">IF</span> (
+        <span class="k">ISFILTERED</span> ( <span class="t">DimCertification</span><span class="col">[CertCode]</span> ),
+        <span class="k">CALCULATE</span> (
+            <span class="col">[Labor Hours]</span>,
+            <span class="k">TREATAS</span> (
+                <span class="k">VALUES</span> ( <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span> ),
+                <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span>
+            )
+        ),
+        <span class="col">[Labor Hours]</span>
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 2 and 3</div><div class="linex-v"><code>IF</code> and not <code>SWITCH ( TRUE ( ) )</code>, because there is one condition and <code>SWITCH</code> only earns its place from the third branch onward. <code>ISFILTERED</code> and not <code>HASONEVALUE</code>: <code>HASONEVALUE</code> is false when the user selects two certifications, which would send a legitimate multi-select down the unfiltered branch and report 62.0 for it. <code>ISFILTERED</code> asks the question that matters, which is whether anything at all is restricting this column right now.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 7</div><div class="linex-v"><code>VALUES</code> reads the bridge as it stands in the current filter context. On the A&amp;P row that context holds three bridge rows, so three technician ids come back. This is the step that walks the many-to-many relationship, and it walks it in the direction the model will not.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 8</div><div class="linex-v">The target is the dimension key, not <code>FactLabor[TechnicianID]</code>. Filtering the dimension lets the existing one to many relationship carry the filter into the fact, which is the path the engine is already built to serve. Filtering the fact column directly works too and is measurably worse, because you are applying a filter to a large table instead of a small one.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 11</div><div class="linex-v">The fallback branch. Without it the grand total reads 52.0 where the honest answer is 62.0. The trace below the table works through why the engine is behaving correctly when it does that.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 15.3</span> Hours by certification. The four rows are identical whether the bridge is bidirectional or the filter is applied virtually.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Certification</th>
+            <th scope="col">Technicians from the bridge</th>
+            <th scope="col" class="num">Hours</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">A&amp;P</th><td class="key">TECH-01, TECH-02, TECH-04</td><td class="num">39.0</td></tr>
+          <tr><th scope="row">Avionics</th><td class="key">TECH-03, TECH-04, TECH-06</td><td class="num">10.5</td></tr>
+          <tr><th scope="row">NDT</th><td class="key">TECH-01, TECH-03</td><td class="num">12.0</td></tr>
+          <tr><th scope="row">Engine Run</th><td class="key">TECH-04, TECH-05</td><td class="num">23.5</td></tr>
+          <tr class="row-bad"><td>Sum of the four rows</td><td class="muted">TECH-04 counted three times</td><td class="num">85.0</td></tr>
+          <tr class="row-total"><td>Grand total</td><td></td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <details class="expand" open>
+    <summary>Trace this by hand, row by row</summary>
+    <div class="expand-body">
+      <p>Take the A&amp;P row. The filter context holds <code>DimCertification[CertCode]</code> equal to A&amp;P, which propagates down the one to many relationship into <code>BridgeTechCert</code> and leaves three rows visible: TECH-01/A&amp;P, TECH-02/A&amp;P and TECH-04/A&amp;P. <code>VALUES ( BridgeTechCert[TechnicianID] )</code> reads those three rows and returns TECH-01, TECH-02, TECH-04, tagged as bridge technician ids.</p>
+      <p><code>TREATAS</code> retags them as <code>DimTechnician[TechnicianID]</code> and <code>CALCULATE</code> applies them, which cuts the technician dimension to three rows. That filter travels the existing relationship into <code>FactLabor</code>, and <code>[Labor Hours]</code> sums what is left: 12.0 for TECH-01, 16.5 for TECH-02, 10.5 for TECH-04, giving 39.0.</p>
+      <p>Avionics resolves to TECH-03, TECH-04 and TECH-06, which is 0 plus 10.5 plus 0, so 10.5. NDT resolves to TECH-01 and TECH-03, which is 12.0 plus 0, so 12.0. Engine Run resolves to TECH-04 and TECH-05, which is 10.5 plus 13.0, so 23.5.</p>
+      <p>Add the four and you get 85.0 against a true total of 62.0, because TECH-04 holds three certifications and every one of his 10.5 hours is counted three times. That double count belongs to the question, not to <code>TREATAS</code>. A bidirectional bridge produces the identical 85.0.</p>
+      <p>Now the grand total. On that row <code>DimCertification[CertCode]</code> carries no filter, so <code>VALUES ( BridgeTechCert[TechnicianID] )</code> returns all six technicians the bridge knows about. TECH-07 is not one of them: he is the recovered orphan from L-506 and has no certification row. The <code>TREATAS</code> branch would therefore report 52.0 and drop his 10.0 hours without saying so, which is what the <code>ISFILTERED</code> wrapper on line 3 prevents. Note that 52.0 is defensible in its own right. If the total is meant to cover certified staff only, keep it and label the visual accordingly.</p>
+    </div>
+  </details>
+
+  <h3>The option in between: CROSSFILTER</h3>
+
+  <p>There is a third option, and on the certification bridge it is probably the one to ship. The choice is usually put as bidirectional relationship against <code>TREATAS</code>, as though those were the only two on the table. <code>CROSSFILTER</code> sits between them. It takes a relationship that already exists in the model and changes its filter direction for the duration of one <code>CALCULATE</code>. <code>USERELATIONSHIP</code> does the same trick for which relationship is active. Either way, the Both flag moves out of the model and into the measure, where it applies to one calculation and stops applying to everybody else.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Hours by Certification, scoped bidirectional</span></div>
+<pre><code><span class="col">Hours by Certification (CROSSFILTER)</span> <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">CROSSFILTER</span> (
+            <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span>,
+            <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span>,
+            <span class="k">BOTH</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v"><code>CROSSFILTER</code> and not <code>USERELATIONSHIP</code>. Both name a relationship by its two endpoints, which is why the two get mixed up. The technician to bridge relationship is already active, so there is nothing here to activate. Its direction is the problem, and direction is the one thing <code>CROSSFILTER</code> touches.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 5 and 6</div><div class="linex-v">The many side column first and the one side column second. The engine resolves the pair to a relationship whichever order you write them in, so treat this as a reading convention. Written this way, the arguments run in the direction the filter is about to travel: up out of the bridge and into the dimension.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 7</div><div class="linex-v"><code>BOTH</code> is what lets the certification filter climb from the bridge into <code>DimTechnician</code>. The other two accepted values are <code>ONEWAY</code> and <code>NONE</code>. Remember <code>NONE</code>: switching a relationship off for one measure is now and then the shortest way out of a filter you did not ask for.</div></div>
+    <div class="linex-row"><div class="linex-k">What is absent</div><div class="linex-v">No <code>VALUES</code>, no lineage cast, and no <code>ISFILTERED</code> wrapper. The measure is nine lines against the twelve of the <code>TREATAS</code> version above it. The paragraphs below explain why this version can safely go without the guard.</div></div>
+  </div>
+
+  <p>The four row values are the ones you already know: A&amp;P 39.0, Avionics 10.5, NDT 12.0 and Engine Run 23.5, still summing to 85.0 against a real 62.0, because that double count belongs to the question and no function fixes it. The grand total is where the two approaches part company, and this is the difference to carry out of the chapter.</p>
+
+  <p><code>TREATAS</code> applies a list of values. At the grand total that list is <code>VALUES ( BridgeTechCert[TechnicianID] )</code> over an unfiltered bridge, which comes to the six technicians the bridge knows about. Applying that list silently drops TECH-07 and his 10.0 hours, giving 52.0. That is why the measure needs <code>ISFILTERED</code> on line 3. <code>CROSSFILTER</code> changes how a filter travels. At the grand total there is no certification filter to travel, so <code>DimTechnician</code> is left alone and <code>FactLabor</code> answers with all eight rows: 62.0, with no guard and nothing to remember. One of these functions is a filter. The other is a route. Everything else follows from that.</p>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Row values, either way</div><div class="kv-v">39.0, 10.5, 12.0, 23.5</div></div>
+    <div class="kv-item"><div class="kv-k">Grand total, CROSSFILTER</div><div class="kv-v">62.0, no guard</div></div>
+    <div class="kv-item"><div class="kv-k">Grand total, TREATAS</div><div class="kv-v">52.0, or 62.0 with ISFILTERED</div></div>
+    <div class="kv-item"><div class="kv-k">Model change</div><div class="kv-v">None, either way</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>CROSSFILTER</code> needs a physical relationship in the right shape to modify. That single requirement decides which of the four situations in this chapter it can serve. Situation 1 has nothing to modify. <code>TargetUtil</code> is disconnected on purpose, and <code>DimTechnician[HomeStation]</code> is a descriptive text column sitting at neither end of any relationship. Situations 3 and 4 need a filter on a pair of columns, and on a column at a different grain from the one the relationship joins. <code>CROSSFILTER</code> can say which direction, and it has no way to say which values. Situation 2 is the only one of the four where both functions are genuinely available. There <code>CROSSFILTER</code> is the better default: it is shorter, it leaves no total to repair, and it sends the filter along a join the engine already built and indexed.</p>
+    <p>Reach for <code>TREATAS</code> on the bridge anyway in two cases. When you want the restricted total on purpose, because the visual is about certified staff and 52.0 is the honest number for it, which is the agreement <a class="xref" href="#ch-14">Chapter 14</a> asks you to make before writing any of this. And when the bridge is loaded with no relationships at all, which is the third implementation in that chapter, since a relationship you have not created is not a relationship <code>CROSSFILTER</code> can modify.</p>
+  </div>
+
+  <p>The one line test. If the join already exists as a relationship and the only thing wrong with it is the direction, that is <code>CROSSFILTER</code>. If the join does not exist, cannot exist without creating ambiguity, or has to match on something other than the two columns of a relationship, that is <code>TREATAS</code>. Setting Both on the model itself is what you do when every measure needs the traversal, on every page, forever, and you have accepted the ambiguity risk on behalf of everyone who will ever open the file.</p>
+
+  <h3>Situation 3: a composite key you do not want to build</h3>
+
+  <p>The planner asks a fair question about the quarter. Meridian planned 176 hours and booked 62.0, so utilisation reads 35.2 percent, and she wants to know how much of that gap is stations that never opened a work order at all. To answer her you have to filter the plan down to the station and month pairs where labor actually happened. <code>FactCapacity</code> is grained at station plus month. <code>FactLabor</code> is grained at technician per work order per day, and it reaches a station only through <code>FactWorkOrder</code>. Nothing in the model matches those two tables on both parts of the key at once. The usual advice is to build a concatenated key column in Power Query on both sides, something like MSP-202501, and relate on that. It works. It also adds a column to two tables: a column whose only purpose is to be joined on, whose values mean nothing to a human, and which someone will eventually drop into a slicer.</p>
+
+  <p><code>TREATAS</code> takes more than one column, so it can express the composite join without one existing.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Planned Hours Where Work Happened</span></div>
+<pre><code><span class="col">Planned Hours Where Work Happened</span> <span class="op">=</span>
+<span class="k">VAR</span> ActivePairs <span class="op">=</span>
+    <span class="k">SUMMARIZE</span> (
+        <span class="t">FactLabor</span>,
+        <span class="t">DimStation</span><span class="col">[StationCode]</span>,
+        <span class="t">DimDate</span><span class="col">[MonthKey]</span>
+    )
+<span class="k">RETURN</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Planned Hours]</span>,
+        <span class="k">TREATAS</span> (
+            ActivePairs,
+            <span class="t">FactCapacity</span><span class="col">[StationCode]</span>,
+            <span class="t">FactCapacity</span><span class="col">[MonthKey]</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v">A variable and not the expression written inline. Filter arguments evaluate in the outer filter context either way, so the result is identical, but the variable is evaluated once and carries a name that says what it holds.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>SUMMARIZE</code> and not <code>SELECTCOLUMNS</code>. <code>SELECTCOLUMNS</code> would return one row per labor row, duplicates included, and <code>TREATAS</code> would then carry eight rows where five distinct pairs exist. <code>SUMMARIZE</code> groups. The advice to avoid <code>SUMMARIZE</code> applies to its extension column syntax, which evaluates in a context most people read wrongly. Used for grouping alone it is the shortest correct form, and <code>DISTINCT ( SELECTCOLUMNS ( ... ) )</code> is equivalent here if you dislike it on principle.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 5 and 6</div><div class="linex-v">Grouping columns reached from <code>FactLabor</code> across many to one relationships: <code>FactLabor</code> to <code>FactWorkOrder</code> to <code>DimStation</code>, and <code>DimDate</code> to <code>FactLabor</code> on <code>WorkDate</code>. <code>SUMMARIZE</code> can traverse those without <code>RELATED</code>, because it groups over the expanded table.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 12 to 14</div><div class="linex-v">Two source columns, two target columns, in the same order. Station first because station is the first grouping column. Get this backwards and the measure returns blank, silently. That is the next section.</div></div>
+  </div>
+
+  <p>Five station and month pairs carry labor in Q1. Their planned hours add to 130 of the 176 hours in the plan: 30 plus 25 plus 25 plus 30 plus 20. The missing 46 is MSP in March at 30 planned hours with nothing booked against it, and PHX in March at 16 planned hours at a station that has never opened a work order.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 15.4</span> The composite filter in effect. Planned hours restricted to the station and month pairs that appear in <code>FactLabor</code>.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Station</th>
+            <th scope="col">Month</th>
+            <th scope="col" class="num">Labor hours</th>
+            <th scope="col" class="num">Planned hours</th>
+            <th scope="col">In ActivePairs</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-good"><td class="key">MSP</td><td>202501</td><td class="num">22.5</td><td class="num">30</td><td>Yes</td></tr>
+          <tr class="row-good"><td class="key">TUS</td><td>202501</td><td class="num">12.5</td><td class="num">25</td><td>Yes</td></tr>
+          <tr class="row-good"><td class="key">MSP</td><td>202502</td><td class="num">12.0</td><td class="num">30</td><td>Yes</td></tr>
+          <tr class="row-good"><td class="key">TUS</td><td>202502</td><td class="num">10.0</td><td class="num">25</td><td>Yes</td></tr>
+          <tr class="row-good"><td class="key">LAS</td><td>202503</td><td class="num">5.0</td><td class="num">20</td><td>Yes</td></tr>
+          <tr class="row-bad"><td class="key">MSP</td><td>202503</td><td class="num">0</td><td class="num">30</td><td class="muted">No</td></tr>
+          <tr class="row-bad"><td class="key">PHX</td><td>202503</td><td class="num">0</td><td class="num">16</td><td class="muted">No</td></tr>
+          <tr class="row-total"><td>Total</td><td></td><td class="num">62.0</td><td class="num">176</td><td>130 kept</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>That distinction changes what utilisation means, and it answers the planner's question. Against the full plan, Meridian ran at 62.0 divided by 176, which is 35.2 percent. Against only the station months where work was actually booked, it ran at 62.0 divided by 130, which is 47.7 percent. Both numbers are correct, and the gap between them is the 46 planned hours at stations that stayed quiet. Give her both, each one labelled. The second number exists only because the composite filter can be written without a composite key.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>A single column <code>TREATAS</code> over a low cardinality column is close to free: the engine can hand the value list to the storage engine as a filter on the column scan, which is roughly what a relationship filter compiles to anyway. A multi column <code>TREATAS</code> is a different shape of work, because a filter on a combination of columns cannot always be expressed as independent column filters and may be resolved as a table the formula engine has to build. On Meridian, at 8 labor rows and 28 capacity rows, none of this is measurable. On a real capacity fact with a few hundred thousand station and month pairs it is. Measure it before you trust any rule about it. Run it in DAX Studio with server timings on, and compare the formula engine share against a version built on a real key column.</p>
+  </aside>
+
+  <h3>Situation 4: plan against actual at different grain</h3>
+
+  <p>Here is the production controller from the first page of this chapter, still holding his Monday. This is the Meridian capacity problem in its full form, and it is the one that sends people to <code>TREATAS</code> in the first place. <code>DimDate[MonthStart]</code> is related to <code>FactCapacity[MonthStart]</code>. That relationship behaves correctly at month grain, and it returns blank the moment the report filters to a day that is not the first of a month. Select 20 January on the date slicer and planned hours disappear while labor hours stay put, because L-504 booked 8.0 hours at TUS that day. Utilisation then reads as infinity or blank, depending on how the measure divides.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Utilisation across the grain break</span></div>
+<pre><code><span class="col">Planned Hours in Context</span> <span class="op">=</span>
+<span class="k">VAR</span> MonthsInContext <span class="op">=</span> <span class="k">VALUES</span> ( <span class="t">DimDate</span><span class="col">[MonthKey]</span> )
+<span class="k">RETURN</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Planned Hours]</span>,
+        <span class="k">REMOVEFILTERS</span> ( <span class="t">DimDate</span> ),
+        <span class="k">TREATAS</span> (
+            MonthsInContext,
+            <span class="t">FactCapacity</span><span class="col">[MonthKey]</span>
+        )
+    )
+
+<span class="col">Utilisation</span> <span class="op">=</span>
+    <span class="k">DIVIDE</span> ( <span class="col">[Labor Hours]</span>, <span class="col">[Planned Hours in Context]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v">Every day in the selection maps to a month key, and <code>VALUES</code> collapses them to the distinct set. A single day returns one month key, so 20 January still reaches 202501.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v">Without this line the whole measure is theatre. The day filter still travels the month grain relationship from <code>DimDate</code> into <code>FactCapacity</code>, finds no row with a <code>MonthStart</code> of 20 January, and leaves nothing for the <code>TREATAS</code> filter to intersect with. The result stays blank and the fix appears not to work. <code>REMOVEFILTERS</code> and not <code>ALL</code>: both clear the table when used as a filter modifier, and only one of them is named after what it is doing here.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 7 to 10</div><div class="linex-v">The month keys are retagged onto the capacity fact's own <code>MonthKey</code> column, which is at the grain the plan is actually stored at. This is the join the physical relationship could not express.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 14</div><div class="linex-v"><code>DIVIDE</code> and not the slash operator. LAS has no capacity row in January or February and the UNASSIGNED member has none at all, so those combinations give a blank denominator, and <code>DIVIDE</code> returns blank there instead of an error. The slash operator returns infinity for a zero denominator in DAX, which then renders in a card visual and gets screenshotted into an email.</div></div>
+  </div>
+
+  <p>At month grain the numbers are the ones you already know. MSP in January is 22.5 over 30, which is 75.0 percent. TUS in January is 12.5 over 25, which is 50.0 percent. The quarter across all stations is 35.2 percent. Now the inconvenient part, and the production controller should hear it from you before he finds it himself. On 20 January, on the TUS row, this measure returns a denominator of 25. That is the whole month of TUS capacity, set against the 8.0 hours L-504 booked that day. It reports 32.0 percent utilisation for a single Monday. The ratio is arithmetically valid and semantically nonsense. <code>TREATAS</code> has given him a number where he had a blank, and the grain mismatch underneath it is exactly where it was. Allocating a monthly plan down to day level is a modelling decision with at least three defensible answers, and it is what <a class="xref" href="#ch-16">Chapter 16</a> is about.</p>
+
+  <h3>The alternatives, compared honestly</h3>
+
+  <p>Seven ways exist to make a filter cross from one table to another. Two are relationships, one is a modifier that reaches into a relationship you already have, one is <code>TREATAS</code>, and three are older DAX patterns you will meet in inherited files.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 15.5</span> Seven ways to move a filter between tables, and the conditions under which each is the right choice.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Approach</th>
+            <th scope="col">What it does</th>
+            <th scope="col">Cost</th>
+            <th scope="col">Readability</th>
+            <th scope="col">When it is correct</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Physical relationship</th>
+            <td>Stores the join in the model and builds structures to serve it</td>
+            <td>Paid once at refresh, close to free per query</td>
+            <td>Visible in the diagram, no code to read at all</td>
+            <td>The join is true for the whole model and the keys support it</td>
+          </tr>
+          <tr>
+            <th scope="row">Bidirectional relationship</th>
+            <td>Lets a filter travel back up the many side as well as down</td>
+            <td>Free at refresh, real cost per query, and it can create ambiguity</td>
+            <td>One small arrow in the diagram, nothing in the code</td>
+            <td>Rarely: one bridge, a model you own end to end, no second path</td>
+          </tr>
+          <tr class="row-good">
+            <th scope="row">CROSSFILTER</th>
+            <td>Changes the direction of a relationship that already exists, for one CALCULATE</td>
+            <td>Nothing at refresh, the bidirectional cost paid only inside that measure</td>
+            <td>Names the relationship it modifies, invisible in the diagram</td>
+            <td>The relationship exists and only some measures should traverse it backwards</td>
+          </tr>
+          <tr class="row-good">
+            <th scope="row">TREATAS</th>
+            <td>Restamps lineage onto target columns and filters them</td>
+            <td>Per query, no stored structures, scales with key cardinality</td>
+            <td>Reads as intent: apply these values to that column</td>
+            <td>The join belongs to one measure, or the columns cannot be related</td>
+          </tr>
+          <tr>
+            <th scope="row">INTERSECT</th>
+            <td>Returns rows common to two tables, keeping the first table's lineage</td>
+            <td>Materialises an intermediate table in the formula engine</td>
+            <td>Reads as set arithmetic, the join intent is implied</td>
+            <td>You genuinely need the intersection as a table, not as a filter</td>
+          </tr>
+          <tr>
+            <th scope="row">CONTAINS</th>
+            <td>Returns true if a table holds a row matching the column and value pairs</td>
+            <td>Cheap alone, expensive inside the iterator it always needs</td>
+            <td>You must read the argument pairs to see what joins to what</td>
+            <td>A row level existence test where you want a boolean, not a filter</td>
+          </tr>
+          <tr class="row-bad">
+            <th scope="row">FILTER plus CONTAINS</th>
+            <td>Iterates the target column and keeps rows found in the source table</td>
+            <td>Formula engine, row by row, worst of the seven on wide dimensions</td>
+            <td>Longest to read, intent buried three functions deep</td>
+            <td>Legacy code only. Rewrite it as TREATAS.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Here is the certification measure in the two older forms, because you will open a file next quarter and find one of them.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">The same join, written the old ways</span></div>
+<pre><code><span class="c">// Pattern from roughly 2015. Still correct, still slower.</span>
+<span class="col">Hours by Cert (INTERSECT)</span> <span class="op">=</span>
+<span class="k">VAR</span> CertTechs <span class="op">=</span> <span class="k">VALUES</span> ( <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span> )
+<span class="k">RETURN</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">INTERSECT</span> (
+            <span class="k">ALL</span> ( <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span> ),
+            CertTechs
+        )
+    )
+
+<span class="c">// Older still, and the one worth rewriting on sight.</span>
+<span class="col">Hours by Cert (CONTAINS)</span> <span class="op">=</span>
+<span class="k">VAR</span> CertTechs <span class="op">=</span> <span class="k">VALUES</span> ( <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span> )
+<span class="k">RETURN</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">FILTER</span> (
+            <span class="k">ALL</span> ( <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span> ),
+            <span class="k">CONTAINS</span> (
+                CertTechs,
+                <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span>,
+                <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span>
+            )
+        )
+    )</code></pre>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p>All three return 39.0 for A&amp;P. They differ in what the engine has to do to get there. <code>TREATAS</code> produces a filter, and a filter is something <code>CALCULATE</code> can hand down toward the storage engine, so for a single column the value list is applied during the scan. <code>INTERSECT</code> produces a table: the engine computes the common rows first, materialises them, and only then applies the result as a filter. <code>FILTER</code> plus <code>CONTAINS</code> is the expensive one, because <code>FILTER</code> iterates every technician id in the dimension and <code>CONTAINS</code> performs a lookup for each of them, all in the formula engine, one row at a time. Seven technicians costs nothing. Seventy thousand costs you a report that hangs. <code>ALL</code> and not <code>REMOVEFILTERS</code> in both older versions, incidentally, because those two functions do the same job only when used as a filter modifier. Here the result is consumed as a table, and <code>REMOVEFILTERS</code> does not return one.</p>
+    <p>The second argument for <code>TREATAS</code> is about reading, and it matters as much as the speed. Read the three measures again as English. The <code>TREATAS</code> version says: treat these bridge values as technician ids. The other two say: compute a set, then filter by whether something is in it. The first states the intent. The others state a procedure that implies the intent.</p>
+  </div>
+
+  <h3>What TREATAS costs</h3>
+
+  <p>Somebody in a design review will ask you what this costs, because <code>TREATAS</code> gets presented as free. Three of its costs are real, and you should be able to name all three from memory.</p>
+
+  <p>It runs on every query. A relationship is validated once at refresh and the structures that make traversing it fast persist. A virtual relationship is rebuilt from nothing every time a visual asks for the measure. Twelve visuals on a page means twelve rebuilds.</p>
+
+  <p>It gets no help from the relationship machinery. When a filter crosses a physical relationship the engine has already indexed how the two columns map, and the join is a lookup it prepared for. <code>TREATAS</code> gets none of that.</p>
+
+  <p>It scales with key cardinality. Meridian's technician key has seven values, so the value list is trivial. A part number key with three hundred thousand values produces a list with three hundred thousand entries, which has to be built, held in memory and matched. That is where a virtual relationship stops being a clever alternative to a physical one and becomes materially slower, sometimes by an order of magnitude.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>If the join is permanent and the data supports it, build the relationship. Use <code>TREATAS</code> when the relationship should not be permanent: when it would create ambiguity, when it would need to be bidirectional, when the key is composite and you do not want the key column, or when the join is true for one measure and false for the rest of the model. Keep "I could not get the relationship to validate" off that list. That one is a data quality problem wearing a DAX costume, and it belongs in Power Query.</p>
+  </aside>
+
+  <h3>Two ways it fails silently</h3>
+
+  <p>You ship the composite measure to the planner and she calls back within the hour. Every row of her utilisation table is blank. No error, no warning, nothing red anywhere on the screen. Two things cause that, and both of them keep quiet about it.</p>
+
+  <p>The first is data type. <code>TREATAS</code> matches on value, and a value carries a type. The text <code>"202501"</code> and the whole number <code>202501</code> look identical in a table visual, and to the engine they are two different values. Meridian walks straight into this. <code>ShopCapacity[Month]</code> arrives from the planning workbook as the text <code>"2025-01"</code>, while <code>DimDate[MonthKey]</code> is a whole number like 202501. If the unpivot leaves the capacity month as text, the composite measure in situation 3 returns blank for every row. Fix it at the source.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">FactCapacity month key</span></div>
+<pre><code><span class="c">// ShopCapacity[Month] arrives as text, for example "2025-01"</span>
+<span class="k">Table.AddColumn</span> (
+    Unpivoted,
+    <span class="s">"MonthKey"</span>,
+    <span class="k">each</span> <span class="k">Number.FromText</span> (
+        <span class="k">Text.Replace</span> ( <span class="col">[Month]</span>, <span class="s">"-"</span>, <span class="s">""</span> )
+    ),
+    <span class="k">Int64.Type</span>
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 5 and 6</div><div class="linex-v"><code>Number.FromText</code> and not <code>Value.FromText</code>. <code>Value.FromText</code> inspects the content and decides what type to give you, which means one row can come back as a number and another as a date or as text. <code>Number.FromText</code> returns a number or it errors, and an error at refresh is worth far more to you than a silently mistyped column. <code>Text.Replace</code> and not <code>Text.Remove</code>: <code>Text.Remove</code> strips a list of characters wherever they appear, so it would also eat a hyphen that later shows up somewhere it matters. Replace names both what goes and what arrives.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 8</div><div class="linex-v">The fourth argument of <code>Table.AddColumn</code> declares the type at the point the column is created. Leave it out and the column is typed <code>Any</code>, which the model then resolves however it likes. This one argument is the difference between the join working and the join returning blank.</div></div>
+  </div>
+
+  <p>Equal-looking values of different types do not match. What varies is whether you are told: depending on which side holds which type, you may get a conversion error at authoring time or you may get an empty result and no message. Do not rely on getting the error.</p>
+
+  <p>The second silent failure is column order, and it costs people entire afternoons. <code>TREATAS</code> maps positionally. The first column of the table expression goes to the first column you named, and the second goes to the second. The names of the columns in the table expression are ignored completely. Swap the two target columns in the composite measure and you are comparing station codes against month keys, and month keys against station codes. Nothing matches. No error is raised, because you have asked a perfectly legal question that happens to have an empty answer. Once the types on the planner's table check out, this is the other place to look, and it is usually one of the two.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>A composite <code>TREATAS</code> returns blank and everything looks right. Check the order before you check anything else. <code>SUMMARIZE ( FactLabor, DimStation[StationCode], DimDate[MonthKey] )</code> produces station in position one and month in position two, so the targets must be <code>FactCapacity[StationCode]</code> then <code>FactCapacity[MonthKey]</code>. Write those two the other way round and the measure is blank everywhere, with no warning, no error and no red squiggle. The fastest way to confirm it is to drop the <code>CALCULATE</code> and evaluate the table expression on its own in DAX Studio. You then see which column genuinely comes first, in place of the one you assumed.</p>
+  </aside>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li><code>TREATAS</code> restamps the lineage of a table expression onto the columns you name, then <code>CALCULATE</code> filters those columns. Call it a lineage cast and the rest of its behaviour follows.</li>
+      <li>A dashed teal line drawn between two tables in this book means a virtual relationship: written in DAX, alive for one evaluation, absent from the model diagram. A dashed border around a table means something else entirely: that table was built inside the model rather than loaded from a source.</li>
+      <li>Four cases earn it. A join that would create ambiguity or force bidirectional filtering, a bridge you refuse to make bidirectional, a composite key you do not want to build, and plan against actual at different grain.</li>
+      <li>The choice is three ways. <code>CROSSFILTER</code> scopes a Both flag to one <code>CALCULATE</code> and is the better default on the bridge, because it needs no <code>ISFILTERED</code> guard: it moves no values, so an unfiltered grand total stays at 62.0 where the <code>TREATAS</code> version silently reports 52.0. It is available only where the relationship already exists, which rules it out of the other three situations.</li>
+      <li>Hours by certification comes out at 39.0, 10.5, 12.0 and 23.5 either way. <code>TREATAS</code> gets there with no model change, and the rows still sum to 85.0 against a true 62.0, because that double count belongs to the question.</li>
+      <li>It costs per query, gets no help from the engine's relationship structures, and scales with key cardinality. If the join is permanent and the data supports it, build the relationship instead.</li>
+      <li>Two silent failures: types that look equal but are not, and column order that does not line up. Both return blank with no error.</li>
+      <li><code>INTERSECT</code> and <code>FILTER</code> plus <code>CONTAINS</code> do the same job by materialising or iterating. Recognise them in old code, and rewrite the <code>CONTAINS</code> one when you meet it.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="14.html"><span class="pn-dir">Previous</span><span class="pn-t">Many-to-many, and the total that does not add up</span></a><a class="pn" href="16.html"><span class="pn-dir">Next</span><span class="pn-t">Grain mismatch: headers, lines and monthly plans</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

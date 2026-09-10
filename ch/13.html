@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Role-playing dimensions: one date table, many dates</title>
+</head>
+<body data-ch="13">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">13</span><span class="tb-title">Role-playing dimensions: one date table, many dates</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-13">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 5 . Hard modelling cases</div>
+    <h2 class="chapter-title"><span class="chapter-num">13</span>Role-playing dimensions: one date table, many dates</h2>
+    <p class="chapter-lede">After this chapter you can put opened, promised and closed counts side by side on a single month axis driven by one slicer, and you can argue which of the three role-playing strategies belongs in a given model instead of picking one by habit.</p>
+  </div>
+
+  <p class="lead">The production controller asks for one page. One month slicer, three numbers: work orders opened in the month, work orders promised in the month, work orders closed in the month. You build it in ten minutes and all three columns come back identical. He tells you the report is broken. The model is doing exactly what it was built to do, and by the end of the first section you will have the three columns he wanted.</p>
+
+  <p>Start with the raw material. Meridian has five date columns spread across three fact tables. <span class="fact-tag">Fact</span> <code>FactWorkOrder</code> carries <code>OpenedDate</code>, <code>PromisedDate</code> and <code>ClosedDate</code>. <code>FactLabor</code> and <code>FactParts</code> carry one each, <code>WorkDate</code> and <code>IssueDate</code>. Only one of those columns can be the one a date slicer drives by default, and the controller wants three of them on the same page.</p>
+
+  <p>Those three numbers are not three views of one set of rows. They are three different sets. In January the opened set is WO-1001, WO-1002 and WO-1003, while the closed set is WO-1001 and WO-1002. February makes the point harder to miss. Opened is WO-1004, WO-1005 and WO-1006. Closed is WO-1003 and WO-1005. The only work order in both sets is WO-1005.</p>
+
+  <p>So the same eight rows have to be selected three different ways by the same slicer. A relationship in a tabular model joins exactly one column to one column. Between <code>DimDate[Date]</code> and <code>FactWorkOrder</code> you need three joins. The engine will happily store all three. It will only let one of them carry filters at a time. That is why the controller's three columns came back identical.</p>
+
+  <dl class="defs">
+    <dt>Role-playing dimension</dt>
+    <dd>One physical dimension table that answers several different questions about the same fact table, depending on which foreign key it is joined through. A date table joined to <code>OpenedDate</code> plays the role of intake date. Joined to <code>ClosedDate</code> it plays the role of completion date.</dd>
+    <dt>Active relationship</dt>
+    <dd>The relationship the engine uses when nothing in the query says otherwise. Solid line in the model view. At most one active relationship can exist on any given filter path between two tables.</dd>
+    <dt>Inactive relationship</dt>
+    <dd>A stored, validated relationship that propagates no filters until a measure asks for it by name. Dashed line in the model view. It costs storage and a small amount of processing time, and it changes nothing until it is invoked.</dd>
+  </dl>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 360" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="40.0" y="120.0" width="178.0" height="86.5" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="51.0" y="137.0" class="d-t" fill="#1B5A68">DimDate</text><line x1="40.0" y1="146.0" x2="218.0" y2="146.0" stroke="#1B5A68" stroke-width="1"/><text x="51.0" y="158.0" class="d-m" font-weight="600" fill="#1B5A68">Date</text><text x="51.0" y="173.5" class="d-m">MonthName</text><text x="51.0" y="189.0" class="d-m">Quarter</text><rect x="470.0" y="74.0" width="210.0" height="117.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="481.0" y="91.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="470.0" y1="100.0" x2="680.0" y2="100.0" stroke="#AE4419" stroke-width="1"/><text x="481.0" y="112.0" class="d-m" font-weight="600" fill="#AE4419">WorkOrderID</text><text x="481.0" y="127.5" class="d-m">OpenedDate</text><text x="481.0" y="143.0" class="d-m">PromisedDate</text><text x="481.0" y="158.5" class="d-m">ClosedDate</text><text x="481.0" y="174.0" class="d-m">QuotedAmount</text><line x1="218.0" y1="150.0" x2="470.0" y2="122.0" class="d-line-hot" marker-end="url(#ah)"/><text x="300.0" y="128.0" class="d-lbl" fill="#AE4419">active</text><line x1="218.0" y1="176.0" x2="470.0" y2="152.0" class="d-line-off"/><text x="300.0" y="164.0" class="d-lbl" fill="#77746B">inactive</text><line x1="218.0" y1="200.0" x2="470.0" y2="182.0" class="d-line-off"/><text x="300.0" y="200.0" class="d-lbl" fill="#77746B">inactive</text><text x="690.0" y="122.0" class="d-m" fill="#AE4419" font-weight="600">OpenedDate</text><text x="690.0" y="152.0" class="d-m" fill="#77746B">PromisedDate</text><text x="690.0" y="182.0" class="d-m" fill="#77746B">ClosedDate</text><rect x="40.0" y="236.0" width="400.0" height="106.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="54.0" y="258.0" class="d-t" fill="#17160F">One date table, three roles</text><text x="54.0" y="278.0" class="d-m">Work Orders Opened  = COUNTROWS ( FactWorkOrder )</text><text x="54.0" y="296.0" class="d-m">Work Orders Closed  = CALCULATE ( [Opened],</text><text x="54.0" y="312.0" class="d-m">        USERELATIONSHIP ( DimDate[Date],</text><text x="54.0" y="328.0" class="d-m">                          FactWorkOrder[ClosedDate] ) )</text><rect x="470.0" y="236.0" width="400.0" height="106.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="484.0" y="258.0" class="d-t" fill="#2B6140">Why it matters</text><text x="484.0" y="278.0" class="d-m">January by opened date:  3 work orders</text><text x="484.0" y="296.0" class="d-m">January by closed date:   2 work orders</text><text x="484.0" y="316.0" class="d-s">Same slicer, same table, different question.</text><text x="484.0" y="334.0" class="d-s" font-style="italic">One date table keeps the slicer honest.</text></svg></div><figcaption><span class="fig-num">Figure 13.1</span>One date table, three relationships to the same fact, only one of them active.</figcaption></figure>
+
+  <p>You have met this diagram before, in <a class="xref" href="#ch-06">Chapter 6</a> where active and inactive were defined, and again in <a class="xref" href="#ch-12">Chapter 12</a> beside <code>USERELATIONSHIP</code>. Read it once more for the line style. Three lines run from <code>DimDate</code> into <code>FactWorkOrder</code>. The three target column names are printed beside the fact box in the same order: <code>OpenedDate</code>, <code>PromisedDate</code>, <code>ClosedDate</code>. The top line is solid and carries the label active. The two beneath it are dashed and each carries the label inactive. The figure prints no cardinality on those lines, so take it from here. All three are one to many, from one date on <code>DimDate[Date]</code> to the many fact rows that share it, and all three run in that one direction. The only thing that separates them is which one is switched on.</p>
+
+  <p>The two cards underneath the boxes run ahead of the argument, and both are worth a look now. The first is headed One date table, three roles, and it is strategy 1 in miniature. <code>Work Orders Opened</code> is a bare <code>COUNTROWS</code> riding the solid line. <code>Work Orders Closed</code> is the same count wrapped in <code>CALCULATE</code> with <code>USERELATIONSHIP</code> pointed at <code>ClosedDate</code>. That card shows the wrapper in its shortest form. The version built later in this chapter adds one more filter argument, which changes the total row and leaves the month rows alone. The second card, titled Why it matters, counts a single January twice: 3 work orders by opened date against 2 by closed date. Same slicer, same eight rows, different question.</p>
+
+  <p>The reason the engine allows one at a time explains the whole chapter. If two of those relationships were active, a filter on <code>DimDate[Date]</code> equal to January would have two routes into <code>FactWorkOrder</code>, and the engine would have to decide on its own whether January meant opened or closed. It refuses to guess. That is the ambiguity rule from <a class="xref" href="#ch-08">Chapter 8</a>, applied to the simplest case there is: two roads between the same pair of tables.</p>
+
+  <h3>Strategy 1: one date table, inactive relationships, USERELATIONSHIP</h3>
+
+  <p>Build one <span class="dim-tag">Dimension</span> <code>DimDate</code> covering 2025-01-01 to 2025-03-31, mark it as a date table, and create all three relationships from <code>DimDate[Date]</code> to the three date columns on <code>FactWorkOrder</code>. Make <code>OpenedDate</code> active. Leave <code>PromisedDate</code> and <code>ClosedDate</code> inactive. Then write one measure per role.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Three date roles from one date table</span></div>
+<pre><code><span class="c">// Opened rides the active relationship, so no wrapper is needed</span>
+<span class="col">Work Orders Opened</span> <span class="op">=</span>
+    <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> )
+
+<span class="col">Work Orders Promised</span> <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> ),
+        <span class="k">USERELATIONSHIP</span> ( <span class="t">DimDate</span><span class="col">[Date]</span>, <span class="t">FactWorkOrder</span><span class="col">[PromisedDate]</span> )
+    )
+
+<span class="col">Work Orders Closed</span> <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> ),
+        <span class="k">USERELATIONSHIP</span> ( <span class="t">DimDate</span><span class="col">[Date]</span>, <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> ),
+        <span class="k">NOT</span> <span class="k">ISBLANK</span> ( <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>COUNTROWS</code> and not <code>COUNT ( FactWorkOrder[WorkOrderID] )</code>, because <code>COUNT</code> ignores blanks. Point <code>COUNT</code> at a date column and the two open work orders disappear without a warning. Not <code>DISTINCTCOUNT</code> either: <code>WorkOrderID</code> is already unique at this grain, so a distinct count buys nothing and pays for a hash pass over the column.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 6 and 12</div><div class="linex-v"><code>CALCULATE</code> and not <code>CALCULATETABLE</code>, because a visual needs a scalar here. Both accept relationship modifiers, but <code>CALCULATETABLE</code> returns a table, which is what you want when you are feeding another iterator, not when you are filling a cell.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 8 and 14</div><div class="linex-v"><code>USERELATIONSHIP</code> names the two endpoints of a relationship that already exists in the model. It does not create anything. For the duration of that <code>CALCULATE</code> it switches the named relationship on and switches the active one between the same two tables off.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 15</div><div class="linex-v"><code>ISBLANK</code> and not <code>FactWorkOrder[ClosedDate] = BLANK ( )</code>. In DAX a blank coerces to zero in a comparison. A date is stored as a number, so the equality test also matches the date that sits at zero. <code>ISBLANK</code> tests for the absence of a value and nothing else. The predicate references a single column, so <code>CALCULATE</code> accepts it as a filter argument and expands it internally to a filter over all values of that column.</div></div>
+  </div>
+
+  <p>Two of Meridian's eight work orders, WO-1004 and WO-1008, have no <code>ClosedDate</code>. That is why line 15 is there, and the callout below explains what happens when you leave it out. Put the three measures in place, <code>DimDate[MonthName]</code> on the rows and one date slicer set to the quarter. The page the production controller asked for looks like this.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 13.1</span> The same eight work orders counted three ways, from one date table and one month axis.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Month on DimDate</th><th scope="col" class="num">Opened</th><th scope="col" class="num">Promised</th><th scope="col" class="num">Closed</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">January 2025</th><td class="num">3</td><td class="num">2</td><td class="num">2</td></tr>
+          <tr><th scope="row">February 2025</th><td class="num">3</td><td class="num">3</td><td class="num">2</td></tr>
+          <tr><th scope="row">March 2025</th><td class="num">2</td><td class="num">3</td><td class="num">2</td></tr>
+          <tr class="row-total"><th scope="row">Total</th><td class="num">8</td><td class="num">8</td><td class="num">6</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Read the January row against the March row. Three work orders opened in January and only two were promised in it. By March the shape has inverted: two opened, three promised, two closed. The closed column totals 6 because two work orders are still open. The controller has his three columns, and each one answers a different question off the same slicer.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Write <code>Work Orders Closed</code> without the <code>ISBLANK</code> guard and the month rows still read 2, 2 and 2, so the measure looks right. The total reads 8. The two work orders with no close date land in the blank member, which is the row the engine adds to <code>DimDate</code> to hold fact rows whose key matches nothing. Leave the visual unfiltered by a date slicer and that blank member shows up as an unlabelled row worth 2. A reviewer who checks only the month rows signs off on a total that says six closed work orders are eight.</p>
+  </aside>
+
+  <p>The verdict on strategy 1: it is the default choice, and for most models it is the last word. One date table means one slicer, one set of time intelligence, one place to fix a fiscal calendar. You pay for it twice. Every measure on a non-default role has to be written with <code>CALCULATE</code>, so the measure list grows by one entry per role per question. And a report author who drags a bare column into a visual gets the active relationship with no warning. Put <code>DimDate[MonthName]</code> next to an implicit sum of <code>FactWorkOrder[QuotedAmount]</code> and you are reading quoted amount by opened month, whether or not you meant to.</p>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>USERELATIONSHIP</code> and not a virtual relationship built with <code>TREATAS</code>. They look like swap-for-swap alternatives and they divide the work differently. <code>USERELATIONSHIP</code> switches the active relationship off at the same moment it switches the named one on, so the January selection lands on <code>ClosedDate</code> and on nothing else. A <code>TREATAS</code> version has to do that second half itself: <code>CALCULATE ( COUNTROWS ( FactWorkOrder ), TREATAS ( VALUES ( DimDate[Date] ), FactWorkOrder[ClosedDate] ), REMOVEFILTERS ( DimDate ) )</code>. Leave the <code>REMOVEFILTERS</code> out and the month is still filtering <code>OpenedDate</code> down the active relationship. The two conditions intersect, and February returns 1 instead of 2. That 1 is the single work order that both opened and closed in February. <code>USERELATIONSHIP</code> also flips a join the engine has already built and indexed, where <code>TREATAS</code> materialises the selected dates and applies them as a filter on the target column at query time. Reach for <code>TREATAS</code> when the physical relationship cannot exist, for example when the target sits in a table produced by a DAX expression, or when you need two roles filtered at once. Otherwise use <code>USERELATIONSHIP</code>.</p>
+  </div>
+
+  <h3>Strategy 2: one date table per role</h3>
+
+  <p>Now the planner comes with a different question. Which work orders opened in February were still open at the end of February? You reach for the three measures you just built and find they cannot answer it. One month slicer produces one selection of dates, and this question needs two.</p>
+
+  <p>Strategy 2 answers it by duplicating the date table. Build <code>DateOpened</code>, <code>DatePromised</code> and <code>DateClosed</code> as three <span class="derived-tag">Built</span> tables generated from the same Power Query function, and give each one an active relationship to its own column on <code>FactWorkOrder</code>. No inactive relationships, no <code>CALCULATE</code> wrappers, no measure per role. A report author drags <code>DateClosed[MonthName]</code> onto a visual and gets closed months, because the field name says what it does.</p>
+
+  <p>That convenience is the honest appeal of strategy 2, and it is real. The reason to reach for strategy 2 is narrower than the convenience. It is the only one of the three that lets a user filter two roles at the same time. Strategy 1 cannot do that, and no amount of <code>USERELATIONSHIP</code> will make it. One date table produces one selection of dates, and that selection has to mean one thing.</p>
+
+  <p>The planner's question sounds ordinary. Which work orders were opened in a given month and were still open at the end of a later month? Take Meridian work orders opened in February and still open on 2025-02-28. The answer is 2: WO-1004, which has never closed, and WO-1006, which opened 2025-02-17 and closed 2025-03-19. Now try opened in January and still open on 2025-02-28. The answer is 0, because WO-1001 closed 2025-01-16, WO-1002 closed 2025-01-13 and WO-1003 closed 2025-02-05. That takes two independent date inputs, one for the opened window and one for the as-of point, and one date table cannot supply both.</p>
+
+  <details class="expand" open>
+    <summary>Trace this by hand, row by row</summary>
+    <div class="expand-body">
+      <p>Opened in February: WO-1004 on 2025-02-03, WO-1005 on 2025-02-10, WO-1006 on 2025-02-17. That is the 3 in the February opened column of Table 13.1.</p>
+      <p>Now test each against the as-of date 2025-02-28. WO-1004 has a blank <code>ClosedDate</code>, so it was open. WO-1005 closed on 2025-02-12, before the as-of date, so it was not. WO-1006 closed on 2025-03-19, after the as-of date, so it was open. Count 2.</p>
+      <p>Now do it with two slicers instead of a measure: <code>DateOpened</code> on February, <code>DateClosed</code> on March or later. That returns 1, not 2. WO-1004 is missing, because a blank foreign key joins to nothing and no selection on <code>DateClosed</code> can include it. To make the slicer version correct you have to stamp open work orders with a sentinel close date in Power Query, something like 9999-12-31, and extend the date table to hold it. That fixes the count and makes every raw <code>ClosedDate</code> in the model a value that every downstream consumer has to know is fictional.</p>
+      <p>The narrower version of the question does work with one date table, as long as the as-of point is the end of the opened window. Opened in January and still open on 2025-01-31 returns 1: WO-1003, opened 2025-01-14 and closed 2025-02-05. That is the shape most backlog reports actually need, which is why many models never hit the wall at all.</p>
+    </div>
+  </details>
+
+  <p>If you only need the as-of point to float free of the opened window, one extra disconnected table is enough. A disconnected table has no relationship to anything, so it filters nothing by itself and a measure reads the user's selection out of it by hand. It is a cheaper version of the same idea, and it gives the planner her answer.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Still Open As Of</span></div>
+<pre><code><span class="c">// AsOfDate has NO relationship to anything. It is a picker.</span>
+<span class="col">Still Open As Of</span> <span class="op">=</span>
+<span class="k">VAR</span> <span class="col">AsOf</span> <span class="op">=</span>
+    <span class="k">MAX</span> ( <span class="t">AsOfDate</span><span class="col">[Date]</span> )
+<span class="k">RETURN</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> ),
+        <span class="k">FILTER</span> (
+            <span class="k">ALL</span> ( <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> ),
+            <span class="k">ISBLANK</span> ( <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> )
+                <span class="op">||</span> <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> <span class="op">&gt;</span> <span class="col">AsOf</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v"><code>MAX</code> and not <code>SELECTEDVALUE ( AsOfDate[Date] )</code>. A user who drags a range across the as-of slicer selects many dates, and <code>SELECTEDVALUE</code> returns blank the moment there is more than one. <code>MAX</code> takes the last date in the selection, which is what "as of" means. Not <code>LASTDATE</code> either: <code>LASTDATE</code> returns a one row table meant to be used as a filter, and line 11 needs a scalar to compare against.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 8 to 9</div><div class="linex-v"><code>FILTER</code> over <code>ALL</code> of the one column, not over <code>ALL ( FactWorkOrder )</code>. Filtering a single column keeps the filter narrow and leaves every other filter on the table in place, including the opened month coming down the active relationship. <code>ALL</code> removes any existing filter on <code>ClosedDate</code> so the as-of test is the only condition applied to it. If you wanted to intersect with an existing close date filter instead of replacing it, you would wrap the whole <code>FILTER</code> in <code>KEEPFILTERS</code>.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 10 to 11</div><div class="linex-v">Two conditions joined by <code>||</code>: never closed, or closed after the as-of point. The blank test has to be first and explicit, because a blank date compared to any real date with <code>&gt;</code> behaves as zero and would quietly answer false.</div></div>
+  </div>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <p>Add a second slicer on the same <code>DimDate</code> and hope the two selections mean different things. They cannot. Both slicers write into the same filter on <code>DimDate[Date]</code>, so the second one narrows the first. Set one to February and the other to March and you get an empty selection and a blank page, and the author usually concludes the model is broken.</p>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <p>Give the second question its own table. Either a full role table with its own relationship, or a disconnected picker read with <code>MAX</code>. Two independent tables produce two independent selections, and the measure decides how they combine. The cost is that a disconnected table filters nothing on its own, so anything it should affect has to be written into a measure by hand.</p>
+    </div>
+  </div>
+
+  <p>The verdict on strategy 2: correct when a user must filter two roles at the same time, and heavy everywhere else. Three date slicers on one page confuse people, because nobody can tell which one drives which visual. Three tables means three fiscal calendars to keep in step. It also means every time intelligence measure repeated once per table, since <code>DATESYTD ( DateOpened[Date] )</code> and <code>DATESYTD ( DateClosed[Date] )</code> are unrelated expressions. There is a subtler cost. Table 13.1 cannot be built this way at all. The month axis has to come from one of the three date tables, only that table filters the fact, and all three columns would return the same number.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Count the slicers a user would have to set before you count the measures you would have to write. A model with three date tables asks the user to understand your model. A model with one date table and three measures asks you to understand your model. Push the difficulty onto yourself.</p>
+  </aside>
+
+  <h3>Strategy 3: a calculation group with a date role item</h3>
+
+  <p>Six weeks later the finance manager asks for quoted amount and actual cost by closed month. The next day the production controller asks for the same two by promised month. Each new measure needs its own wrapper for each role, and you are now writing the same <code>USERELATIONSHIP</code> line for the fifth time. That repetition is the signal for strategy 3.</p>
+
+  <p>A calculation group is a table in the model that holds no data. It has one visible column, and the values in that column are called calculation items. Each item is a name and a DAX expression. Inside that expression sits a placeholder, <code>SELECTEDMEASURE ( )</code>, standing in for whichever measure the visual happens to be evaluating. Put the calculation group's column on an axis and the engine evaluates every measure in the visual once per item, substituting the measure into the item's expression each time.</p>
+
+  <p>So a calculation item is a rewrite rule, and it applies to measures you have not written yet. In the model view a Meridian calculation group would appear as a small table with a column named <code>Date Role</code> and three rows: Opened, Promised, Closed. Drag <code>Date Role</code> onto the columns of a matrix, drop any work order measure into values, and you get one column per role. Add a fourth measure next month and it inherits all three roles the moment it is created, with no new DAX.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Calculation group: Date Role</span></div>
+<pre><code><span class="c">// Three items on the column DateRole[Date Role]</span>
+
+<span class="c">// Item 1: Opened</span>
+<span class="k">SELECTEDMEASURE</span> ( )
+
+<span class="c">// Item 2: Promised</span>
+<span class="k">CALCULATE</span> (
+    <span class="k">SELECTEDMEASURE</span> ( ),
+    <span class="k">USERELATIONSHIP</span> ( <span class="t">DimDate</span><span class="col">[Date]</span>, <span class="t">FactWorkOrder</span><span class="col">[PromisedDate]</span> )
+)
+
+<span class="c">// Item 3: Closed</span>
+<span class="k">CALCULATE</span> (
+    <span class="k">SELECTEDMEASURE</span> ( ),
+    <span class="k">USERELATIONSHIP</span> ( <span class="t">DimDate</span><span class="col">[Date]</span>, <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Item 1</div><div class="linex-v">The default role returns the measure untouched, riding the active relationship. Write it out. Leave it absent and the axis carries one blank-looking item the user has to guess at, where a labelled column for opened would have said what it was.</div></div>
+    <div class="linex-row"><div class="linex-k">Items 2 and 3</div><div class="linex-v">Identical to the wrappers in strategy 1, with one difference that carries the whole idea: the thing being wrapped is a placeholder. <code>SELECTEDMEASURE</code> and not a specific measure reference, because the item has to work for every measure the report puts in scope. Naming a measure here would turn the calculation group back into an ordinary measure with extra steps.</div></div>
+    <div class="linex-row"><div class="linex-k">Ordering</div><div class="linex-v">Give the items an explicit ordinal in the editor. Without one they sort alphabetically, and Closed, Opened, Promised is a reading order nobody wants for a work order lifecycle.</div></div>
+  </div>
+
+  <p>Now the arithmetic that decides it, and it settles the finance manager's request too. Suppose the work order page carries five measures: work order count 8, quoted amount 38,100, actual cost 29,671.50, average turn time 12.0 days and on time percentage 50.0%. One measure per role is 5 times 3, or 15 measures. Each of the 10 non-default ones is a hand-written <code>CALCULATE</code> that can be got wrong on its own. With a calculation group it is 5 measures plus 3 items, or 8 objects, and the 3 items are the only place the role logic lives. Strategy 1 multiplies. Strategy 3 adds.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>A calculation group applies to every measure in scope, including the ones you had forgotten were on the page. On the Meridian model, <code>DimDate</code> reaches <code>FactLabor</code> by two routes: directly through <code>WorkDate</code>, and indirectly through the work order header. A date role item changes only the second route, so a measure such as labor hours can shift under the Closed item even though nothing in it mentions <code>FactWorkOrder</code>. The item rewrites the measure; that much is certain. Check the resulting number in your own model before you trust it. If both routes apply, January labor hours under the Closed item reads 7.5 plus 6.0 plus 9.0, which is 22.5, instead of the 35.0 that <code>WorkDate</code> alone gives. Test every measure under every item before you publish.</p>
+  </aside>
+
+  <p>The verdict on strategy 3: the best answer when the model has many measures times many roles, and overkill when it does not. The costs are real. You need Tabular Editor or the calculation group editor built into recent Power BI Desktop releases. That is a tool your colleague may not have and a skill they may not want. Format strings need attention too. A calculation group can override the format of the measure flowing through it, so a currency measure can end up rendering as a plain number under one item and not another. Discovery is the third cost. A calculation group has no relationships, so no line in the model view connects it to anything. A colleague opening your file six months from now sees a table holding three text values and no obvious reason for the numbers to change when they click one.</p>
+
+  <p>One more thing catches people out: adding any calculation group to a model turns off implicit measures. Dragging <code>FactWorkOrder[QuotedAmount]</code> into a visual to get an automatic sum stops working, and every aggregation has to be an explicit measure from then on. That is good discipline, and it is a change of habit imposed on every report author in the workspace, usually without warning.</p>
+
+  <h3>The choosing rule</h3>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">One or two measures need the extra roles</div><div class="kv-v">Strategy 1: inactive relationships</div></div>
+    <div class="kv-item"><div class="kv-k">Users must filter two roles at once</div><div class="kv-v">Strategy 2: one table per role</div></div>
+    <div class="kv-item"><div class="kv-k">Many measures times many roles</div><div class="kv-v">Strategy 3: calculation group</div></div>
+  </div>
+
+  <p>The three combine. A common shape is strategy 1 as the base, plus one small disconnected as-of table for the backlog question, and no calculation group until the measure count justifies one. Meridian sits there today.</p>
+
+  <h3>Role playing reaches past dates: the station case</h3>
+
+  <p>The shift supervisor at Las Vegas says the report is wrong. It shows 5.0 hours at his station for the quarter and his whiteboard says 13.0. Both counts are right. The report and the whiteboard are answering two different questions about the same word, station.</p>
+
+  <p>Every dimension can play more than one role, and stations are the case that turns up in a maintenance, repair and overhaul shop, an MRO. <code>DimStation</code> could describe the station where the work was done, which reaches the facts through <code>FactWorkOrder[StationCode]</code>. It could equally describe a technician's home station, which lives as <code>DimTechnician[HomeStation]</code>. Same five members, two roles, and two very different numbers.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 13.2</span> Labor hours by station under two roles. The columns do not agree, and they are not supposed to.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Station</th><th scope="col" class="num">Hours worked at the station</th><th scope="col" class="num">Hours by technician home station</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">MSP</td><td class="num">34.5</td><td class="num">28.5</td></tr>
+          <tr><td class="key">TUS</td><td class="num">22.5</td><td class="num">10.5</td></tr>
+          <tr><td class="key">LAS</td><td class="num">5.0</td><td class="num">13.0</td></tr>
+          <tr><td class="key">UNASSIGNED</td><td class="num">0</td><td class="num">10.0</td></tr>
+          <tr><td class="key">PHX</td><td class="num">0</td><td class="num">0</td></tr>
+          <tr class="row-total"><th scope="row">Total</th><td class="num">62.0</td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The home station column is the sum of each technician's hours grouped by the station on their personnel record. MSP is TECH-01 at 12.0 plus TECH-02 at 16.5 plus TECH-06 at 0, which is 28.5. TUS is TECH-03 at 0 plus TECH-04 at 10.5, so 10.5. LAS is TECH-05 alone at 13.0. The 10.0 against UNASSIGNED is TECH-07, the technician who exists in the timesheet and not in the personnel extract. Now look at the LAS row. The station absorbed 5.0 hours of work, and the technician based there logged 13.0, because K. Ibrahim spent 8.0 hours on WO-1003 at Tucson. That is the supervisor's whiteboard. He is counting his people. The report was counting his hangar.</p>
+
+  <p>All three strategies apply here mechanically. You could add a relationship from <code>DimStation[StationCode]</code> to <code>DimTechnician[HomeStation]</code> and leave it inactive. You could build a separate <code>DimHomeStation</code>. You could add a station role item to a calculation group. The inconvenient answer is to do none of them by default. In Meridian that second relationship is deliberately absent, because <code>DimStation</code> would then reach <code>FactLabor</code> by two paths, one through the work order and one through the technician. That is the ambiguity case from <a class="xref" href="#ch-08">Chapter 8</a>. The deeper reason is about the questions. Opened and closed are two readings of one question: when did this work order move? Where work happened and where a technician is based are two separate questions. Where work happened is a capacity question. Where a technician is based is a staffing and travel question. Put them on one axis and a reader will subtract one column from the other, which means nothing. Leave <code>HomeStation</code> as a descriptive attribute on <code>DimTechnician</code>, and if the staffing question earns its own page, build <code>DimHomeStation</code> for that page.</p>
+
+  <h3>The other two date columns, and one slicer over three facts</h3>
+
+  <p>The finance manager sets the date slicer to a single day, 9 January, and calls you. The page says zero work orders opened, zero promised and zero closed, and underneath that it says 15.0 labor hours and 2,450 of parts. He wants to know which half of the page is broken. Every number on it is right, and this section says why.</p>
+
+  <p>Start by closing the ledger this chapter opened with. Five date columns, three of them worked. <code>FactLabor[WorkDate]</code> and <code>FactParts[IssueDate]</code> each stand alone. Each is the only date its fact table carries, so each gets one plain active relationship from <code>DimDate[Date]</code> and nothing more: no inactive twin and no calculation item. Having just met role playing, you will be tempted to assume every date column in the model now needs the machinery. Two of the five stay plain, and adding inactive relationships to them would create objects nothing will ever invoke.</p>
+
+  <p>What all five share is the date table, and that is the part worth ten minutes. One <code>DimDate</code> means one slicer. One slicer means a single selection arrives at three fact tables, through three different columns, in the same instant. The three answers it produces have no obligation to agree with each other. Set the slicer to a single day and the point stops being theoretical. That is the day the finance manager picked.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 13.3</span> One date on the slicer, three facts underneath it. The filter is <code>DimDate[Date]</code> equal to 2025-01-09, a Thursday, with no other filter on the page.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Measure</th><th scope="col">Date column it rides</th><th scope="col">What is in scope on that day</th><th scope="col" class="num">Value</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Work Orders Opened</th><td><code>OpenedDate</code>, active</td><td class="muted">nothing. The nearest are WO-1002 on 2025-01-08 and WO-1003 on 2025-01-14</td><td class="num">0</td></tr>
+          <tr><th scope="row">Work Orders Promised</th><td><code>PromisedDate</code>, inactive</td><td class="muted">nothing. The nearest is WO-1002, promised 2025-01-10</td><td class="num">0</td></tr>
+          <tr><th scope="row">Work Orders Closed</th><td><code>ClosedDate</code>, inactive</td><td class="muted">nothing. The nearest is WO-1002, closed 2025-01-13</td><td class="num">0</td></tr>
+          <tr class="row-good"><th scope="row">Labor Hours</th><td><code>WorkDate</code>, active</td><td>L-502, 6.0 hours on WO-1001. L-503, 9.0 hours on WO-1002</td><td class="num">15.0</td></tr>
+          <tr class="row-good"><th scope="row">Labor Cost</th><td><code>WorkDate</code>, active</td><td>6.0 times 110 is 660.00, plus 9.0 times 95 is 855.00</td><td class="num">1,515.00</td></tr>
+          <tr class="row-good"><th scope="row">Parts Cost</th><td><code>IssueDate</code>, active</td><td>P-9002, one HYD-4471 at 2,450, issued to WO-1002</td><td class="num">2,450</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Six measures, one date, and a page that reads as impossible: no work orders opened, none promised, none closed, fifteen hours booked and 2,450 of parts issued. Every cell is correct, and that is the answer the finance manager needed. Be precise about the first three. <code>COUNTROWS</code> over an empty set returns blank and not zero, so on the report those cells render empty. They are written as 0 in the table above only so the column reads as a column. If a card has to show a real zero, add <code>+ 0</code> to the measure. Accept that the measure is then never blank and will hold open every row on any axis you put it against. The ninth of January is a Thursday in the middle of two jobs that opened on the Monday and the Wednesday. Work happens on days when nothing in the work order lifecycle does. This is what a shared date table buys you and what it costs. One slicer governs everything, and the word "January" means intake on one visual, timesheets on the next and stores issues on the third.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Ask which measures on the page are anchored to which date column before you accept any date filtered number. Three fact tables against one calendar give you three separate answers to one date. On the Meridian quarter the month level answers happen to line up, because every labor row, and every parts row whose work order exists, falls in the same calendar month as that work order opened, so opened month and work month agree across the seven orders that carry any activity at all. WO-1008 has neither a labor row nor a parts line, and the orphan parts line P-9007 points at WO-1009, which is not in the header table and so has no opened month to agree with. That agreement is a property of this quarter's data, not of the model. One job that opens on the twenty eighth and gets worked on the second would break it, and every month level reconciliation built on the coincidence would break with it.</p>
+  </aside>
+
+  <p>The second consequence is sharper, and it catches people who have just got strategy 1 working. A <code>USERELATIONSHIP</code> wrapper changes which column of <code>FactWorkOrder</code> the date filter lands on. It does nothing at all to <code>FactLabor</code>, which is filtered by its own active relationship on <code>WorkDate</code>. Put <code>[Work Orders Closed]</code> and <code>[Labor Hours]</code> side by side on a month axis and February reads 2 and 22.0. The two work orders closed in February are WO-1003 and WO-1005. The 22.0 hours are L-506 on WO-1004 and L-507 on WO-1006. The two sets do not share a single work order, and the row invites the reader to divide one by the other.</p>
+
+  <p>If the question really is hours booked against work that completed in the period, the filter has to travel through the work order header. The labor date is the wrong road for that question, and the next measure takes the right one.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Hours on Closed WOs</span></div>
+<pre><code><span class="c">// The VAR is evaluated in the visual's own filter context,</span>
+<span class="c">// so it resolves the month before anything is cleared.</span>
+<span class="col">Labor Hours on Closed WOs</span> <span class="op">=</span>
+<span class="k">VAR</span> <span class="col">ClosedInPeriod</span> <span class="op">=</span>
+    <span class="k">CALCULATETABLE</span> (
+        <span class="k">VALUES</span> ( <span class="t">FactWorkOrder</span><span class="col">[WorkOrderID]</span> ),
+        <span class="k">USERELATIONSHIP</span> ( <span class="t">DimDate</span><span class="col">[Date]</span>, <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> )
+    )
+<span class="k">RETURN</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">REMOVEFILTERS</span> ( <span class="t">DimDate</span> ),
+        <span class="col">ClosedInPeriod</span>
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 5 to 8</div><div class="linex-v"><code>CALCULATETABLE</code> and not <code>CALCULATE</code>, because what is wanted here is the list of work orders and not a number. This is the one place in the chapter where the table returning twin earns its keep. <code>USERELATIONSHIP</code> switches the close date relationship on for the duration of that table expression only. Under a February filter it returns WO-1003 and WO-1005. WO-1004 and WO-1008 have a blank <code>ClosedDate</code>, so they attach to the blank member of <code>DimDate</code> and never appear under any month.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v"><code>VALUES</code> of one column and not <code>CALCULATETABLE ( FactWorkOrder, ... )</code>. Filtering a single column leaves every other filter on the header table in place, so a station or work order type slicer on the same page still applies. Handing back the whole table as a filter argument would replace those filters instead of intersecting with them, and the measure would quietly ignore the station the user selected.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 12</div><div class="linex-v">The line that makes the measure work, and the line people leave out. Without it the February filter still reaches <code>FactLabor</code> along the <code>WorkDate</code> relationship. The two conditions then intersect: labor dated February, on work orders closed in February. That intersection is empty, because the February labor rows sit on WO-1004 and WO-1006. The measure returns blank, so it looks broken rather than wrong. That is the better of the two failures and it is still a failure.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 13</div><div class="linex-v">A variable holding a table can be handed straight to <code>CALCULATE</code> as a filter argument. <code>ClosedInPeriod</code> still carries the lineage of <code>FactWorkOrder[WorkOrderID]</code>, so it filters the header, and the filter travels down the existing header to line relationship into <code>FactLabor</code> with no further help.</div></div>
+  </div>
+
+  <p>February now returns 12.5. That is L-504 at 8.0 hours plus L-505 at 4.5 hours, both booked in January against WO-1003, which closed on 2025-02-05. WO-1005 closed in February too and contributes nothing, because it has no labor rows at all. Read the pair honestly. 22.0 is hours worked in February. 12.5 is hours belonging to work that finished in February. The production controller wants one of them and not the other, so ask him which. The same shape gives you parts on closed work orders by swapping <code>[Labor Hours]</code> for <code>[Parts Cost]</code>, and the same <code>REMOVEFILTERS</code> line is needed for the same reason.</p>
+
+  <h3>Recount the roles when the heavy maintenance tables arrive</h3>
+
+  <p>The planner sends you three more files from the heavy side of the shop and asks for the same page again, this time for the hangar checks. You open them and find two more date columns sitting on work orders you have already modelled three ways. That ledger was drawn against six source tables. Meridian has nine. Three of them come from the heavy side, two of those three carry dates, and the count you just closed does not survive them.</p>
+
+  <p>Start with where the new dates come from, because the reason they exist is the reason one pair of them will hurt. Heavy maintenance is base maintenance. An aircraft goes out of service into a hangar bay for days or weeks, jacked and opened up, worked to a package a planner built before it arrived. The function that owns the schedule for that work is commonly called the HMCC, the Heavy Maintenance Control Centre. Commonly, not universally. Plenty of shops call the identical function production control, or maintenance control, or the base maintenance control centre. The line maintenance equivalent is usually the MOC, the Maintenance Operations Control. The function is in every base shop. The acronym is not, so confirm the local one before you name a table after it.</p>
+
+  <p>The HMCC board owns the plan: which aircraft is in which bay, and the planned start and planned finish for every work order on it. It owns nothing that happened. Booked hours sit in the timesheet system, parts in stores, and the induction and release dates in the shop floor system. That split of ownership is how the industry is arranged, and Meridian's extracts reflect it. It is why <code>HMCCSchedule</code> turns up as its own file with its own dates.</p>
+
+  <p><code>HMCCSchedule</code> holds one row per work order, which makes it one to one with <code>WorkOrders</code>. The recommended handling for one to one is a merge. Fold it into the header in Power Query and let its columns ride on <span class="fact-tag">Fact</span> <code>FactWorkOrder</code>, with no relationship built at all. Once you do, <code>PlannedStart</code> and <code>PlannedFinish</code> become the fourth and fifth date column on the one fact you have spent this chapter joining three ways. <code>ManhourForecast</code> becomes <span class="fact-tag">Fact</span> <code>FactForecast</code> and adds one more date on a table of its own, <code>RevisionDate</code>, the day production control reissued its estimate.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 13.4</span> Every date column that joins to <code>DimDate[Date]</code> once the heavy maintenance tables land, and what each one should be given.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Date column</th><th scope="col">Fact table</th><th scope="col">What it records, and who owns it</th><th scope="col">Handling</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">OpenedDate</td><td><code>FactWorkOrder</code></td><td>the aircraft was inducted, shop floor system</td><td>active relationship</td></tr>
+          <tr><td class="key">PromisedDate</td><td><code>FactWorkOrder</code></td><td>the date the customer was given, contract</td><td>inactive, a genuine role</td></tr>
+          <tr><td class="key">ClosedDate</td><td><code>FactWorkOrder</code></td><td>the aircraft was released, shop floor system</td><td>inactive, a genuine role</td></tr>
+          <tr><td class="key">PlannedStart</td><td><code>FactWorkOrder</code></td><td>planned bay start, HMCC board</td><td class="muted">not a role, a second reading of induction</td></tr>
+          <tr><td class="key">PlannedFinish</td><td><code>FactWorkOrder</code></td><td>planned bay finish, HMCC board</td><td class="muted">not a role, equal to PromisedDate on all eight rows</td></tr>
+          <tr><td class="key">WorkDate</td><td><code>FactLabor</code></td><td>the day a technician booked hours, timesheet</td><td>active, the only date on its fact</td></tr>
+          <tr><td class="key">IssueDate</td><td><code>FactParts</code></td><td>the day stores issued a part</td><td>active, the only date on its fact</td></tr>
+          <tr><td class="key">RevisionDate</td><td><code>FactForecast</code></td><td>the day production control reissued the projection</td><td>active, the only date on its fact</td></tr>
+          <tr class="row-total"><th scope="row">Eight columns</th><td>four fact tables</td><td>one calendar</td><td>three genuine roles</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Eight is the count of columns joined to <code>DimDate[Date]</code>. <code>FactCapacity[MonthStart]</code> makes a ninth, and it joins to <code>DimDate[MonthStart]</code> at month grain. Grain is what one row of a table stands for, and one row of <code>FactCapacity</code> stands for one station in one month. That makes it a grain argument rather than a role argument, and grain belongs to <a class="xref" href="#ch-16">Chapter 16</a>.</p>
+
+  <p><code>RevisionDate</code> needs one paragraph and can then be left alone. It is the only date on <code>FactForecast</code>, so it takes one plain active relationship, exactly like <code>WorkDate</code> and <code>IssueDate</code>. The awkward part is the measure sitting on it, not the relationship. Each revision replaces the one before it, so the answer for a period is the latest revision per work order and never a sum. Add the eight forecast rows together and you get 99.5, a figure that counts the same hours over and over as each revision lands. The correct total is 63.5. That is a semi-additive measure, and it is <a class="xref" href="#ch-16">Chapter 16</a>'s problem.</p>
+
+  <p>Five date columns on one fact is where strategy 1 starts to cost more than it saves. The wrapper is per measure and per role, so the work grows as a product. Add one measure and you add one wrapper for every role. Count what a heavy maintenance page carries. The five measures from the strategy 3 arithmetic, plus the three numbers the shop actually argues about. Available is 57.0, the pre-input baseline the planner froze before the aircraft arrived. Pre-input is the planning and kitting work done on the package before the aircraft is in the bay. Projected is 63.5, production control's current estimate of the final total. Achieved is 62.0, the hours technicians really booked. Handle those three words carefully, because they do not travel. Available is planned in one shop, budgeted in the next and sold in the one after that, and the same word can mean the frozen baseline in one report and the live forecast in the next. Write the local definition down, get somebody in production control to agree it, and put it in the model description.</p>
+
+  <p>Eight measures, then. Eight times five is 40 measures. Take out the 8 that ride the active relationship and 32 hand-written <code>CALCULATE</code> wrappers are left, each able to be wrong on its own and each needing its own test. The calculation group version is 8 measures plus 5 items, which is 13 objects. Earlier in this chapter the same comparison came out at 15 objects against 8, close enough that either answer was reasonable. 40 against 13 is not.</p>
+
+  <p>Now take the five apart, because the honest count is lower and the reason matters more than the saving.</p>
+
+  <p><code>PlannedFinish</code> is the easy one to dismiss and the easy one to get wrong. On all eight Meridian work orders it holds exactly the value in <code>PromisedDate</code>. Build it as a role today and you have paid for a relationship, an item and a test in order to reproduce a column you already have. The trap runs the other way. They hold equal values and they record different facts. One is the board's plan for when the bay frees up. The other is what the customer was told. The day the board slips a week and the customer date holds, the two diverge, and every report that treated them as interchangeable answers a different question without looking any different. Keep the column, give it no relationship, and compare the two on refresh.</p>
+
+  <p><code>PlannedStart</code> is the one this section exists for. Seven of the eight rows agree with <code>OpenedDate</code> exactly. WO-1003 is the exception: the HMCC board says 2025-01-13 and the shop floor system says 2025-01-14, because the aircraft arrived a day late. Read what that actually is. Opened and closed are two different events in the life of a work order, which is what makes them roles. Planned start and opened date are one event, the aircraft arriving in the bay, recorded twice by two systems that disagree about it. Two events make a role. One event recorded twice makes a reconciliation, and a reconciliation takes a different kind of fix.</p>
+
+  <p>A second relationship is the wrong tool because of what a relationship is. It is a filter path, and a filter path answers exactly one shape of question: which rows belong in this period. Give <code>PlannedStart</code> an inactive relationship and a wrapper and you have built a second answer to a question that already has one. Nothing anywhere in the model would say which answer is the shop's. You would ship both. Turnaround on WO-1003 is 22 days from <code>OpenedDate</code> and 23 days from the planned start. So the average over the six closed work orders is 12.0 days one way, and 73 divided by 6, which is 12.17 days, the other. Two figures, both arithmetically correct, both labelled average turn time, differing because of one row out of eight. That is a meeting, not a report.</p>
+
+  <p>The disagreement is also invisible in the place most people look. Count work orders by planned start month and you get 3 in January, 3 in February and 2 in March, which is the opened column of Table 13.1 exactly, because WO-1003 moved from the thirteenth to the fourteenth and both dates sit in January. No month axis will ever show you this. It surfaces at day grain, and in anything that subtracts one date from another.</p>
+
+  <p>So measure turnaround from the induction date, write that down where the next section says to write it, and carry the disagreement itself as a number rather than as a second way to slice the same eight rows.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Turn Days and Input Slip Days</span></div>
+<pre><code><span class="c">// Turnaround from the shop floor date, and the name says which</span>
+<span class="col">Turn Days (actual input)</span> <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">AVERAGEX</span> (
+            <span class="t">FactWorkOrder</span>,
+            <span class="k">DATEDIFF</span> ( <span class="t">FactWorkOrder</span><span class="col">[OpenedDate]</span>,
+                <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span>, <span class="k">DAY</span> )
+        ),
+        <span class="k">NOT</span> <span class="k">ISBLANK</span> ( <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> )
+    )
+
+<span class="c">// The disagreement carried as a number, not as a second date role</span>
+<span class="col">Input Slip Days</span> <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="t">FactWorkOrder</span>,
+        <span class="k">DATEDIFF</span> ( <span class="t">FactWorkOrder</span><span class="col">[PlannedStart]</span>,
+            <span class="t">FactWorkOrder</span><span class="col">[OpenedDate]</span>, <span class="k">DAY</span> )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 4 to 5</div><div class="linex-v"><code>AVERAGEX</code> and not <code>AVERAGE</code>. <code>AVERAGE</code> takes a column, and no column in this model holds turn days unless you add one. <code>AVERAGEX</code> iterates the header table, evaluates the difference once per row, and averages the values it gets back. That keeps the calculation in the measure where a reviewer can see it. A calculated column would hide it in a value computed at some refresh nobody remembers.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 6 to 7</div><div class="linex-v"><code>DATEDIFF</code> and not <code>FactWorkOrder[ClosedDate] - FactWorkOrder[OpenedDate]</code>. Both give a number of days when both columns are true dates. <code>DATEDIFF</code> names the unit inside the expression, so the next reader knows the result is days and not months, and the intent survives somebody changing a column type upstream.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 9</div><div class="linex-v">The same guard as <code>Work Orders Closed</code>, for the same reason. WO-1004 and WO-1008 have no <code>ClosedDate</code>. In arithmetic a blank behaves as the value at zero, so whatever difference it produces is not a turn time. Your build of <code>DATEDIFF</code> may return a large number or may raise an error on those rows, and the guard removes the question either way. With it in place the measure returns 12.0 days across the six closed work orders.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 14 to 15</div><div class="linex-v"><code>SUMX</code> over <code>FactWorkOrder</code> and not a calculated column on the same table. Both return 1. The measure is the right form while you are still finding out whether anybody wants the number. If it survives to a second page, move it into Power Query as a column on the merged header, where it is computed once per refresh instead of once per query, and where the two source dates sit next to it for anyone auditing the row.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>SUMX</code> and not <code>AVERAGEX</code> for the slip. An average across the eight work orders is 1 divided by 8, which is 0.125 days, and 0.125 rounds to nothing on a card and reads as two systems in agreement. The sum is 1, and one day is a fact somebody can act on, attached to an aircraft you can name. Averaging is the standard way to make a single bad row disappear, and a variance you are tracking precisely because it is rare is the last thing you should average. Put the count of disagreeing rows beside it, which here is also 1, and the pair tells the whole story without a paragraph of explanation underneath.</p>
+  </div>
+
+  <p>Turnaround time has a settled definition and it is worth holding to it. Input to output: from the moment the aircraft is inducted and towed to the bay, to the moment certifying staff release it. That makes <code>OpenedDate</code> the date turnaround is measured from, because nothing could be worked until the aircraft was there. The planned start answers a different question. Whether the check is where the board said it would be, day by day, is schedule adherence. Schedule adherence has its own audience and its own report. Keep the two apart. Name the measure so the name says which clock it ran on, as <code>Turn Days (actual input)</code> does above, and do not let the answer fall out of whichever relationship somebody happened to make active first.</p>
+
+  <details class="expand" open>
+    <summary>What a date role does to a table that has no date of its own</summary>
+    <div class="expand-body">
+      <p><span class="derived-tag">Built</span> <code>FactPreInput</code> is the planner's heavy pre-input work package, one row per work order per trade, and it carries no date column at all. A date filter can only reach it through <code>FactWorkOrder</code>. So a date role, whether it arrives as a <code>USERELATIONSHIP</code> wrapper or as a calculation item, changes the available hours number even though nothing in that measure mentions the header.</p>
+      <p>Available hours by work order are WO-1001 13.0, WO-1003 13.0, WO-1004 12.0, WO-1006 10.0 and WO-1008 9.0, which is 57.0 across the quarter. The other three work orders are light maintenance, have no pre-input pack, and contribute nothing.</p>
+      <p>Under the default opened role, February holds WO-1004, WO-1005 and WO-1006, so available reads 12.0 plus 0 plus 10.0, which is 22.0. Under a Closed item, February holds WO-1003 and WO-1005 instead, so it reads 13.0 plus 0, which is 13.0. January moves from 26.0 to 13.0, and March moves from 9.0 to 10.0.</p>
+      <p>Now the total, which is where it stops being interesting and starts being dangerous. Opened gives 26.0 plus 22.0 plus 9.0, which is 57.0 and ties to the figure above. Closed gives 13.0 plus 13.0 plus 10.0, which is 36.0, the available total for the three closed heavy checks WO-1001, WO-1003 and WO-1006. The missing 21.0 is WO-1004 at 12.0 and WO-1008 at 9.0, the two work orders that have never closed and therefore appear under no month at all. Both totals are arithmetically correct. Only one of them is the number somebody asked for, and nothing on the visual says which item is selected unless you put the item name on an axis.</p>
+    </div>
+  </details>
+
+  <p>So the real count on <code>FactWorkOrder</code> is three roles and not five, and the choosing rule earlier in this chapter has moved anyway. Eight measures times three roles is 24 measures, of which 16 are wrappers. A calculation group gives you 8 measures plus 3 items, which is 11 objects. Three roles against the five measures counted earlier was close enough to go either way. Three roles against eight measures is where a calculation group starts to earn its complexity. The heavy maintenance extension pushed it over the line from both directions at once. It put five date columns on the header, and it brought three more measures that all have to answer to them.</p>
+
+  <h3>Which relationship should be active</h3>
+
+  <p>The production controller builds his own page next week and drags <code>DimDate[MonthName]</code> next to a sum of <code>FactWorkOrder[QuotedAmount]</code>. Whatever number comes back, the active relationship picked the date for him, and nothing on screen said which one. Which relationship you make active is therefore a decision about everybody else's defaults, and it deserves five minutes of thought. Power BI creates one by default and it has no idea what your shop reports on.</p>
+
+  <p>The active relationship should be the role used by the majority of reports and by time intelligence, because those are the two places where the choice is invisible. For Meridian that is <code>OpenedDate</code>. Intake volume, current backlog, work in progress and quoted value by month are all opened-date questions, and they outnumber everything else on the shop floor pages.</p>
+
+  <p>The counter-case is real. If the main consumer of this model were finance, closing the month on work recognised at completion, <code>ClosedDate</code> would be the better default and every intake measure would carry the wrapper instead. Either choice is defensible. Leaving the choice implicit is not. Write it into the table description on <code>FactWorkOrder</code> in words: the active date role is OpenedDate, so any measure not wrapped in USERELATIONSHIP reports by opened date. That description surfaces as a tooltip in the field list, which is the one place a report author is already looking.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>Inactive relationships are close to free. They occupy storage for the join structures and add a little to refresh time, and they cost nothing at query time until a measure invokes one. <code>USERELATIONSHIP</code> materialises nothing. The storage engine runs against a different join. A <code>TREATAS</code> equivalent pushes a filter list in from the formula engine, which is why <code>USERELATIONSHIP</code> usually beats it on the same model. The cost shows up in a matrix with a calculation group on the columns, where each measure is evaluated once per item, so three roles means three storage engine queries where there was one.</p>
+  </aside>
+
+  <h3>Time intelligence has to be told too</h3>
+
+  <p>The finance manager asks for closed work orders year to date. You already have <code>Work Orders Closed</code>, so you wrap it in a year to date function and ship it. At March it returns 8. Eight is the year to date count of work orders opened, and the report says closed.</p>
+
+  <p>Time intelligence functions read the date table and rewrite the filter on it. They know nothing about which relationship is active. So a year to date over a non-default role needs the role swap as well, and the swap has to sit inside the same <code>CALCULATE</code> that shifts the dates, or inside a measure that the shifting <code>CALCULATE</code> invokes.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Year to date over the closed role</span></div>
+<pre><code><span class="c">// Correct: the role swap lives inside the measure being shifted</span>
+<span class="col">Work Orders Closed YTD</span> <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Work Orders Closed]</span>,
+        <span class="k">DATESYTD</span> ( <span class="t">DimDate</span><span class="col">[Date]</span> )
+    )
+
+<span class="c">// Broken: the VAR is resolved before the CALCULATE shifts anything</span>
+<span class="col">Work Orders Closed YTD (broken)</span> <span class="op">=</span>
+<span class="k">VAR</span> <span class="col">Closed</span> <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> ),
+        <span class="k">USERELATIONSHIP</span> ( <span class="t">DimDate</span><span class="col">[Date]</span>, <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> )
+    )
+<span class="k">RETURN</span>
+    <span class="k">CALCULATE</span> ( <span class="col">Closed</span>, <span class="k">DATESYTD</span> ( <span class="t">DimDate</span><span class="col">[Date]</span> ) )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 3 to 6</div><div class="linex-v"><code>DATESYTD</code> returns a table of dates from the first of the year to the last date in the current filter context, and it is applied as a filter argument to the outer <code>CALCULATE</code>. That filter lands on <code>DimDate</code>. The measure reference then runs its own <code>CALCULATE</code>, swaps in the close date relationship, and propagates the already shifted date filter through it. At March the result is 2 plus 2 plus 2, which is 6, and 6 is the number the finance manager wanted.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 10 to 16</div><div class="linex-v">A variable is evaluated once, in the filter context where it is defined, and it is a constant everywhere after that. By the time line 16 applies <code>DATESYTD</code>, there is nothing left to filter. At March the broken measure returns 2, the March value, and it looks plausible enough to ship.</div></div>
+    <div class="linex-row"><div class="linex-k">The silent version</div><div class="linex-v">Worse than either is <code>TOTALYTD ( COUNTROWS ( FactWorkOrder ), DimDate[Date] )</code> written for a closed report. It runs, it returns 3 plus 3 plus 2, which is 8 at March, and 8 is the year to date count of opened work orders. No error, no blank, no clue.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>DATESYTD</code> and not <code>TOTALYTD</code>. <code>TOTALYTD</code> is a wrapper that performs the <code>CALCULATE</code> for you, and that is exactly the problem when a role swap is involved: the <code>CALCULATE</code> you would need to attach <code>USERELATIONSHIP</code> to is hidden inside the function. You can pass a measure that already carries its own wrapper, so <code>TOTALYTD</code> still gives you the right answer, and it puts the relationship decision one level out of sight. <code>DATESYTD</code> returns a table and forces you to write the <code>CALCULATE</code> yourself, which is where the role belongs and where the next reader will look for it.</p>
+  </div>
+
+  <p>The same reasoning covers <code>SAMEPERIODLASTYEAR</code>, <code>DATEADD</code> and every other function in that family. They shift dates on the date table. Which column of the fact those shifted dates reach is a separate decision, and if you do not make it explicitly, the model makes it for you and reports opened.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>One date table, three relationships, one of them active. The engine allows a single active path between two tables because two would make January ambiguous, and inactive relationships cost almost nothing until a measure names one.</li>
+      <li>Strategy 1 is the default: <code>CALCULATE</code> plus <code>USERELATIONSHIP</code> per role. It produces Table 13.1 from one slicer, and it fails only when a user needs two roles filtered independently.</li>
+      <li>Strategy 2 exists for that one failure. Two independent date inputs, whether two role tables or one disconnected as-of picker, and remember that a blank close date joins to no date table at all.</li>
+      <li>Strategy 3 turns a multiplication into an addition: 5 measures times 3 roles is 15 measures, against 5 measures plus 3 calculation items. It needs a modelling tool, it disables implicit measures, and it is hard for a colleague to find.</li>
+      <li>Role playing on non-date dimensions is usually a signal that you have two different questions. Work station and technician home station total the same 62.0 hours and mean nothing when subtracted.</li>
+      <li>Only three of Meridian's five date columns are roles. <code>WorkDate</code> and <code>IssueDate</code> are the only date on their fact, so each takes one plain active relationship. They still share the calendar, so one slicer set to 2025-01-09 returns zero work orders beside 15.0 labor hours and 2,450 of parts, and all three numbers are right.</li>
+      <li>The heavy maintenance tables put five date columns on <code>FactWorkOrder</code> alone and eight in the model, and only three of those five header columns are roles. Count roles against measures before choosing: 8 measures times 3 roles is 24 measures with 16 wrappers, against 8 measures plus 3 calculation items, which is 11 objects. That is where strategy 3 stops being an indulgence.</li>
+      <li><code>PlannedStart</code> and <code>OpenedDate</code> are one event recorded by two systems, one day apart on WO-1003. That is a reconciliation, not a role, and a second relationship ships both answers without choosing. Average turn days is 12.0 measured from <code>OpenedDate</code> and 12.17 measured from the HMCC planned start. Turnaround runs from induction, so 12.0 is the number, and the gap is carried as its own measure rather than as a second date role.</li>
+      <li>A <code>USERELATIONSHIP</code> wrapper redirects the date filter on <code>FactWorkOrder</code> and leaves <code>FactLabor</code> riding <code>WorkDate</code>. February shows 2 closed work orders next to 22.0 hours that belong to two different orders. Route the filter through the header and <code>REMOVEFILTERS</code> the calendar to get the 12.5 that answers the question asked.</li>
+      <li>Time intelligence does not inherit a role. Put <code>USERELATIONSHIP</code> inside the same <code>CALCULATE</code> that shifts the dates, or inside a measure that <code>CALCULATE</code> calls, and never inside a <code>VAR</code> that is resolved before the shift.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="12.html"><span class="pn-dir">Previous</span><span class="pn-t">USERELATIONSHIP and CROSSFILTER</span></a><a class="pn" href="14.html"><span class="pn-dir">Next</span><span class="pn-t">Many-to-many, and the total that does not add up</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

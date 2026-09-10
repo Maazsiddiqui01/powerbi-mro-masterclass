@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Your shop, mapped onto this document</title>
+</head>
+<body data-ch="E">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">E</span><span class="tb-title">Your shop, mapped onto this document</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-E">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Appendix</div>
+    <h2 class="chapter-title"><span class="chapter-num">E</span>Your shop, mapped onto this document</h2>
+    <p class="chapter-lede">After this appendix you will be able to translate every Meridian term into the word your own shop uses, and model a service line that carries two reporting groupings. You will also keep a report working when somebody edits its source workbook under you, and walk into a maintenance system migration with your headline numbers already written down.</p>
+  </div>
+
+  <p class="lead">The shift supervisor stops at your desk holding a printout of your report. One column is headed Available hours and it reads 57.0. His whiteboard uses the word Estimate, and it reads 57.0 too. He wants to know why you renamed his number, and whether this report is even about his hangar. Two words, one number, half an hour gone. This appendix is the translation layer that stops that conversation happening a second time.</p>
+
+  <p>Start with the shop those numbers come from. Meridian Aero Services is invented, and it was invented on purpose. Every table in this document belongs to a fictional shop with eight work orders, six technicians and three months of history. None of it came from a real operator or a real customer contract. You can copy a Meridian table into an email or argue about it in a meeting, and there is nobody whose commercial data you have just moved.</p>
+
+  <p>That freedom is also why the sample data is deliberately broken in places. A blank station code. An aircraft registration that matches nothing. A technician key with a trailing space. In a real extract those faults are somebody's problem. In Meridian they are teaching material, and you can break them open in public.</p>
+
+  <p>The cost of an invented shop is that its vocabulary was chosen for it. Your shop will call some of these things by other names. It will also use one or two of these names for something else entirely. This appendix maps the Meridian words onto the words you will hear on the hangar floor. Then it works through the four places where that mapping gets hard. A service line that carries two reporting groupings. A service line that nobody stores at all. A planning workbook that its owner edits while your report reads it. And the quarter the maintenance system gets replaced.</p>
+
+  <h3>1. The vocabulary map</h3>
+
+  <p>The finance manager calls on the last working day of the month. He wants one number from you: how many hours did the shop do this quarter. You have three defensible answers sitting in front of you and he wants a single figure for a slide. Hold that request for a moment. You cannot answer him until you can name all three, and the table below is where the names live.</p>
+
+  <p>Aviation regulation is standardised. Aviation vocabulary is not. Two shops twenty miles apart will use different words for the same number, and the same word for two different numbers, and both will be certain that theirs is the industry standard. Read the middle column below as likely. Your own shop gets the final say on every row of it. The right column says where the concept lives in the Meridian model, and says so plainly when Meridian holds nothing for it at all.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table E.1</span> The vocabulary map. Left is the word this document uses, middle is what you are likely to hear, right is where the concept sits in the Meridian data.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">This document</th>
+            <th scope="col">What your shop is likely to call it</th>
+            <th scope="col">Where you meet it</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">ACREG</th><td>Aircraft registration, tail number, tail, registration mark, aircraft ID</td><td><code>FactWorkOrder[ACREG]</code> and <code>DimAircraft[ACREG]</code>. The key on almost every extract, and the first one that fails to join.</td></tr>
+          <tr><th scope="row">Work order</th><td>WO, job, job number, event, visit, order</td><td><code>FactWorkOrder</code>, eight rows, one per work order. This is the header grain.</td></tr>
+          <tr><th scope="row">Work package</th><td>The pack, the input pack, the scope, scope of work, the build</td><td>No single Meridian table holds the whole package. <code>FactPreInput</code> holds its manhour roll-up, at work order and trade grain.</td></tr>
+          <tr><th scope="row">Check type</th><td>Check, visit type, package, A-check, C-check, HMV, IL, phase</td><td><code>DimCheckType</code>, four members: C-Check, A-Check, Cabin Retrofit, Defect Rectification.</td></tr>
+          <tr><th scope="row">Service line</th><td>Product line, business area, maintenance type, department, base against line</td><td><code>DimServiceLine</code>, four members. Sourced only from <code>HMCCSchedule</code>. The work order itself carries no service line at all.</td></tr>
+          <tr><th scope="row">Bay</th><td>Dock, hangar bay, position, stand, slot, berth</td><td><code>HMCCSchedule[Bay]</code>, for example MSP-H1. Blank on WO-1005, which also has a blank station.</td></tr>
+          <tr><th scope="row">Pre-input pack</th><td>Pre-input, planning pack, work scope, the estimate, the build sheet</td><td><code>FactPreInput</code>. Only heavy and cabin work orders have one, which is the whole difficulty.</td></tr>
+          <tr><th scope="row">Available hours</th><td>Planned, budgeted, estimated, sold, quoted, baseline hours</td><td><code>FactPreInput[PlannedHours]</code>. Meridian total 57.0 hours, frozen at induction, the day the aircraft arrives and the work order opens.</td></tr>
+          <tr><th scope="row">Demand</th><td>Requirement, workload, the ask, manhour requirement, forecast demand</td><td><code>RPODemand</code>, one row per service line per month. Meridian total 75.0 hours.</td></tr>
+          <tr><th scope="row">Projected hours</th><td>Forecast, EAC, estimate at completion, current view, live estimate</td><td><code>FactForecast</code>, one row per work order per revision. The latest revision per work order totals 63.5 hours.</td></tr>
+          <tr><th scope="row">Achieved hours</th><td>Actual, booked, clocked, expended, charged, recorded hours</td><td><code>FactLabor[Hours]</code>. Meridian total 62.0 hours, and the only one of the three that is a transaction record.</td></tr>
+          <tr><th scope="row">Submitted hours</th><td>Declared, reported, official, the return, the month end figure</td><td><code>DeptSubmission</code>. Meridian total 63.0 hours, one hour above the timesheet.</td></tr>
+          <tr><th scope="row">Attended hours</th><td>Rostered, paid, present, clock hours, gross hours, manned hours</td><td><code>CrewRoster</code>, one row per service line per month. Meridian total 109.0 hours.</td></tr>
+          <tr><th scope="row">Productivity factor</th><td>Efficiency factor, direct ratio, uplift, utilisation factor, wrench time</td><td><code>ProductivityFactor</code>, one row per service line. Meridian uses 0.88 heavy and 0.68 elsewhere, illustrative values for this example.</td></tr>
+          <tr><th scope="row">Achievable hours</th><td>Productive hours, direct hours, net available hours, effective capacity</td><td>Calculated, attended times factor. Meridian total 87.72 hours. No source table holds it.</td></tr>
+          <tr><th scope="row">Capacity</th><td>Supply, resource, manning, establishment, planned hours</td><td><code>FactCapacity[PlannedHours]</code> at station and month grain, 176 hours across the quarter. Available hours uses a column of the same name and means the opposite: demand there, supply here.</td></tr>
+          <tr><th scope="row">Trade</th><td>Skill, discipline, licence group, function, speciality</td><td><code>DimTrade</code>, five conformed members. Cabin exists in the pre-input pack and nowhere in the capacity workbook.</td></tr>
+          <tr><th scope="row">Crew</th><td>Team, gang, shift, squad, crew code, cost centre</td><td><code>CrewAssignment[CrewCode]</code>, one row per technician, for example CRW-AF1.</td></tr>
+          <tr><th scope="row">HMCC</th><td>Production control, maintenance control, base maintenance control, the planning cell. MOC, or maintenance operations control, on the line side.</td><td><code>HMCCSchedule</code>, the Heavy Maintenance Control Centre planning board extract. Carries service line, check type, customer, bay and the planned dates.</td></tr>
+          <tr><th scope="row">Finding</th><td>Non-routine card, NRC, NRR, arising, additional work, discrepancy, squawk</td><td>Meridian holds no findings table. The gap between projected 63.5 and available 57.0 hours stands in for them.</td></tr>
+          <tr><th scope="row">Turnaround time</th><td>TAT, ground time, downtime, elapsed days, dwell, span</td><td>Derived: <code>ClosedDate</code> minus <code>OpenedDate</code>. Average 12.0 days over the six closed work orders.</td></tr>
+          <tr><th scope="row">Certificate of release to service</th><td>CRS, the release, sign-off, certification, return to service</td><td>Meridian holds no release record. <code>FactWorkOrder[ClosedDate]</code> is the nearest thing to it.</td></tr>
+          <tr><th scope="row">Station</th><td>Base, line station, facility, site, location, port</td><td><code>DimStation</code>, five members including PHX, which is planned and has no activity, and UNASSIGNED, which catches a blank.</td></tr>
+          <tr><th scope="row">Customer</th><td>Operator, airline, client, account, lessee</td><td><code>DimCustomer</code>, three members. Sierra Charter has aircraft and no work orders.</td></tr>
+          <tr><th scope="row">Technician</th><td>Mechanic, engineer, A&amp;P, LAE, licensed engineer, fitter, hand</td><td><code>DimTechnician</code>, seven members including TECH-07, who was recovered from a labour row and exists in no HR extract.</td></tr>
+          <tr><th scope="row">Task card</th><td>Job card, work card, routine card, AMM task, operation</td><td>Meridian holds no task cards. Labour books at work order, technician and day grain, one level coarser.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Three of those rows will get you into an argument if you use them loosely. Available, projected and achieved are the three manhour numbers, and they are the words people use most carelessly. In Meridian they are 57.0, 63.5 and 62.0 hours. Three numbers, one quarter of work, all three correct.</p>
+
+  <p>So the finance manager gets a question back before he gets a figure. Which of the three does he mean? If he wants what the shop actually did, that is achieved, 62.0 hours, and the word achieved goes on the slide next to it. If he wants what the shop said it would do, that is available, 57.0, and it covers only the five work orders that had a pre-input pack. Ask before you build anything. The build is the cheap part and the retraction is not.</p>
+
+  <p>The shift supervisor from the top of this appendix gets his answer from one row of the same table. Estimate is his word for what this document calls available hours. Both read 57.0 because both come off the same pre-input pack, and nobody renamed his number. Whether the report is about his hangar is the harder half of his question, and section 3 answers it.</p>
+
+  <p>Productivity factor is the next word worth pinning down. It measures the fraction of attended time that reaches a job card, and it absorbs briefings, tool collection, walking to the stand and paperwork. Meridian uses 0.88 for heavy work and 0.68 for line, light and cabin work. Those two values are illustrative, chosen for this document. Every shop sets its own and reviews them periodically. People hear the name as a verdict on how hard the crew works, so say what the factor actually measures out loud every time you put it on a page.</p>
+
+  <p>Turnaround time has a start and a stop that people quietly disagree about. Meridian measures <code>ClosedDate</code> minus <code>OpenedDate</code>. Over the six closed work orders that averages 12.0 days. Now move one date. Measure WO-1003 from the HMCC planned start of 2025-01-13 instead of the actual induction on 2025-01-14, and its turn time becomes 23 days. The total moves from 72 days to 73. The average becomes 73 divided by 6, which is 12.17 days. One row, one day, and a headline average that two people now quote differently.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Before you publish a number, write its definition in one sentence, name the table it comes from, and get the person who owns that table to agree the sentence in writing. An email is enough. Do it once per term and you spend the next two years pointing at the email instead of re-arguing the definition from memory.</p>
+  </aside>
+
+  <h3>2. The four service lines, and the clubbing problem</h3>
+
+  <p>The production controller stops you after a review. Your chart says base maintenance did 48.0 hours in the quarter. The pack he circulates every Monday says heavy did 38.0. He wants to know which one is wrong. Both are right, and by the end of this section you will be able to say why in one sentence.</p>
+
+  <p>A shop of any size runs several service lines, and four is the common set. Take them one at a time, because the first two get conflated constantly by people who work in neither.</p>
+
+  <p><strong>Line</strong> maintenance happens on the ramp, at the gate or on a stand, driven by arrivals. Transit checks, defect rectification, a tyre, an AOG recovery. AOG means aircraft on ground: the aircraft cannot fly, and it costs its operator money every hour that stays true. Line work runs from minutes to a shift, and the work is only known when the defect is reported.</p>
+
+  <p><strong>Light</strong> maintenance is a short planned input, usually in a hangar, often overnight. Scheduled service checks and defect clearance, with its own crew and its own bay. Outsiders hear both of these as the quick stuff and club them together. They are two service lines with different crews, different bays and different planning behaviour, and a shop that runs both reports them separately.</p>
+
+  <p><strong>Heavy</strong> maintenance is base maintenance. The aircraft is out of service in a bay for days to weeks, jacked and opened up. Its economics are dominated by findings that nobody could estimate in advance.</p>
+
+  <p><strong>Cabin and IFE</strong> covers seats, monuments, panels, carpets and in-flight entertainment. IFE means In-Flight Entertainment: the head-end servers, the seat-back units and the wiring between them. Most of this work is a modification embodied under an STC or a service bulletin. STC means Supplemental Type Certificate, an approval for a design change to an aircraft that is already certified. So cabin work sits in a hangar and looks like heavy maintenance from the outside, while being a different job with a different trade mix.</p>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Heavy</div><div class="kv-v">38.0 hours</div></div>
+    <div class="kv-item"><div class="kv-k">Light</div><div class="kv-v">9.0 hours</div></div>
+    <div class="kv-item"><div class="kv-k">Line</div><div class="kv-v">5.0 hours</div></div>
+    <div class="kv-item"><div class="kv-k">Cabin and IFE</div><div class="kv-v">10.0 hours</div></div>
+  </div>
+
+  <p>Meridian's quarter splits across those four lines as shown above, and they add to 62.0 hours, which ties to the grand total of achieved hours. Now the grouping. Heavy and Cabin and IFE are both hangar work with the aircraft out of service, so most shops club them together and call the pair base maintenance. Line and Light are the non-base pair. That gives a second, coarser view of exactly the same 62.0 hours.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table E.2</span> Achieved hours by service line, with the base grouping alongside. Both views total 62.0 hours because both are groupings of the same four members.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Service line</th>
+            <th scope="col">Reporting group</th>
+            <th scope="col" class="num">Achieved hours</th>
+            <th scope="col" class="num">Group total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Heavy</th><td>Base</td><td class="num">38.0</td><td class="num">48.0</td></tr>
+          <tr><th scope="row">Cabin and IFE</th><td>Base</td><td class="num">10.0</td><td class="num muted">included above</td></tr>
+          <tr><th scope="row">Light</th><td>Non-base</td><td class="num">9.0</td><td class="num">14.0</td></tr>
+          <tr><th scope="row">Line</th><td>Non-base</td><td class="num">5.0</td><td class="num muted">included above</td></tr>
+          <tr class="row-total"><td>Total</td><td class="muted">both views</td><td class="num">62.0</td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Do the arithmetic in your head once. Base is 38.0 plus 10.0, which is 48.0. Non-base is 9.0 plus 5.0, which is 14.0. Base plus non-base is 48.0 plus 14.0, which is 62.0. The two views agree at the top and differ only in how many rows they show. That equality is the diagnostic. When two breakdowns of a number agree at the grand total and disagree only in their row labels, you are looking at two groupings of one dimension.</p>
+
+  <p>Which gives the production controller his sentence. Both figures are achieved hours: his 38.0 is the Heavy service line on its own, and your 48.0 is Heavy plus the 10.0 hours of Cabin and IFE, grouped together as base maintenance. Say that, show him the four rows, and the argument is over in a minute.</p>
+
+  <p>Here is where it gets awkward in practice. Cabin and IFE moves. Some months the pack reports it inside base maintenance, because the aircraft was in a bay and the finance manager wants base against non-base. Other months it is broken out on its own, because a retrofit programme is running and the customer wants to see it separately. Both are legitimate, and both will be asked for by the same person in the same week.</p>
+
+  <p>The modelling answer is short. Two groupings over one dimension means two columns on one dimension table. Build a second table instead and you buy yourself the failure described at the end of this section.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table E.3</span> DimServiceLine. One row per service line, one column per grouping. A third grouping later means a third column.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">ServiceLine</th>
+            <th scope="col">ReportingGroup</th>
+            <th scope="col" class="num">SortOrder</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">Line</td><td>Non-base</td><td class="num">1</td></tr>
+          <tr><td class="key">Light</td><td>Non-base</td><td class="num">2</td></tr>
+          <tr><td class="key">Heavy</td><td>Base</td><td class="num">3</td></tr>
+          <tr><td class="key">Cabin and IFE</td><td>Base</td><td class="num">4</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p><span class="dim-tag">Dimension</span> <code>DimServiceLine</code> has one row per service line. Apply the grain test from <a class="xref" href="#ch-01">Chapter 1</a>. Grain means the one thing that a single row of a table stands for. Here the grain is one row per service line. <code>ReportingGroup</code> is completely determined by <code>ServiceLine</code>, so it is an attribute at that grain and it belongs on that row. <code>SortOrder</code> is there because alphabetical ordering puts Cabin and IFE first, which nobody in a hangar reads as sensible.</p>
+
+  <p>Two report-side mechanisms let the reader switch views. A hierarchy with <code>ReportingGroup</code> above <code>ServiceLine</code> gives drill down: the visual opens on two rows, Base 48.0 and Non-base 14.0, and the user drills into four. A field parameter is the other option. A field parameter is a small table you create that holds a list of fields. Put it on a slicer and the user chooses which column the visual groups by, so the same chart shows two rows or four depending on what they picked. Both mechanisms read from the one dimension table, so both stay consistent with each other.</p>
+
+  <p>Now the failure mode, because it is common and it is expensive. Somebody decides that base and non-base deserve their own table. They build <code>DimReportingGroup</code> with two rows, push a <code>ReportingGroup</code> column onto the fact so it can be joined, and relate it. Two objects in the model now claim to define what base maintenance means. In March a decision is taken that cabin retrofits should be reported outside base while the programme runs. Somebody edits <code>DimServiceLine</code>. Nobody edits <code>DimReportingGroup</code>. From that day the service line report says base is 38.0 and the group report says base is 48.0. Both refresh cleanly. The difference is exactly the 10.0 hours of cabin work, and nothing in either report shows a defect. You will spend a morning finding it, and you will find it again next year.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>"How do you model two different hierarchies over the same set of members?" is a standard modelling question, and the answer is one dimension table with one row per member and one column per grouping, surfaced with a hierarchy or a field parameter. The follow up separates people: what happens when the two groupings disagree. With one table they cannot disagree, because there is one row per member and one place to edit it.</p>
+  </aside>
+
+  <h3>3. Deriving the service line when nobody stores it</h3>
+
+  <p>The shift supervisor wants his own crew's hours for the quarter. You hand him the Line figure, 5.0. He puts his pen on it and says that cannot be right, because TECH-05 works for him and TECH-05 booked more than that on his own. He is right. So are you. Table E.4 is the reason, and the fix turns out to be a naming decision.</p>
+
+  <p>Meridian is generous about service line, so start with what it gives you. Its <code>HMCCSchedule</code> extract carries a <code>ServiceLine</code> column, and every work order arrives already labelled. Plenty of shops carry nothing of the kind. The work order has no service line, the check type is free text, and what you actually hold is a crew code against each technician. You ask the resource manager and he tells you from memory that CRW-AF1 is the airframe heavy crew and CRW-LN1 is the line team. It has been in his head for years, and no system holds it.</p>
+
+  <p>Meridian models that situation too. <code>CrewAssignment</code> has seven rows, one crew code per technician. <code>CrewCodeMap</code> has six rows and turns a crew code into a service line, and the dataset records its source as built by the analyst, held by no system. That is you. You own it.</p>
+
+  <p>Before the mechanics, one warning that will save you a bad meeting. Deriving the service line from the crew gives a different answer from taking it off the work order, and both answers are right.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table E.4</span> Achieved hours by service line, computed two ways. Route A asks what work was done. Route B asks whose crew did it.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Service line</th>
+            <th scope="col" class="num">Route A, via the work order</th>
+            <th scope="col" class="num">Route B, via the technician's crew</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Heavy</th><td class="num">38.0</td><td class="num">28.5</td></tr>
+          <tr><th scope="row">Cabin and IFE</th><td class="num">10.0</td><td class="num">10.5</td></tr>
+          <tr><th scope="row">Line</th><td class="num">5.0</td><td class="num">13.0</td></tr>
+          <tr><th scope="row">Light</th><td class="num">9.0</td><td class="num">0.0</td></tr>
+          <tr class="row-bad"><th scope="row">Unmapped crew code</th><td class="num">0.0</td><td class="num cell-bad">10.0</td></tr>
+          <tr class="row-total"><td>Total</td><td class="num">62.0</td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Take one row and the disagreement stops being mysterious. TECH-05 belongs to CRW-LN1, the line crew, and booked 13.0 hours in the quarter. Of those, 8.0 hours went on WO-1003, which is a heavy C-check, and 5.0 hours went on WO-1007, which is line work. Route A splits those 13.0 hours across two service lines because it follows the work order. Route B puts all 13.0 on Line because it follows the person.</p>
+
+  <p>That is the shift supervisor's answer, and it is the Route B column. His crew booked 13.0 hours, and 8.0 of them went on somebody else's C-check. Both routes are correct. They answer two different questions, and they must be two differently named measures, because the moment they share a name somebody will drop them into the same visual.</p>
+
+  <p>Now the mechanics, in short form. The full treatment of hand-maintained mapping tables is <a class="xref" href="#ch-D">Chapter D</a>. What matters here is the shape of the thing you build.</p>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <p>Merge the crew code onto <code>DimTechnician</code>, then write the mapping into a DAX calculated column as a chain of nested <code>IF</code> calls.</p>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Crew Service Line, the version nobody can review</span></div>
+<pre><code><span class="c">-- calculated column on DimTechnician</span>
+Crew Service Line <span class="op">=</span>
+    <span class="k">IF</span> ( <span class="t">DimTechnician</span><span class="col">[CrewCode]</span> <span class="op">=</span> <span class="s">"CRW-AF1"</span>,
+        <span class="s">"Heavy"</span>,
+    <span class="k">IF</span> ( <span class="t">DimTechnician</span><span class="col">[CrewCode]</span> <span class="op">=</span> <span class="s">"CRW-AV1"</span>,
+        <span class="s">"Heavy"</span>,
+    <span class="k">IF</span> ( <span class="t">DimTechnician</span><span class="col">[CrewCode]</span> <span class="op">=</span> <span class="s">"CRW-CAB"</span>,
+        <span class="s">"Cabin and IFE"</span>,
+    <span class="k">IF</span> ( <span class="t">DimTechnician</span><span class="col">[CrewCode]</span> <span class="op">=</span> <span class="s">"CRW-LN1"</span>,
+        <span class="s">"Line"</span>,
+    <span class="k">IF</span> ( <span class="t">DimTechnician</span><span class="col">[CrewCode]</span> <span class="op">=</span> <span class="s">"CRW-LT1"</span>,
+        <span class="s">"Light"</span>,
+        <span class="s">"Other"</span> ) ) ) ) )</code></pre>
+      </div>
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">The five branches</div><div class="linex-v">One per crew code. Adding CRW-LT2 means editing DAX and republishing the model.</div></div>
+        <div class="linex-row"><div class="linex-k">The last line</div><div class="linex-v">Every unknown code falls into "Other". CRW-XX9 lands there quietly, and the label tells nobody that a code was missed.</div></div>
+        <div class="linex-row"><div class="linex-k">The real defect</div><div class="linex-v">The resource manager is the only person who knows these codes, and he cannot read this. So it never gets reviewed, and it drifts out of date without anybody noticing.</div></div>
+      </div>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <p>Keep the mapping as a two column table and merge it in Power Query, with the unmatched case labelled out loud.</p>
+      <div class="code" data-lang="M">
+        <div class="code-head"><span class="code-lang">M</span><span class="code-name">DimTechnician, with crew and service line merged in</span></div>
+<pre><code><span class="k">let</span>
+    Source <span class="op">=</span> <span class="t">Technicians</span>,
+    WithCrew <span class="op">=</span> <span class="k">Table.NestedJoin</span>(Source, {<span class="s">"TechnicianID"</span>},
+        <span class="t">CrewAssignment</span>, {<span class="s">"TechnicianID"</span>},
+        <span class="s">"crew"</span>, JoinKind.LeftOuter),
+    CrewCol <span class="op">=</span> <span class="k">Table.ExpandTableColumn</span>(WithCrew, <span class="s">"crew"</span>,
+        {<span class="s">"CrewCode"</span>}),
+    WithLine <span class="op">=</span> <span class="k">Table.NestedJoin</span>(CrewCol, {<span class="s">"CrewCode"</span>},
+        <span class="t">CrewCodeMap</span>, {<span class="s">"CrewCode"</span>},
+        <span class="s">"map"</span>, JoinKind.LeftOuter),
+    LineCol <span class="op">=</span> <span class="k">Table.ExpandTableColumn</span>(WithLine, <span class="s">"map"</span>,
+        {<span class="s">"ServiceLine"</span>}, {<span class="s">"CrewServiceLine"</span>}),
+    Labelled <span class="op">=</span> <span class="k">Table.ReplaceValue</span>(LineCol, <span class="k">null</span>,
+        <span class="s">"Unmapped crew code"</span>,
+        Replacer.ReplaceValue, {<span class="s">"CrewServiceLine"</span>})
+<span class="k">in</span>
+    Labelled</code></pre>
+      </div>
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">WithCrew</div><div class="linex-v">A left outer join keeps every technician even when the roster system has no crew for them. An inner join drops those people and your hours stop reconciling to 62.0.</div></div>
+        <div class="linex-row"><div class="linex-k">WithLine</div><div class="linex-v">The second join reads <code>CrewCodeMap</code>, the table you maintain. It is data, so anybody can open it, and it can live in a shared workbook the resource manager edits himself.</div></div>
+        <div class="linex-row"><div class="linex-k">Labelled</div><div class="linex-v">Unmatched crew codes come back as null. Replacing null with the text "Unmapped crew code" puts a visible label on the axis, so the 10.0 hours on CRW-XX9 appear as a named row somebody will ask about.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p>Two DAX alternatives look tidier than the nested <code>IF</code> chain and both keep the defect. <code>SWITCH ( TRUE(), ... )</code> flattens the nesting and reads better, and the mapping is still written in a formula that only a report developer can open. <code>LOOKUPVALUE</code> is the honest DAX way to read a mapping table, and it earns its place when the mapping has to be evaluated at query time, for example when the user picks the mapping with a slicer. Here it does not: the crew a technician belongs to does not change when somebody clicks something. So the join belongs at refresh time in Power Query, where it is computed once, stored as a plain text column, and compressed like any other low cardinality column. The deciding argument is reviewability. A two column table can be read and corrected by the one person who knows the codes, and a formula cannot.</p>
+  </div>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Any mapping table you own gets three things: a row for every code you have ever seen including the ones you cannot explain, an explicit label for the unmatched case, and a named human who reviews it. Meridian shows what happens without them. CRW-XX9 sits in <code>CrewAssignment</code> and is missing from <code>CrewCodeMap</code>, so 10.0 of the 62.0 achieved hours have no service line, and because you own the map, nobody else is going to fix it.</p>
+  </aside>
+
+  <h3>4. Reading a workbook while its owner is still editing it</h3>
+
+  <p>The capacity workbook belongs to the resource manager. It lives in a shared document library, he edits it most days, and your report reads it live so the numbers are never stale. At 06:10 on a Monday the refresh fails. By the time you look, the file opens cleanly and nothing seems wrong. On Friday afternoon he renamed the Airframe column to Airframe Hrs, because that reads better in his own sheet, and it did not occur to him that anything downstream cared.</p>
+
+  <p>That is the trade, stated honestly. Reading a live workbook gives you numbers that are always current, and it hands you a schema you have no control over. Nobody is doing anything wrong here. The workbook is his working document and he is entitled to work in it. Your model is a consumer he never agreed to have.</p>
+
+  <p>The breakages are predictable, so name them before they happen. A renamed column. A row inserted above the header, which pushes the real header down a line. A renamed or duplicated sheet. A column inserted in the middle, harmless when you select columns by name and fatal when any step depends on position. A file renamed or dragged into a subfolder, which breaks a path-based reference. A number typed as text, so 14 arrives as "14 hrs" and your sum drops it. A total row added at the bottom out of politeness, which then behaves like a station called Total.</p>
+
+  <p>Six defences, in the order I would add them. First, reference the file by a stable identifier where your connector allows it. Some connectors address a file in a document library by an identifier that survives a rename or a move. Others take a path and break the moment somebody reorganises a folder. Find out which one you have before you promise anybody that a rename is safe.</p>
+
+  <p>Second, select the columns you want by name, and let the query tolerate a missing one long enough to say which one it was. The habit worth breaking is removing the columns you do not want, because every new column the owner adds then flows straight into your model. Third and fourth, count the rows and count the nulls, and fail loudly when either looks wrong. All of that fits in one query.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">ShopCapacity, loaded from the library with its own checks</span></div>
+<pre><code><span class="k">let</span>
+    <span class="c">// LibraryFile is the binary your connector returns</span>
+    Book <span class="op">=</span> <span class="k">Excel.Workbook</span>(LibraryFile, <span class="k">null</span>, <span class="k">true</span>),
+    Sheet <span class="op">=</span> Book{[Item <span class="op">=</span> <span class="s">"Capacity"</span>, Kind <span class="op">=</span> <span class="s">"Sheet"</span>]}[Data],
+    Headers <span class="op">=</span> <span class="k">Table.PromoteHeaders</span>(Sheet,
+        [PromoteAllScalars <span class="op">=</span> <span class="k">true</span>]),
+    Wanted <span class="op">=</span> {<span class="s">"StationCode"</span>, <span class="s">"Month"</span>, <span class="s">"Airframe"</span>,
+        <span class="s">"Avionics"</span>, <span class="s">"Engine"</span>, <span class="s">"NDT"</span>},
+    Missing <span class="op">=</span> <span class="k">List.Difference</span>(Wanted,
+        <span class="k">Table.ColumnNames</span>(Headers)),
+    Kept <span class="op">=</span> <span class="k">Table.SelectColumns</span>(Headers, Wanted,
+        MissingField.UseNull),
+    Rows <span class="op">=</span> <span class="k">Table.RowCount</span>(Kept),
+    Blanks <span class="op">=</span> <span class="k">List.Count</span>(<span class="k">List.Select</span>(Kept<span class="col">[StationCode]</span>,
+        <span class="k">each</span> _ <span class="op">=</span> <span class="k">null</span>)),
+    Checked <span class="op">=</span>
+        <span class="k">if</span> <span class="k">List.Count</span>(Missing) <span class="op">&gt;</span> <span class="n">0</span> <span class="k">then</span>
+            <span class="k">error</span> <span class="s">"ShopCapacity is missing: "</span>
+                <span class="op">&amp;</span> <span class="k">Text.Combine</span>(Missing, <span class="s">", "</span>)
+        <span class="k">else</span> <span class="k">if</span> Rows <span class="op">&lt;</span> <span class="n">4</span> <span class="k">then</span>
+            <span class="k">error</span> <span class="s">"ShopCapacity is below the row floor of 4"</span>
+        <span class="k">else</span> <span class="k">if</span> Blanks <span class="op">&gt;</span> <span class="n">0</span> <span class="k">then</span>
+            <span class="k">error</span> <span class="s">"ShopCapacity has a blank StationCode"</span>
+        <span class="k">else</span> Kept
+<span class="k">in</span>
+    Checked</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Sheet</div><div class="linex-v">The tab is addressed by name, so a renamed or duplicated sheet fails right here, before any check of yours gets to speak. That one break carries the connector's message and not your sentence, and there is no tidy way around it.</div></div>
+    <div class="linex-row"><div class="linex-k">Wanted</div><div class="linex-v">The six column names are the contract, written down in one place. Anything the owner adds beyond these six is ignored, so a new working column on the right of his sheet cannot reach your model.</div></div>
+    <div class="linex-row"><div class="linex-k">Missing</div><div class="linex-v"><code>List.Difference</code> gives you the names you asked for that are absent. That turns "the refresh failed" into "the Airframe column is gone", which is the difference between a morning of guessing and a two minute conversation.</div></div>
+    <div class="linex-row"><div class="linex-k">Kept</div><div class="linex-v"><code>Table.SelectColumns</code> with <code>MissingField.UseNull</code> keeps the query alive when a column is absent, so the checks below get their chance to run and report. The default behaviour errors immediately with a much less useful message.</div></div>
+    <div class="linex-row"><div class="linex-k">Rows</div><div class="linex-v">A floor, not an exact count. Meridian's capacity workbook holds seven rows today and gains one every time a station opens a month, so a floor of 4 catches a truncated load without fighting legitimate growth.</div></div>
+    <div class="linex-row"><div class="linex-k">Blanks</div><div class="linex-v">A null station code is how a total row or a stray note at the bottom of the sheet announces itself.</div></div>
+    <div class="linex-row"><div class="linex-k">Checked</div><div class="linex-v">Each branch raises an <code>error</code> with a message that names the problem. A refresh that fails with a sentence you wrote yourself is worth far more than one that fails with a generic connector message.</div></div>
+  </div>
+
+  <p>Go back to that Monday. With this query in place the refresh still fails at 06:10, and it fails with the words "ShopCapacity is missing: Airframe". You read that at 08:00, you walk over, and the resource manager puts the header back in ten seconds. The break itself was never preventable. The morning of guessing was.</p>
+
+  <p>This is the query that produces <code>ShopCapacity</code>. What <a class="xref" href="#ch-05">Chapter 5</a> does next, unpivoting those four trade columns into <code>FactCapacity</code>, assumes it was handed clean input. Checks belong here, at the door, before any reshaping has hidden the problem. One cost is worth knowing while you are standing at that door. A workbook in a document library does not fold. Folding is when Power Query hands your filters back to the source and lets the source do the work. A file cannot do that, so every refresh pulls the whole workbook across and Power Query filters afterwards. Seven rows costs nothing. A forty tab planning workbook that somebody combined at folder level is why a dataset starts timing out with nobody having changed a line of code.</p>
+
+  <p>Fifth, keep a dated snapshot. After the checks pass, write the result somewhere you control, stamped with the date it was read.</p>
+
+  <details class="expand" open>
+    <summary>Why the snapshot earns its keep, and what it costs you</summary>
+    <div class="expand-body">
+      <p>In June the finance manager asks why the March capacity number in his own deck differs from your report. Your report reads the workbook live, so it shows what the workbook says today. The resource manager has since corrected March, which he was right to do. Without a snapshot you cannot show what the number was on the day you published it, and the conversation becomes a question of who remembers better. With a dated snapshot you open the March file and it closes in a minute.</p>
+      <p>The costs are real. You accumulate a file per refresh unless you keep only month end copies, and somebody will eventually ask why there are ninety versions of a capacity workbook in a folder. Snapshots also drift out of agreement with the live source by design, so anybody who finds one and reads it as current will be misled. Name them with the date they were taken, keep them in a folder that says archive on it, and tell one other person they exist.</p>
+    </div>
+  </details>
+
+  <p>Last, agree with the owner that the header row is a contract. One short email does it: the header row of the Capacity sheet is read by a report every morning, so tell me before you change it, and add columns on the right whenever you like. Most owners are glad to be told. Nobody enjoys finding out that a change of theirs broke something two floors away.</p>
+
+  <p>One more mechanical fact about live workbooks. A file that several people edit at once will sometimes be locked or mid-save when your refresh runs, and that failure is genuinely transient. A retry a few minutes later will succeed.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Treating a scheduled retry as the fix for every refresh failure. A retry clears the lock failures, which is why it feels like it works. It does nothing for a structural break, because the renamed column will be exactly as renamed on the second attempt. What the retry actually buys you is silence: the alert stops arriving, the dataset keeps serving whatever it last loaded successfully, and the report goes quietly stale until somebody notices a number that has not moved for nine days.</p>
+  </aside>
+
+  <h3>5. When the source system changes</h3>
+
+  <p>You hear it in a corridor. The maintenance and engineering system is being replaced in the spring, the project has been running for eight months, and nobody told the reporting team because nobody thinks of reporting as a consumer of the system. This section stays vendor neutral on purpose. Every migration moves the same five things, whatever the products involved.</p>
+
+  <dl class="defs">
+    <dt>Identifier formats and lengths</dt>
+    <dd>WO-1001 becomes a longer key, or gains a prefix, or picks up leading zeros, or keeps its old identifier in a legacy field that only some extracts carry. Every join you own is keyed on one of these.</dd>
+    <dt>Code lists</dt>
+    <dd>Station codes, trade codes, check types, crew codes. The new system arrives with its own lists, somebody maps old to new by hand once during the migration, and that mapping is then never looked at again.</dd>
+    <dt>The grain at which labour is booked</dt>
+    <dd>One row per technician per work order per day can become one row per clock-in against a task card. The row count multiplies, the total hours do not, and every measure that counts rows instead of summing hours changes meaning overnight.</dd>
+    <dt>Status value names</dt>
+    <dd>Closed becomes Complete. A new intermediate status appears that nobody mentions, because it was obvious to the people who chose it. Any measure filtering on a status string now filters on a value that no longer exists, and it returns zero without complaining.</dd>
+    <dt>The meaning of date fields</dt>
+    <dd>This is the one that ruins a week. If the new system stamps a created date on every record as it loads, every migrated work order gets the cutover date, the day the new system took over, and your work orders by month chart shows the entire history landing in a single month.</dd>
+  </dl>
+
+  <p>You cannot stop any of that. You can arrive already holding the evidence, which moves you from complaining to reconciling. Work through this list before the cutover date.</p>
+
+  <ol class="steps">
+    <li>Inventory every hand maintained mapping table you own. List its name, its keys, its row count and who reviews it. Meridian has exactly one: <code>CrewCodeMap</code>, six rows, keyed on <code>CrewCode</code>, reviewed by nobody. Yours will have more than you expect.</li>
+    <li>Snapshot your headline numbers for a closed period and store them outside the model, in a file the migration cannot touch. For Meridian's quarter that is achieved 62.0, available 57.0, projected 63.5, submitted 63.0, capacity 176 and a work order count of 8. They are worthless if you take them the week after go-live.</li>
+    <li>Write the orphan check and the unmapped check now, and run them against the old system so you know today's baseline. An orphan is a key on a fact row that matches no row in its dimension, for example a labour row pointing at a work order that the header table has never heard of. Meridian's baseline is four known breaks: WO-1009 on parts, TECH-07 on labour, N338WA on work orders and CRW-XX9 on crew. A break you already knew about is not a migration problem, and you can only say that if you wrote it down first.</li>
+    <li>Ask whether history is migrated or only open work. If only open work moves, your year on year comparison needs the old extract preserved somewhere readable, and somebody has to agree to keep it available.</li>
+    <li>Ask which system is the source of truth during the parallel run, and until what date. Get the answer in writing, because during a parallel run both systems produce a defensible number for the same month and you will be asked to publish one of them.</li>
+    <li>Ask for the new code lists in advance and compare them against the ones you hold. Every code in the old list and missing from the new one is a row your mapping table will fail to match on day one.</li>
+    <li>Confirm the labour booking grain in writing, with one example row. One sentence: one row per what, per what, per what. If nobody can produce that sentence, the project has not decided yet, and you have found that out early.</li>
+    <li>Confirm what every date column means in the new system, field by field. Take your own list of date columns to the meeting as the agenda, because a general question gets a general answer and a column by column question gets facts.</li>
+    <li>Get a test extract at real volumes and point a copy of your model at it. A hundred row sample tells you nothing about whether a key format change breaks a join at scale.</li>
+    <li>Agree who tells you when a code list changes, and get a person's name for it. A team has no memory. A person does.</li>
+    <li>Freeze your own report changes across the cutover window. When a number moves you want exactly one candidate explanation.</li>
+  </ol>
+
+  <p>Then in the first week after go-live, in this order.</p>
+
+  <ol class="list">
+    <li>Re-run the snapshot for the same closed period and reconcile it against the numbers you stored. Grand totals first, then by month, then by service line.</li>
+    <li>Look at every blank member in every dimension. A new blank is almost always a new key format arriving somewhere you did not expect.</li>
+    <li>Compare row counts by month against the old system. A row count that doubles while the hours stay put is the labour grain change, and it will otherwise be reported to you as the report counting things twice.</li>
+    <li>Check your mapping tables before anything else when a number looks wrong. New codes land there first and they land silently.</li>
+    <li>Keep the old model, with its scheduled refresh switched off, until the reconciliation is signed off by somebody other than you. Deleting it early is a decision you cannot reverse.</li>
+  </ol>
+
+  <p>Back to the corridor. You cannot stop the replacement, and nobody was ever going to consult you about it. What you can do that same afternoon is step 2: write achieved 62.0, available 57.0, projected 63.5, submitted 63.0, capacity 176 and eight work orders into a file the project cannot reach. Six months later, when somebody says the numbers have moved, that file is the difference between an investigation and an argument.</p>
+
+  <h3>6. A short checklist for taking over a reporting workload</h3>
+
+  <p>Three weeks in, the planner asks what your report means by attended hours. You do not know. The person who built the measure has left, nothing was written down, and the number goes to the customer on Friday. Four habits stop that happening. They carry more weight than any technique in this document, and all four are cheap to start now.</p>
+
+  <ol class="steps">
+    <li>Name the grain of every table in one sentence and put that sentence in the table description inside the model. One row per technician per work order per day. One row per work order per trade. One row per work order per revision. When you cannot write the sentence, you do not yet understand the table, and every measure you build on it is a guess that happens to be right.</li>
+    <li>Write down the definition of every ambiguous word and get it agreed in writing. Available, projected, achieved, attended, achievable, demand, submitted, capacity. In Meridian's quarter those eight words carry 57.0, 63.5, 62.0, 109.0, 87.72, 75.0, 63.0 and 176. Eight words, eight different numbers, every one correct in its own frame. Put each definition in the measure description so it travels with the model.</li>
+    <li>Build the data quality checks before you build the dashboards. An orphan count per fact table, a null key count, a row count by month, and a coverage count for every mapping table you own. They take an afternoon, nobody will ask you for them, and they are how you hear about a break before the production controller hears about it from a wrong number in a meeting.</li>
+    <li>Find the one person per source system who will tell you when something changes, and write their name next to that source in your documentation. One human being, with a name you could ring. Check every six months whether they still do that job, because the day they move on is the day your model starts ageing without you knowing.</li>
+  </ol>
+
+  <p>Habit 2 is the planner's answer, written down before he asks. Attended hours are the 109.0 hours in <code>CrewRoster</code>: rostered and paid, before any productivity factor is applied. That sentence lives in the measure description, so next time he can read it himself and the two of you never have that conversation again.</p>
+
+  <p>Meridian's eight work orders were built so that every one of those habits has something to catch. A blank station code, an orphaned registration, a trailing space in a key, a forecast table that must never be summed, a crew code with no mapping row, and two achieved numbers for heavy work in January that differ by one hour and are both official. Your shop has all of these. It has more rows, better systems and worse documentation, and the same faults are sitting in there waiting for somebody to name them. Name them first, in writing, and the rest of the job is modelling.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Meridian is fictional so its data is unambiguously invented and safe to share. Table E.1 is the bridge from its vocabulary to your own, and the middle column lists what you are likely to hear. Your own shop's word wins every time.</li>
+      <li>Four service lines: Heavy 38.0, Cabin and IFE 10.0, Light 9.0 and Line 5.0 achieved hours, totalling 62.0. Base is 38.0 plus 10.0, which is 48.0. Non-base is 9.0 plus 5.0, which is 14.0.</li>
+      <li>Base and non-base is a second grouping over one dimension, so it is a second column on <code>DimServiceLine</code>, surfaced with a hierarchy or a field parameter. A second table gives you two definitions of base maintenance and two reports that will one day disagree by exactly the cabin hours.</li>
+      <li>When the service line has to be derived from a crew code, build a real mapping table, merge it in Power Query, and give the unmatched case a visible label. CRW-XX9 parks 10.0 of Meridian's 62.0 hours in a service line that does not exist.</li>
+      <li>Route A through the work order and route B through the technician's crew both total 62.0 and disagree on every row. They answer different questions and need different measure names.</li>
+      <li>A live workbook gives you current numbers and a schema you do not control. Select columns by name, check row and null counts, keep dated snapshots, and agree the header row as a contract with its owner. A retry fixes a locked file. A renamed column survives every retry you schedule.</li>
+      <li>Before a migration, snapshot your headline numbers for a closed period, inventory your mapping tables, and get the source of truth for the parallel run decided in writing. Afterwards, reconcile the same period line by line before you delete anything.</li>
+      <li>Name the grain, define the words, build the checks before the dashboards, and know the one person per source system by name.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="21.html"><span class="pn-dir">Previous</span><span class="pn-t">Cheat sheet, measure library and review checklist</span></a><a class="pn" href="F.html"><span class="pn-dir">Next</span><span class="pn-t">Aviation MRO vocabulary for the data analyst</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

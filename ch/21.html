@@ -1,0 +1,1817 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Cheat sheet, measure library and review checklist</title>
+</head>
+<body data-ch="21">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">21</span><span class="tb-title">Cheat sheet, measure library and review checklist</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-21">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 6 . Diagnosis and reference</div>
+    <h2 class="chapter-title"><span class="chapter-num">21</span>Cheat sheet, measure library and review checklist</h2>
+    <p class="chapter-lede">Everything the previous twenty chapters proved, compressed into tables you can read at speed while a report is broken and someone is waiting. Symptom to cause to fix, the complete Meridian measure library, the filter modifiers, and a fifteen point review you run before you publish.</p>
+  </div>
+
+  <p>It is twenty past four. The finance manager needs the month's labour cost for a call at five. The production controller wants to know why the closed work order count moved since Friday. And the report you published on Monday has a blank row in it that nobody can explain. You have forty minutes and no time to reread three chapters.</p>
+
+  <p>That is what this chapter is for. It teaches nothing new. It exists so that you do not have to reread a chapter to remember which modifier keeps a filter and which one throws it away. Read the first table when something is wrong. Read the measure library when you are writing DAX, the formula language Power BI uses for measures, and you want a form already known to return the right number against the Meridian rows. Everything here matches the answer key exactly. If you build the model and a measure returns something different, look at the model first. These definitions are the tested ones.</p>
+
+  <h3>The symptom table</h3>
+
+  <p>Take the blank row first, because that is the one on your screen. Somebody in the meeting pointed at it, asked what it was, and you had nothing to say. Twelve hours of work on N338WA are sitting inside it. Here is how you find that out in under a minute.</p>
+
+  <p>Filter the visual down to the blank member and look at the raw keys behind it. Within seconds you will know which of four things you have: whitespace on one side of a key, a key with no dimension member, a date outside the calendar, or a source column that arrived genuinely empty.</p>
+
+  <p>Order matters in the third column. The first thing to check is the one that splits the possible causes roughly in half, chosen for how fast it rules things out. Work down the column in order.</p>
+
+  <p>Two words in the table are worth pinning down first. Grain is what one row of a table stands for, written as a sentence: one row of FactLabor is one technician on one work order on one day. Semi additive describes a number you may add across some things and never across others. A forecast revision adds across work orders. It must never be added across the revisions of one work order, because each revision replaces the one before it.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 21.1</span> Seventy failure modes from this document, with the first diagnostic step for each.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">What you see</th>
+            <th scope="col">Likely cause</th>
+            <th scope="col">First thing to check</th>
+            <th scope="col">Fix</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>A blank row in a matrix, labelled (Blank)</td>
+            <td>A fact key with no match in the dimension, or a whitespace variant of a real key</td>
+            <td>Filter the visual to the blank member and list the raw fact keys behind it</td>
+            <td>Append the missing key into the dimension, as DimAircraft does for N338WA, or trim the key in Power Query, as FactLabor does for L-505</td>
+          </tr>
+          <tr>
+            <td>Totals do not equal the sum of the visible rows</td>
+            <td>The measure is evaluated once in the total filter context, which is a different calculation from adding the rows up</td>
+            <td>Put the measure in a table grouped by the same column and add the column up by hand</td>
+            <td>Move the row logic inside an iterator such as <code>SUMX</code> over the grouping table, or accept a non additive total and label it</td>
+          </tr>
+          <tr>
+            <td>A slicer does nothing at all</td>
+            <td>The slicer column sits on a table with no relationship path to the fact, or the visual interaction was switched off</td>
+            <td>Select the field in model view and follow the relationship lines to the fact table</td>
+            <td>Point the slicer at the dimension, never at a copy of the column sitting on the fact, and turn the interaction back on</td>
+          </tr>
+          <tr>
+            <td>A slicer does nothing, and a relationship clearly exists</td>
+            <td>The direction runs the wrong way: the fact is on the one side</td>
+            <td>Read the arrow head in model view, then the cardinality badge</td>
+            <td>Filters flow from the one side to the many side. Slice on the dimension, never the reverse</td>
+          </tr>
+          <tr>
+            <td>A measure ignores the page level filter</td>
+            <td><code>REMOVEFILTERS</code> or <code>ALL</code> inside the measure cleared the filter you wanted kept</td>
+            <td>Read the CALCULATE modifiers and note which table each one names</td>
+            <td>Narrow the modifier. Name the table it applies to: <code>REMOVEFILTERS(DimStation)</code>, never a bare <code>REMOVEFILTERS()</code></td>
+          </tr>
+          <tr>
+            <td>Two visuals show different totals for the same thing</td>
+            <td>They use different relationships: one counts on OpenedDate, the other on ClosedDate</td>
+            <td>Compare the two measure definitions and look for <code>USERELATIONSHIP</code></td>
+            <td>Rename both measures so the date role is in the name. Jan is 3 opened and 2 closed, and both are correct</td>
+          </tr>
+          <tr>
+            <td>A number doubles when you add one column</td>
+            <td>The added column comes from across a bridge, so each fact row is counted once per bridge row</td>
+            <td>Remove the column. If the number returns to normal, that column is the fan out</td>
+            <td>Keep the fan out column out of the visual, or switch to an allocation measure that divides before it sums</td>
+          </tr>
+          <tr>
+            <td>Power BI refuses to create a relationship</td>
+            <td>The column you chose for the one side has duplicates or blanks</td>
+            <td>Group the intended key column in Power Query and look for any count above one</td>
+            <td>Build a real dimension of distinct keys. Accept many to many only when you have decided what it costs</td>
+          </tr>
+          <tr>
+            <td>Power BI refuses, and the keys are genuinely unique</td>
+            <td>Data types differ: text on one side, whole number on the other</td>
+            <td>Compare the type icons on both columns</td>
+            <td>Set the type in Power Query on both sides. Changing the type in model view alone does not survive every refresh path</td>
+          </tr>
+          <tr>
+            <td>Power BI creates the relationship but makes it inactive</td>
+            <td>An active path already joins those two tables</td>
+            <td>Look for the dotted line in model view</td>
+            <td>Decide which role is the default and reach the others with <code>USERELATIONSHIP</code>, as the three date roles do</td>
+          </tr>
+          <tr>
+            <td>Percent of total shows 100 percent on every row</td>
+            <td>Numerator and denominator carry the same filter, so the ratio is always one</td>
+            <td>Split the denominator into its own measure and put it in the table next to the numerator</td>
+            <td>Apply the filter modifier to the denominator only</td>
+          </tr>
+          <tr>
+            <td>Percent of total exceeds 100 percent</td>
+            <td>The denominator was restricted more than the numerator, often <code>ALLSELECTED</code> against a cross highlighted visual</td>
+            <td>Show numerator and denominator side by side in a table</td>
+            <td>Match the scope of the two halves. Use the same table in the modifier that you group by</td>
+          </tr>
+          <tr>
+            <td>A measure returns blank for some rows only</td>
+            <td>Those dimension members have no matching fact rows, which is true of N120CE, N553KD and PHX</td>
+            <td>Put a row count of the fact table beside the measure</td>
+            <td>Correct behaviour. Use <code>COALESCE</code> or a "no activity" label if blank confuses the audience</td>
+          </tr>
+          <tr>
+            <td>A date slicer filters the wrong events</td>
+            <td>The active relationship is on OpenedDate while the question is about closures</td>
+            <td>Count work orders by month and compare against the three role play columns</td>
+            <td>Wrap the measure in <code>CALCULATE</code> with <code>USERELATIONSHIP</code> for the role the question needs</td>
+          </tr>
+          <tr class="row-bad">
+            <td>Capacity shows blank on a single day</td>
+            <td>The capacity relationship is at month grain on MonthStart, so only the first of the month matches a day filter</td>
+            <td>Slice to 2025-01-01, then to 2025-01-15, and compare</td>
+            <td>Report capacity at month level, or lift the day filter to month with <code>TREATAS</code> and say in the title that capacity is monthly</td>
+          </tr>
+          <tr>
+            <td>A technician appears twice with the same displayed name</td>
+            <td>A trailing space in one source key created a second member that looks identical</td>
+            <td>Add a character length column on the key, or group by the key and read the counts</td>
+            <td>Trim the key on the fact side in Power Query. This is L-505, and untrimmed it costs TECH-04 4.5 hours</td>
+          </tr>
+          <tr>
+            <td>A certification total is larger than the grand total</td>
+            <td>Technicians hold more than one certification, so the bridge repeats their hours across rows</td>
+            <td>Add a distinct count of technicians to the same visual and compare it with the row count</td>
+            <td>Nothing in the model to fix. Label the total honestly, or allocate hours across certifications held</td>
+          </tr>
+          <tr>
+            <td>The model file is far larger than the source data</td>
+            <td>Auto date and time built a hidden calendar per date column, or a high cardinality text column is stored in full</td>
+            <td>Open the model in a metadata viewer and sort columns by dictionary size</td>
+            <td>Turn auto date and time off, delete unused columns, and split any datetime into date and time parts</td>
+          </tr>
+          <tr>
+            <td>A refresh that took one minute now takes ten</td>
+            <td>A step broke query folding, so the whole source is now pulled and processed locally</td>
+            <td>Right click the last step and see whether View Native Query is greyed out</td>
+            <td>Move the folding breaker to the end of the query, or push the work back to the source</td>
+          </tr>
+          <tr>
+            <td>A measure is right in a table and wrong in a card</td>
+            <td>The card evaluates the measure once in a total context, and the logic only works row by row</td>
+            <td>Rebuild the card value as an iterator over the grouping the table used</td>
+            <td>Use <code>SUMX</code> or <code>AVERAGEX</code> so the total adds the row results together</td>
+          </tr>
+          <tr>
+            <td>A month column will not sort chronologically</td>
+            <td>MonthName is text, and text sorts alphabetically</td>
+            <td>Check the Sort by Column setting on the column</td>
+            <td>Sort MonthName by MonthNo or MonthKey. The sorting column must be single valued for every member</td>
+          </tr>
+          <tr>
+            <td>Time intelligence returns blank everywhere</td>
+            <td>The date table is not marked as a date table, has gaps, or the date column is text</td>
+            <td>Check the marked date table setting, then the minimum, maximum and row count of the date column</td>
+            <td>Build a contiguous calendar. DimDate is 90 rows, 2025-01-01 to 2025-03-31, with no gap and no partial year</td>
+          </tr>
+          <tr>
+            <td>A many to many relationship silently drops rows</td>
+            <td>The key is missing on both sides, and a limited relationship adds no blank member to catch it</td>
+            <td>Count rows on each side for the keys in question</td>
+            <td>Introduce a dimension holding the union of keys from both sides, then use two regular relationships</td>
+          </tr>
+          <tr>
+            <td>A slicer lists members that have no data</td>
+            <td>The dimension holds members with no facts, which is normal for a maintained dimension</td>
+            <td>Put the fact row count beside the member in a table</td>
+            <td>Leave it, or filter the slicer visual by a measure. N120CE, N553KD and PHX are all real and all empty</td>
+          </tr>
+          <tr>
+            <td>A slicer is missing members that clearly have data</td>
+            <td>Fact keys absent from the dimension collapse into the blank row, which reaches the slicer as an unlabelled entry nobody clicks</td>
+            <td>Compare the distinct key count on the fact with the dimension row count</td>
+            <td>Build the dimension from the union of every source. DimAircraft carries 7 rows where the registry supplies 6</td>
+          </tr>
+          <tr>
+            <td>The grand total of a distinct count is smaller than the sum of the rows</td>
+            <td>Distinct counts are not additive across groups</td>
+            <td>Compare distinct technicians per station with the model wide figure of 5</td>
+            <td>Expected. Never let a distinct count total be read as a sum, and say so in the visual header</td>
+          </tr>
+          <tr>
+            <td>A calculated column total does not match the equivalent measure</td>
+            <td>The arithmetic was done at the wrong grain, then summed</td>
+            <td>Compare the column total with <code>SUMX</code> over the line grain fact</td>
+            <td>Move ratio arithmetic into a measure. Row level products such as Hours times HourlyRate are safe either way</td>
+          </tr>
+          <tr>
+            <td>Cost per hour looks wrong at the total but right on every row</td>
+            <td>The total is an average of averages</td>
+            <td>Check whether the measure uses <code>AVERAGE</code> over a per row ratio</td>
+            <td>Divide total cost by total hours with <code>DIVIDE</code>, once, at whatever level the visual asks for</td>
+          </tr>
+          <tr>
+            <td>Values change when you cross highlight another visual</td>
+            <td>Cross filtering is intended, but <code>ALLSELECTED</code> reacts to it differently than <code>REMOVEFILTERS</code></td>
+            <td>Turn edit interactions off for that pair and compare the two numbers</td>
+            <td>Choose deliberately. Share of visible uses <code>ALLSELECTED</code>, share of everything uses <code>REMOVEFILTERS</code></td>
+          </tr>
+          <tr>
+            <td>A blank member appears on a date axis</td>
+            <td>Fact dates fall outside the calendar range, or the date itself is blank</td>
+            <td>Compare the minimum and maximum of the fact date column with the date table</td>
+            <td>Extend the calendar, or exclude blanks in the measure. WO-1004 and WO-1008 have no ClosedDate and never will until they close</td>
+          </tr>
+          <tr>
+            <td>An infinity symbol or a division error</td>
+            <td>A ratio used the division operator with a zero or blank denominator</td>
+            <td>Search the measure for the slash character</td>
+            <td>Use <code>DIVIDE</code>, which returns blank instead of erroring, and accepts an explicit alternate result</td>
+          </tr>
+          <tr>
+            <td>A text filter matches nothing although the value looks correct</td>
+            <td>Leading or trailing whitespace, or a non breaking space, in one of the two values</td>
+            <td>Compare the character length of the two values</td>
+            <td>Trim and clean at load, in Power Query, before any relationship is built on the column</td>
+          </tr>
+          <tr>
+            <td>A measure is right on the desktop and wrong in the service</td>
+            <td>The logic depends on <code>TODAY</code> or <code>NOW</code>, and the service evaluates in Coordinated Universal Time, whatever zone the author sits in</td>
+            <td>Search the measure for relative date logic</td>
+            <td>Anchor the current date to a column set during refresh, or handle the offset explicitly in the query</td>
+          </tr>
+          <tr>
+            <td>Refresh fails with a column not found error</td>
+            <td>The source renamed or removed a column and a hard coded step still names it</td>
+            <td>Open Applied Steps and find the first step that errors, because every step after it inherits the failure</td>
+            <td>Reference columns defensively and add a step that asserts the expected schema early</td>
+          </tr>
+          <tr>
+            <td>Percent shares add up to well over 100 percent</td>
+            <td>The shares are computed across a many to many, so the groups overlap</td>
+            <td>Sum the share column by hand and compare with 100</td>
+            <td>Report member counts instead, or allocate the measure so each fact row is divided before it is counted twice</td>
+          </tr>
+          <tr>
+            <td>Opening a slicer takes several seconds</td>
+            <td>The slicer field has very high cardinality</td>
+            <td>Check the distinct count of the field</td>
+            <td>Slice on a low cardinality attribute such as AircraftType or StationCode, and enable search on anything wider</td>
+          </tr>
+          <tr>
+            <td>A matrix subtotal differs from the same figure in a table visual</td>
+            <td>Subtotals evaluate the measure at the subtotal level rather than summing the children</td>
+            <td>Add the child rows by hand and compare with the subtotal</td>
+            <td>Use <code>ISINSCOPE</code> to decide explicitly what the measure does at each level of the hierarchy</td>
+          </tr>
+          <tr>
+            <td>A correct number changes when you add a second slicer</td>
+            <td>The two slicers reach the fact by different paths and one filters more than you expect</td>
+            <td>Remove one slicer at a time and note which removal restores the number</td>
+            <td>Draw the propagation path from each slicer to the fact and confirm there is exactly one route</td>
+          </tr>
+          <tr class="row-bad">
+            <td>Quoted amount reads 46,600 or 53,600 instead of 38,100</td>
+            <td>A header column was pulled down to line grain, by a merge in Power Query or by <code>RELATED</code> in a calculated column, so it repeats once per line</td>
+            <td>Count the labour lines behind each work order and check whether the overstatement is exactly the repeats</td>
+            <td>Keep <code>QuotedAmount</code> at header grain and sum it from FactWorkOrder. WO-1001 counts 3,000 twice and WO-1003 counts 12,500 twice</td>
+          </tr>
+          <tr>
+            <td>A card total is larger than the sum of the labelled rows in the matrix beside it</td>
+            <td>An orphan on a header to line join. The line has no header, so it carries none of the attributes the matrix groups by and falls into the unlabelled row the engine adds to the header table</td>
+            <td>Subtract the matrix from the card and look for one source line worth the difference</td>
+            <td>Chase the header at source. P-9007 charges 4,900 to WO-1009, a work order the shop floor system never created</td>
+          </tr>
+          <tr>
+            <td>One slicer selection returns blank while the others return numbers</td>
+            <td>A page or report level filter has already excluded everything that selection covers</td>
+            <td>Select the visual and read every card in all three sections of the filter pane, including the ones hidden from the consumer</td>
+            <td>Widen or remove the filter card. On a page filtered to AOG, aircraft on ground, TUS is blank because both TUS work orders are Scheduled and Mod</td>
+          </tr>
+          <tr>
+            <td>The visible slicer reads All and the visual is plainly filtered anyway</td>
+            <td>A slicer on another page is synced to this one and set to invisible here</td>
+            <td>Open View, then Sync slicers, and read the sync box and the visible box for this page</td>
+            <td>Unsync the page, or make the synced slicer visible so the selection sits where the reader can see it</td>
+          </tr>
+          <tr class="row-good">
+            <td>A slicer moves nothing and every number is genuinely identical</td>
+            <td>Nothing is broken. The data is flat across that slicer's members</td>
+            <td>Drag the slicer's field into the visual as a row and see whether it splits into rows with equal values</td>
+            <td>None. MSP is planned at 30 hours in January, February and March, so a month slicer cannot move it and should not</td>
+          </tr>
+          <tr>
+            <td>Two slicers that both say station give different answers, 34.5 and 28.5</td>
+            <td>The same attribute lives on more than one table: the station on the work order, and the technician's home station</td>
+            <td>Hover the field in the field well and read the table name in the tooltip, which is the part the chip leaves out</td>
+            <td>Keep the groupable attribute on one table, hide the fact side key, and rename what survives so the name carries the question</td>
+          </tr>
+          <tr>
+            <td>A measure reports 1,295.00 whatever the work order type slicer is set to</td>
+            <td>A literal predicate inside <code>CALCULATE</code> replaces the filter on that column rather than intersecting with it</td>
+            <td>Search the measure text for a quoted string, then check whether that column is also on a slicer</td>
+            <td>Wrap the predicate in <code>KEEPFILTERS</code>, or delete the measure and let <code>[Labor Cost]</code> answer under the slicer</td>
+          </tr>
+          <tr>
+            <td>A share or a rank never moves, whatever anyone selects</td>
+            <td>It was stored as a calculated column, so it was computed at refresh with no report filter in play</td>
+            <td>Look at the field list icon. A calculated column and a measure do not carry the same one</td>
+            <td>Rewrite it as a measure. A share and a rank describe a set of rows, and a column can only describe its own row</td>
+          </tr>
+          <tr>
+            <td>Every month of a breakdown is blank while the grand total is right</td>
+            <td>The fact's date column carries a time component and DimDate holds midnight, so no row matches a calendar date</td>
+            <td>Compare the minimum and maximum of the fact date with the calendar, then format one value so the time shows</td>
+            <td>Strip the time in Power Query before the relationship exists. Totals agreeing while breakdowns collapse is the signature</td>
+          </tr>
+          <tr>
+            <td>Turn times change after a refresh runs on the gateway</td>
+            <td>The type conversion parsed the dates under a different locale than the machine that authored the step</td>
+            <td>Open the Changed Type step and look for the locale argument. If it is absent, the machine decides</td>
+            <td>Set the locale explicitly, or keep ISO dates at source. Under en-GB, WO-1007 closes on 3 June, its turn time goes from 3 days to 92, and the average of the six moves from 12.0 to 26.8</td>
+          </tr>
+          <tr>
+            <td>Power BI refuses a relationship and says it would introduce ambiguity</td>
+            <td>A second filter path between those tables already exists, usually opened by a bidirectional setting, and only occasionally by a second relationship</td>
+            <td>Trace every route from the dimension to the fact and count them. Two routes is the whole diagnosis</td>
+            <td>Take the bidirectional setting off and put <code>CROSSFILTER</code> in the one measure that needed it. DimStation to DimTechnician is left uncreated for this reason</td>
+          </tr>
+          <tr>
+            <td>A table of technicians adds to 52.0 while the card beside it reads 62.0</td>
+            <td>The visual iterates the dimension, which cannot show fact rows whose key is missing from it</td>
+            <td>Compare the distinct key values on the fact against the dimension list. Two row counts can agree while the sets behind them differ</td>
+            <td>Give the dimension an unknown row. TECH-07 books 10.0 hours on L-506 and is absent from the human resources extract</td>
+          </tr>
+          <tr>
+            <td>Every row of a matrix shows the same number, and that number is the grand total</td>
+            <td>The column on the axis has no filter path to the fact the measure sums, so nothing narrows it</td>
+            <td>Trace from the axis table to the fact and find the hop that runs from the many side to the one side</td>
+            <td><code>CROSSFILTER</code> inside the measure for the bridge case. All four certification rows read 28,245 for parts cost, because no path reaches FactParts at all</td>
+          </tr>
+          <tr>
+            <td>A <code>TREATAS</code> measure returns blank on every row</td>
+            <td>The value list and the target column do not share a domain, or the columns were passed in the wrong order</td>
+            <td>Put both value lists side by side in a table, then count the arguments in order against the columns the source table produced</td>
+            <td>Match the order: station first, month second, on both sides. Nothing warns you, because a match on nothing is a legal result</td>
+          </tr>
+          <tr>
+            <td>The source gained a column and every number on the page stayed the same</td>
+            <td>A step names the columns it handles, so anything new is passed through untouched and never reaches the model</td>
+            <td>Compare the column list on the source against the columns the query names in its steps</td>
+            <td>Unpivot the other columns, so anything new is swept in automatically. Add a fifth trade to ShopCapacity and planned hours stays at 176 without erroring</td>
+          </tr>
+          <tr>
+            <td>A measure is right on its own and wrong as soon as another measure calls it</td>
+            <td>The inner measure pins a relationship or a cross filter direction, and that modifier governs inside its own evaluation</td>
+            <td>Read the measure it calls, then the measures that one calls, and note every <code>USERELATIONSHIP</code> and <code>CROSSFILTER</code> on the way down</td>
+            <td>Treat a measure that pins a date role as pinned. Work Orders Closed is not a building block for anything that needs a different role</td>
+          </tr>
+          <tr>
+            <td>Two tables sit unconnected in model view and a calculated column joins them instead</td>
+            <td><code>LOOKUPVALUE</code> stood in for a relationship somebody could not get to work, and the diagram records nothing about it</td>
+            <td>Search the calculated columns for <code>LOOKUPVALUE</code>, then look at the diagram for the tables it names</td>
+            <td>Build the relationship and use <code>RELATED</code>, or drop the column entirely: filters reach FactParts from DimAircraft through FactWorkOrder on their own</td>
+          </tr>
+          <tr>
+            <td>Every new question needs a new table before it can be answered</td>
+            <td>The model was shaped to fill report pages, so the grain the next question needs was aggregated away before the model saw it</td>
+            <td>Read the table names and then the columns. ExecSummaryData and Page3 describe deliverables, and their columns arrive already summed</td>
+            <td>Model the events at their own grain. FactCapacity at 28 rows answers utilisation and the trade question; a UtilisationPage table answers one of them and stops</td>
+          </tr>
+          <tr class="row-bad">
+            <td>Projected hours read 99.5 against 57.0 planned and 62.0 booked</td>
+            <td>The forecast table was summed. Each revision replaces the one before it rather than adding to it</td>
+            <td>Count the forecast rows for one work order. WO-1001 has two, dated four days apart, and nobody ever expected it to take 27.0 hours</td>
+            <td>Take the latest revision per work order, which totals 63.5. A revision table is semi additive and must never reach a visual as a plain <code>SUM</code></td>
+          </tr>
+          <tr class="row-good">
+            <td>A performance ratio is blank on three work orders and populated on the other five</td>
+            <td>Those work orders have no pre-input pack, so the numerator does not exist. Light maintenance is planned at the aircraft, in the hours before the work starts</td>
+            <td>Put Available Hours beside the ratio and check whether the blank cells are exactly the rows that are blank there too</td>
+            <td>Nothing to fix. WO-1002, WO-1005 and WO-1007 booked 14.0 hours against no plan at all, and an undefined ratio is not zero percent</td>
+          </tr>
+          <tr>
+            <td>A trade sits on the axis of the demand chart and is missing from the capacity chart beside it</td>
+            <td>The trade list was taken from one source. Cabin exists in the pre-input pack and is not one of the four trade columns in the capacity workbook</td>
+            <td>List the distinct trades in each of the two facts. Four in one, five in the other, and the difference is the answer</td>
+            <td>Conform the dimension. DimTrade holds five members, appended from both sources and deduplicated, which is the move that also built DimAircraft and DimStation</td>
+          </tr>
+          <tr>
+            <td>A trade shows 12.0 planned hours and no capacity, so utilisation on that row is blank</td>
+            <td>Demand and supply come from different systems and share only the name of the trade</td>
+            <td>Show the two side by side by trade: 34.0 against 80, 4.0 against 44, 5.0 against 39, 2.0 against 13, and 12.0 against nothing</td>
+            <td>This one sits upstream of the model. Cabin work is planned into a shop whose resource workbook has no cabin trade. Report the blank and take it to the resource manager</td>
+          </tr>
+          <tr>
+            <td>Two reports disagree about the day a check started, and average turn time reads 12.0 in one and 12.17 in the other</td>
+            <td>The control centre records the planned start and the shop floor system records the actual induction. They agree on seven work orders out of eight</td>
+            <td>Put PlannedStart and OpenedDate side by side and sort by the gap. WO-1003 is planned for 2025-01-13 and opened on 2025-01-14</td>
+            <td>Name one source as the system of record for the start of a check, put the choice in the measure name, and repeat it in the visual title. From the planned start WO-1003 turns in 23 days, and from the actual start it turns in 22</td>
+          </tr>
+          <tr>
+            <td>A service line slicer moves nothing, and service line is nowhere on the work order table</td>
+            <td>ServiceLine and CheckType exist only on the control centre extract, which was loaded beside the model and never joined to anything</td>
+            <td>Read which table the field belongs to in the field list, then find that table in model view and see whether any line leaves it</td>
+            <td>Merge the schedule into FactWorkOrder in Power Query. One row per work order on both sides is a one to one, and a real one to one belongs in the header as extra columns</td>
+          </tr>
+          <tr class="row-bad">
+            <td>The productivity factor reads 78.0 percent on one page and 80.5 percent on another</td>
+            <td>One page averaged the six row factors and the other weighted them by attended hours</td>
+            <td>Put attended hours beside the factor by service line and month. Heavy fills three of the six rows and carries 68.0 of the 109.0 attended hours, and an unweighted average gives all six rows the same say</td>
+            <td>Weight it. Divide achievable hours by attended hours, 87.72 over 109.0, which is 80.5 percent. The simple average is 4.68 over 6, which is 78.0 percent, and it describes a shop where all six rows are the same size</td>
+          </tr>
+          <tr class="row-good">
+            <td>Two reports disagree on hours by service line, 38.0 heavy on one and 28.5 on the other, and both add to 62.0</td>
+            <td>One routes through the work order's service line and the other through the technician's crew. The two answer different questions</td>
+            <td>Put both measures in one table by service line, then look for a technician whose crew disagrees with the work orders he booked to</td>
+            <td>Two questions, two measures, two names. TECH-04 is on the cabin crew and booked 10.5 hours to heavy work orders, so the work says heavy and the crew says cabin and IFE</td>
+          </tr>
+          <tr>
+            <td>Ten hours of booked time sit in an unlabelled service line row</td>
+            <td>A crew code on the roster is missing from the crew map, so no service line ever reaches those timesheet lines</td>
+            <td>List the distinct crew codes assigned to technicians against the codes in the map, and read what appears in the first list only</td>
+            <td>Add the missing code to the map, or label it as unmapped so the hours are visible. TECH-07 sits on CRW-XX9, the map has never held that code, and the map is yours to fix</td>
+          </tr>
+          <tr>
+            <td>The month end total reads 63.0 while the timesheet reads 62.0</td>
+            <td>The department submitted its figure at the cutoff and a late booking was corrected after it</td>
+            <td>Put submitted hours and booked hours side by side by service line and month, then find the single row that differs</td>
+            <td>Keep both, name both, and publish the 1.0 hour as Submission Variance. Heavy January is 27.0 submitted against 26.0 booked, and both figures are defensible</td>
+          </tr>
+          <tr>
+            <td>A productivity factor reads above 100 percent</td>
+            <td>The factor arrived as a whole number, so 88 multiplied where 0.88 was meant, or the ratio was written attended over achievable</td>
+            <td>Work one row by hand. Heavy January is 40.0 attended at a factor of 0.88, so achievable is 35.20 and the ratio comes back to 0.88</td>
+            <td>Store the factor as a fraction between zero and one and assert the column maximum on refresh. Performance Factor above may pass 100 percent honestly. A productivity factor above 100 percent claims people booked more hours than they attended</td>
+          </tr>
+          <tr>
+            <td>A service line is rostered above its demand and misses it anyway</td>
+            <td>The comparison used attended hours, which include every paid minute that never reaches a job card</td>
+            <td>Divide demand by the factor and compare that against attended. Cabin and IFE in February needs 16.18 attended hours to deliver 11.0 and has 15.0</td>
+            <td>Compare demand against achievable hours. Attended hours flatter the roster: 15.0 rostered looks comfortable against 11.0 asked for, and the ceiling those 15.0 hours buy is 10.20</td>
+          </tr>
+          <tr>
+            <td>A service line selection returns blank on every measure on the page</td>
+            <td>The slicer is pointed at a ServiceLine column that lives on one of the planning facts, so it filters that fact and reaches nothing else</td>
+            <td>Hover the field in the field well and read the table name, then follow the lines out of that table in model view</td>
+            <td>Slice on DimServiceLine, which sits on the one side of demand, roster, factor and submission. Blank on one measure alone is a different thing: RPODemand holds six service line and month rows, so light in February was never asked for</td>
+          </tr>
+          <tr>
+            <td>A mapping table that worked for months returns blanks after the roster system changed its codes</td>
+            <td>The map is a hand maintained list with no owner, no change control and no test, so a renamed code stops matching in silence</td>
+            <td>Anti join the crew assignments against the map and count what survives. Every surviving row is a code the map has never heard of</td>
+            <td>Put that anti join into the refresh as an error step, so a renamed code fails the refresh instead of moving hours. CRW-XX9 is assigned to a technician and absent from the map, and CRW-LT2 is in the map with nobody on it</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Reaching for the fix column before the check column. Half the entries in this table share a symptom with another entry, and the wrong fix applied confidently is worse than no fix, because it removes the evidence. If a blank row disappears after you switch a relationship to bidirectional, you have not solved anything. You have hidden 12.0 hours of work on N338WA behind a setting nobody will look at again.</p>
+  </aside>
+
+  <h3>The Meridian measure library</h3>
+
+  <p>The finance manager wants one number for the month and does not care how you get it. He asks for the cost of the work. You open the file and find three measures with cost in the name, two of them written by somebody who has left, and the three disagree by thousands. He is waiting.</p>
+
+  <p>That is the situation this library removes. Every measure below is written against the finished model built in <a class="xref" href="#ch-03">Chapter 3</a> and returns the figure stated underneath it. Names are stable across the whole document. Where a measure has a variant that is deliberately wrong, the wrong version stays in the chapter that discusses it. This library carries only the forms that return the right number. Store all of them in a dedicated measures table with no columns, so the field list groups them away from the data.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 940 640" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="386.0" y="20.0" width="160.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="397.0" y="37.0" class="d-t" fill="#1B5A68">DimDate</text><line x1="386.0" y1="46.0" x2="546.0" y2="46.0" stroke="#1B5A68" stroke-width="1"/><text x="397.0" y="58.0" class="d-m" font-weight="600" fill="#1B5A68">Date</text><text x="397.0" y="73.5" class="d-m">MonthStart</text><rect x="26.0" y="168.0" width="168.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="37.0" y="185.0" class="d-t" fill="#1B5A68">DimAircraft</text><line x1="26.0" y1="194.0" x2="194.0" y2="194.0" stroke="#1B5A68" stroke-width="1"/><text x="37.0" y="206.0" class="d-m" font-weight="600" fill="#1B5A68">ACREG</text><text x="37.0" y="221.5" class="d-m">AircraftType</text><rect x="748.0" y="168.0" width="166.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="759.0" y="185.0" class="d-t" fill="#1B5A68">DimStation</text><line x1="748.0" y1="194.0" x2="914.0" y2="194.0" stroke="#1B5A68" stroke-width="1"/><text x="759.0" y="206.0" class="d-m" font-weight="600" fill="#1B5A68">StationCode</text><text x="759.0" y="221.5" class="d-m">StationName</text><rect x="26.0" y="300.0" width="168.0" height="55.5" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="37.0" y="317.0" class="d-t" fill="#1B5A68">DimWOType</text><line x1="26.0" y1="326.0" x2="194.0" y2="326.0" stroke="#1B5A68" stroke-width="1"/><text x="37.0" y="338.0" class="d-m" font-weight="600" fill="#1B5A68">WOType</text><rect x="378.0" y="156.0" width="190.0" height="102.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="389.0" y="173.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="378.0" y1="182.0" x2="568.0" y2="182.0" stroke="#AE4419" stroke-width="1"/><text x="389.0" y="194.0" class="d-m" font-weight="600" fill="#AE4419">WorkOrderID</text><text x="389.0" y="209.5" class="d-m">ACREG</text><text x="389.0" y="225.0" class="d-m">StationCode</text><text x="389.0" y="240.5" class="d-m">OpenedDate</text><rect x="748.0" y="300.0" width="166.0" height="86.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="759.0" y="317.0" class="d-t" fill="#AE4419">FactCapacity</text><line x1="748.0" y1="326.0" x2="914.0" y2="326.0" stroke="#AE4419" stroke-width="1"/><text x="759.0" y="338.0" class="d-m">StationCode</text><text x="759.0" y="353.5" class="d-m">MonthStart</text><text x="759.0" y="369.0" class="d-m">Trade</text><rect x="330.0" y="336.0" width="190.0" height="102.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="341.0" y="353.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="330.0" y1="362.0" x2="520.0" y2="362.0" stroke="#AE4419" stroke-width="1"/><text x="341.0" y="374.0" class="d-m">WorkOrderID</text><text x="341.0" y="389.5" class="d-m">TechnicianID</text><text x="341.0" y="405.0" class="d-m">WorkDate</text><text x="341.0" y="420.5" class="d-m">Hours</text><rect x="552.0" y="336.0" width="176.0" height="86.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="563.0" y="353.0" class="d-t" fill="#AE4419">FactParts</text><line x1="552.0" y1="362.0" x2="728.0" y2="362.0" stroke="#AE4419" stroke-width="1"/><text x="563.0" y="374.0" class="d-m">WorkOrderID</text><text x="563.0" y="389.5" class="d-m">PartNumber</text><text x="563.0" y="405.0" class="d-m">IssueDate</text><rect x="66.0" y="452.0" width="180.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="77.0" y="469.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="66.0" y1="478.0" x2="246.0" y2="478.0" stroke="#1B5A68" stroke-width="1"/><text x="77.0" y="490.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="77.0" y="505.5" class="d-m">EmployeeType</text><rect x="552.0" y="476.0" width="176.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="563.0" y="493.0" class="d-t" fill="#1B5A68">DimPart</text><line x1="552.0" y1="502.0" x2="728.0" y2="502.0" stroke="#1B5A68" stroke-width="1"/><text x="563.0" y="514.0" class="d-m" font-weight="600" fill="#1B5A68">PartNumber</text><text x="563.0" y="529.5" class="d-m">PartCategory</text><rect x="66.0" y="560.0" width="180.0" height="71.0" rx="5" fill="#F5F0DC" stroke="#78641F" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="77.0" y="577.0" class="d-t" fill="#78641F">BridgeTechCert</text><line x1="66.0" y1="586.0" x2="246.0" y2="586.0" stroke="#78641F" stroke-width="1"/><text x="77.0" y="598.0" class="d-m">TechnicianID</text><text x="77.0" y="613.5" class="d-m">CertCode</text><rect x="330.0" y="560.0" width="176.0" height="55.5" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="341.0" y="577.0" class="d-t" fill="#1B5A68">DimCertification</text><line x1="330.0" y1="586.0" x2="506.0" y2="586.0" stroke="#1B5A68" stroke-width="1"/><text x="341.0" y="598.0" class="d-m" font-weight="600" fill="#1B5A68">CertCode</text><line x1="466.0" y1="91.0" x2="473.0" y2="156.0" class="d-line"/><text x="458.7" y="110.4" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="462.4" y="145.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="194.0" y1="192.8" x2="378.0" y2="191.7" class="d-line"/><text x="209.1" y="205.3" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="363.1" y="204.3" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="748.0" y1="192.8" x2="568.0" y2="191.7" class="d-line"/><text x="733.1" y="187.3" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="583.1" y="186.3" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="194.0" y1="316.6" x2="378.0" y2="237.6" class="d-line"/><text x="211.3" y="322.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="367.8" y="255.3" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="831.0" y1="239.0" x2="831.0" y2="300.0" class="d-line"/><text x="822.0" y="257.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="822.0" y="288.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="444.5" y1="258.0" x2="434.5" y2="336.0" class="d-line"/><text x="433.7" y="275.2" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="427.5" y="323.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="530.0" y1="258.0" x2="604.8" y2="336.0" class="d-line"/><text x="533.9" y="278.6" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="587.9" y="334.9" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="246.0" y1="469.8" x2="349.0" y2="438.0" class="d-line"/><text x="263.0" y="477.4" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="337.3" y="454.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="640.0" y1="476.0" x2="640.0" y2="422.5" class="d-line"/><text x="649.0" y="464.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="649.0" y="441.0" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="120.0" y1="523.0" x2="120.0" y2="560.0" class="d-line"/><text x="111.0" y="541.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="111.0" y="548.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="330.0" y1="585.0" x2="246.0" y2="592.0" class="d-line"/><text x="314.3" y="580.7" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="260.2" y="585.2" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><path d="M546.0,55.5 C700,55.5 830,240.0 831.0,300.0" class="d-line" fill="none" stroke-dasharray="5 4"/><text x="600.0" y="96.0" class="d-lbl" fill="#77746B">month grain only, see chapter 16</text><rect x="246.0" y="448.0" width="288.0" height="84.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="260.0" y="470.0" class="d-t" fill="#17160F">Twelve tables</text><text x="260.0" y="490.0" class="d-s">Four facts, seven dimensions, one bridge.</text><text x="260.0" y="506.0" class="d-s">Nine of the twelve do not exist in the source</text><text x="260.0" y="522.0" class="d-s">and are built in Power Query. Dashed edges mark them.</text></svg></div><figcaption><span class="fig-num">Figure 21.1</span>The finished Meridian model. Nine of the twelve tables are built, not sourced.</figcaption></figure>
+
+  <p>This is the model diagram from <a class="xref" href="#ch-03">Chapter 3</a>, repeated here so that you do not have to page back for it. Keep it next to you while you read the library. Every measure below assumes these twelve tables and these joins, with two exceptions. The six heavy maintenance measures reach into three extension tables the figure does not draw, and the eight manpower planning measures after them reach into four more. When a number fails to reproduce, the first question is whether your model has the same shape. Two details in the figure explain most of the awkward measures that follow. The first is the dashed curve running from DimDate across to FactCapacity, labelled month grain only, see chapter 16. The second is the pair of lines that meet at BridgeTechCert along the bottom. One drops into it from DimTechnician above, one arrives from DimCertification to its right, and that meeting point is where a technician's hours get counted once per certification held. The single straight line from DimDate down into FactWorkOrder is the OpenedDate role. The two inactive roles are not drawn at all, because an inactive relationship moves no filter until a measure asks for it.</p>
+
+  <h4>Base measures</h4>
+
+  <p>Seven measures cover the additive quantities in the model. Every other measure in this library is built from these or from the same pattern. If one of these returns the wrong number, stop and fix the model before writing anything else.</p>
+
+  <p>Total hours booked to labour lines.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Hours</span></div>
+    <pre><code>Labor Hours <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">62.0 with no filter. MSP 34.5, TUS 22.5, LAS 5.0. It is additive on every dimension in the model, which is what makes it safe as the base of everything else.</div></div>
+  </div>
+
+  <p>Count of timesheet lines, useful as a denominator and as a sanity check.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Entries</span></div>
+    <pre><code>Labor Entries <span class="op">=</span>
+    <span class="k">COUNTROWS</span> ( <span class="t">FactLabor</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">8. Chosen over <code>COUNT(FactLabor[LaborID])</code> because <code>COUNTROWS</code> counts rows including any with a blank in the column you happened to name, and it does not need a column at all.</div></div>
+  </div>
+
+  <p>Labour cost computed at line grain, then summed.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Cost</span></div>
+    <pre><code>Labor Cost <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="t">FactLabor</span>,
+        <span class="t">FactLabor</span><span class="col">[Hours]</span> <span class="op">*</span> <span class="t">FactLabor</span><span class="col">[HourlyRate]</span>
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">6,326.50. Line by line: 712.50, 660.00, 855.00, 704.00, 495.00, 1,020.00, 1,440.00, 440.00.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>SUMX</code> here. <code>SUM([Hours]) * SUM([HourlyRate])</code> would give 62.0 times 808, which is meaningless. The multiplication has to happen inside the row.</div></div>
+  </div>
+
+  <p>Parts cost including the orphan issue line, which is the honest stores total.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Parts Cost</span></div>
+    <pre><code>Parts Cost <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="t">FactParts</span>,
+        <span class="t">FactParts</span><span class="col">[Qty]</span> <span class="op">*</span> <span class="t">FactParts</span><span class="col">[UnitCost]</span>
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">28,245 across seven issue lines. By category: Brakes 3,720, Hydraulics 7,350, Engine 15,300, Avionics 1,875.</div></div>
+  </div>
+
+  <p>Quoted value of the work, from the work order header.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Quoted Amount</span></div>
+    <pre><code>Quoted Amount <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactWorkOrder</span><span class="col">[QuotedAmount]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">38,100 across eight work orders. Header grain, and as a measure it stays correct in any visual, including one that lists labour lines underneath. What it will not do there is look correct. WO-1001 shows 3,000 against both of its labour rows, so a reader who adds the visible column by hand reaches 46,600 while the total row still reads 38,100.</div></div>
+  </div>
+
+  <p>Work order count at header grain.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Work Order Count</span></div>
+    <pre><code>Work Order Count <span class="op">=</span>
+    <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">8. By opened month: Jan 3, Feb 3, Mar 2. This counts headers, so it never fans out even when the visual also carries a technician.</div></div>
+  </div>
+
+  <p>Planned capacity, summed from the unpivoted capacity fact.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Planned Hours</span></div>
+    <pre><code>Planned Hours <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactCapacity</span><span class="col">[PlannedHours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">176 over 28 rows. By station: MSP 90, TUS 50, LAS 20, PHX 16. By trade: Airframe 80, Avionics 44, Engine 39, NDT 13.</div></div>
+  </div>
+
+  <h4>Cost measures</h4>
+
+  <p>Cost is where the finance manager's three disagreeing numbers come from, and where the orphan in PartsIssued starts to matter. P-9007 charges 4,900 against WO-1009, and WO-1009 does not exist. Two different totals are both defensible. Carry both in the model, under names that say which is which, so that nobody has to guess what a visual is showing. What he gets is <code>Total Cost Attributable</code> at 29,671.50, with <code>Orphan Parts Cost</code> at 4,900 on the page beside it.</p>
+
+  <p>Parts cost restricted to lines that resolve to a real work order.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Parts Cost Attributable</span></div>
+    <pre><code>Parts Cost Attributable <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="k">FILTER</span> (
+            <span class="t">FactParts</span>,
+            <span class="k">NOT</span> <span class="k">ISBLANK</span> (
+                <span class="k">RELATED</span> ( <span class="t">FactWorkOrder</span><span class="col">[WorkOrderID]</span> )
+            )
+        ),
+        <span class="t">FactParts</span><span class="col">[Qty]</span> <span class="op">*</span> <span class="t">FactParts</span><span class="col">[UnitCost]</span>
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">23,345, which is 28,245 less the 4,900 charged to WO-1009.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>RELATED</code> here. A relationship already exists from FactWorkOrder to FactParts, and <code>RELATED</code> follows it directly. <code>LOOKUPVALUE</code> would rescan the header table for every one of the seven lines and would still be wrong the day a work order number repeats.</div></div>
+  </div>
+
+  <p>The cost that fell out of the report, published as a number of its own.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Orphan Parts Cost</span></div>
+    <pre><code>Orphan Parts Cost <span class="op">=</span>
+    <span class="col">[Parts Cost]</span> <span class="op">-</span> <span class="col">[Parts Cost Attributable]</span></code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">4,900. Put this on the data quality page. A number that is visible gets fixed at source. A number hidden inside a difference does not.</div></div>
+  </div>
+
+  <p>Total cost that can be charged against work actually on the books.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Actual Cost</span></div>
+    <pre><code>Actual Cost <span class="op">=</span>
+    <span class="col">[Labor Cost]</span> <span class="op">+</span> <span class="col">[Parts Cost Attributable]</span></code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">29,671.50, which is 6,326.50 plus 23,345. WO-1003 alone accounts for 13,879.00 of it.</div></div>
+    <div class="linex-row"><div class="linex-k">Earlier form</div><div class="linex-v"><a class="xref" href="#ch-10">Chapter 10</a> and <a class="xref" href="#ch-16">Chapter 16</a> wrote this as <code>[Labor Cost] + [Parts Cost]</code>, because neither chapter had built <code>Parts Cost Attributable</code> yet. The two agree on every work order row, since the orphan line belongs to no work order. They differ by 4,900 on the grand total, where the earlier form reads 34,571.50 and this one reads 29,671.50. The library keeps the attributable version so that the total reconciles against the rows above it, and keeps <code>Orphan Parts Cost</code> beside it so that the 4,900 is still reported somewhere.</div></div>
+  </div>
+
+  <p>Quote against actual, positive when the shop kept money.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Quote Variance</span></div>
+    <pre><code>Quote Variance <span class="op">=</span>
+    <span class="col">[Quoted Amount]</span> <span class="op">-</span> <span class="col">[Actual Cost]</span></code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">38,100 less 29,671.50 gives 8,428.50 across the quarter. Two work orders are negative: WO-1002 by 105.00 and WO-1003 by 1,379.00.</div></div>
+    <div class="linex-row"><div class="linex-k">Caution</div><div class="linex-v">WO-1004 and WO-1008 are still open, so their variance of 2,980.00 and 5,000.00 is not profit. Filter to closed work orders before anyone reads this as margin.</div></div>
+  </div>
+
+  <p>The same variance as a proportion of what was quoted.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Quote Variance Pct</span></div>
+    <pre><code>Quote Variance Pct <span class="op">=</span>
+    <span class="k">DIVIDE</span> ( <span class="col">[Quote Variance]</span>, <span class="col">[Quoted Amount]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">8,428.50 divided by 38,100 is 0.2212, so 22.1 percent at the all up level.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>DIVIDE</code> here. A work order with a zero quote makes the slash operator raise an error, and that error propagates through every subtotal above it. <code>DIVIDE</code> returns blank and the visual keeps working.</div></div>
+  </div>
+
+  <h4>Work order measures with role playing dates</h4>
+
+  <p>The production controller has two pages open, built by two different people. One says February had 3 work orders. The other says February had 2. He wants to know which of his colleagues got it wrong. The answer is neither of them.</p>
+
+  <p>DimDate joins FactWorkOrder three times. That arrangement is called a role playing date: one calendar table, serving more than one date column on the same fact. OpenedDate is the active role. PromisedDate and ClosedDate are inactive, meaning they carry no filter until a measure asks for them by name. Each of the three measures below is the same count with a different relationship switched on, which is why they must never be given generic names. February has 3 opened, 2 closed and 3 promised, and the only work order that appears in all three sets is WO-1005. Both of the controller's pages are right. Both are missing one word in the title.</p>
+
+  <p>Work orders opened in the period, using the active relationship.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Work Orders Opened</span></div>
+    <pre><code><span class="c">// The active DimDate[Date] to OpenedDate relationship applies</span>
+Work Orders Opened <span class="op">=</span>
+    <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">Jan 3, Feb 3, Mar 2, total 8. No modifier needed, which is exactly why the default role has to be the one the business asks about most often.</div></div>
+  </div>
+
+  <p>Work orders closed in the period, switching to the inactive ClosedDate join.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Work Orders Closed</span></div>
+    <pre><code>Work Orders Closed <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> ),
+        <span class="k">USERELATIONSHIP</span> (
+            <span class="t">DimDate</span><span class="col">[Date]</span>,
+            <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span>
+        ),
+        <span class="k">NOT</span> <span class="k">ISBLANK</span> ( <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">Jan 2, Feb 2, Mar 2, total 6.</div></div>
+    <div class="linex-row"><div class="linex-k">Why the predicate</div><div class="linex-v">Drop the <code>NOT ISBLANK</code> line and the monthly figures stay right while the total becomes 8. <code>USERELATIONSHIP</code> only changes which relationship a date filter travels down. On a grand total row there is no date filter to travel, so nothing excludes WO-1004 and WO-1008, and the measure quietly counts two work orders that have never closed.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>USERELATIONSHIP</code> here. A second copy of DimDate would also work. Every date slicer, every time intelligence measure and every drill path would then have to be built twice, and users would face two fields called Month.</div></div>
+  </div>
+
+  <p>Work orders promised in the period, which is the commitment view of the same eight work orders.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Work Orders Promised</span></div>
+    <pre><code>Work Orders Promised <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> ),
+        <span class="k">USERELATIONSHIP</span> (
+            <span class="t">DimDate</span><span class="col">[Date]</span>,
+            <span class="t">FactWorkOrder</span><span class="col">[PromisedDate]</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">Jan 2, Feb 3, Mar 3, total 8. Every work order has a promise, including the two that are still open, so this total matches the opened total while the monthly split does not.</div></div>
+  </div>
+
+  <p>Work orders with no close date, at whatever date the report is filtered to.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Open Work Orders</span></div>
+    <pre><code>Open Work Orders <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> ),
+        <span class="k">ISBLANK</span> ( <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">2, being WO-1004 and WO-1008.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v">A boolean predicate inside <code>CALCULATE</code> here. The predicate names one column, so the engine can turn it into a column filter and never materialise the table. <code>FILTER</code> over the whole fact would work on eight rows and would not work on eight million.</div></div>
+  </div>
+
+  <p>The complement, kept as its own measure so that ratios have a stable denominator.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Closed Work Orders</span></div>
+    <pre><code>Closed Work Orders <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> ),
+        <span class="k">NOT</span> <span class="k">ISBLANK</span> ( <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">6. Every on time and turn time measure below divides by this, never by Work Order Count, because an open work order has no turn time to average.</div></div>
+    <div class="linex-row"><div class="linex-k">Not the same as</div><div class="linex-v">Work Orders Closed, above. That one counts work orders whose close date falls inside the selected period. This one counts work orders that have a close date at all, inside whatever the active OpenedDate relationship has already selected. Both read 6 on an unfiltered page. Slice to January and Work Orders Closed returns 2, being WO-1001 and WO-1002, while Closed Work Orders returns 3, being the three January openings that have since closed.</div></div>
+  </div>
+
+  <p>Average days from open to close, closed work orders only.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Avg Turn Time Days</span></div>
+    <pre><code>Avg Turn Time Days <span class="op">=</span>
+    <span class="k">AVERAGEX</span> (
+        <span class="k">FILTER</span> (
+            <span class="t">FactWorkOrder</span>,
+            <span class="k">NOT</span> <span class="k">ISBLANK</span> ( <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> )
+        ),
+        <span class="k">DATEDIFF</span> (
+            <span class="t">FactWorkOrder</span><span class="col">[OpenedDate]</span>,
+            <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span>,
+            <span class="k">DAY</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">12.0 days. The six values are 10, 5, 22, 2, 30 and 3, summing to 72 over six work orders.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>DATEDIFF</code> here. Subtracting one date from the other returns a decimal number that carries any time component along with it, and it gives you no place to state the unit. <code>DATEDIFF</code> forces you to write DAY, which is the thing a reviewer needs to see.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>AVERAGEX</code> here. <code>AVERAGE</code> over a stored turn days column gives the same 12.0. The iterator version keeps the open work orders out of the denominator without needing a second column to hold the exclusion.</div></div>
+  </div>
+
+  <p>Work orders closed on or before the promised date.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">On Time Work Orders</span></div>
+    <pre><code>On Time Work Orders <span class="op">=</span>
+    <span class="k">COUNTROWS</span> (
+        <span class="k">FILTER</span> (
+            <span class="t">FactWorkOrder</span>,
+            <span class="k">NOT</span> <span class="k">ISBLANK</span> ( <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> )
+                <span class="op">&amp;&amp;</span> <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span>
+                    <span class="op">&lt;=</span> <span class="t">FactWorkOrder</span><span class="col">[PromisedDate]</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">3, being WO-1001, WO-1003 and WO-1005.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>FILTER</code> here. The condition compares two columns of the same table, and a boolean predicate inside <code>CALCULATE</code> may reference only one column. This is one of the few places where the iterator is not optional.</div></div>
+  </div>
+
+  <p>On time delivery as a share of work actually completed.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">On Time Pct</span></div>
+    <pre><code>On Time Pct <span class="op">=</span>
+    <span class="k">DIVIDE</span> ( <span class="col">[On Time Work Orders]</span>, <span class="col">[Closed Work Orders]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">3 divided by 6, so 50.0 percent. Against all eight work orders it would read 37.5 percent, which would be a different and less useful claim.</div></div>
+  </div>
+
+  <p>Total days late across the quarter, counting only overruns.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Days Late</span></div>
+    <pre><code>Days Late <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="k">FILTER</span> (
+            <span class="t">FactWorkOrder</span>,
+            <span class="k">NOT</span> <span class="k">ISBLANK</span> ( <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> )
+        ),
+        <span class="k">MAX</span> (
+            <span class="k">DATEDIFF</span> (
+                <span class="t">FactWorkOrder</span><span class="col">[PromisedDate]</span>,
+                <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span>,
+                <span class="k">DAY</span>
+            ),
+            <span class="n">0</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">9 days: WO-1002 by 3, WO-1006 by 5, WO-1007 by 1, and zero for the three that were on time.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v">The two argument form of <code>MAX</code> here. It compares two scalars and reads as a floor, so early deliveries contribute nothing instead of subtracting from the lateness of others. An <code>IF</code> says the same thing in more words.</div></div>
+  </div>
+
+  <p>Closures accumulated from the start of the year, or year to date, which is the one time intelligence measure this model needs. The name carries the abbreviation because that is what a reader scanning a field list expects to see.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Work Orders Closed YTD</span></div>
+    <pre><code>Work Orders Closed YTD <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Work Orders Closed]</span>,
+        <span class="k">DATESYTD</span> ( <span class="t">DimDate</span><span class="col">[Date]</span> )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">Jan 2, Feb 4, Mar 6. The quarter is the whole year in this dataset, so March and the grand total agree at 6.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>DATESYTD</code> rather than <code>TOTALYTD</code>. Both give the same six numbers. <code>DATESYTD</code> returns a table of dates that you hand to <code>CALCULATE</code> yourself. The role swap then sits where you can see it, inside the measure being shifted. <code>TOTALYTD</code> buries it in a wrapper function's second argument.</div></div>
+    <div class="linex-row"><div class="linex-k">Order</div><div class="linex-v">Call the measure, do not inline its definition into a variable here. A variable holding the closed count is resolved before <code>CALCULATE</code> shifts the dates, so the shift would apply to a number that has already been computed and every month would read 2, 2, 2 again.</div></div>
+    <div class="linex-row"><div class="linex-k">Cost</div><div class="linex-v">This returns blank on every row if DimDate is not marked as a date table, or if the calendar has a gap. It gives no error and no warning, which is why the marked date table check sits in the review list below.</div></div>
+  </div>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>Three of the measures above wrap <code>FILTER(FactWorkOrder, ...)</code>. On eight rows that is free. On a fact with tens of millions of rows, <code>FILTER</code> over the table forces a row by row scan with the full row context available. A single column predicate inside <code>CALCULATE</code> can often be pushed down into the storage engine instead. When you migrate these patterns to a real shop floor extract, rewrite anything that filters on one column, and leave the two column comparisons alone because they have no alternative.</p>
+  </aside>
+
+  <h4>Utilisation</h4>
+
+  <p>The planner clicks 15 January on the date slicer and the utilisation card goes blank. She clicks 1 January and it comes back. She has decided the report only works on the first of the month, and that is closer to the truth than she realises.</p>
+
+  <p>Utilisation is the hardest thing in this model, and the DAX is the easy part of it. Labour is recorded per technician per day. Capacity is planned per trade per station per month. The relationship on MonthStart works when the report is filtered to a whole month or coarser. On any single day that is not the first of a month, it returns blank. The measure below papers over that, and you need to know exactly what it is doing before you put it in front of that planner.</p>
+
+  <p>Capacity for whatever months the current date filter touches.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Planned Hours Month Safe</span></div>
+    <pre><code>Planned Hours Month Safe <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">SUM</span> ( <span class="t">FactCapacity</span><span class="col">[PlannedHours]</span> ),
+        <span class="k">REMOVEFILTERS</span> ( <span class="t">DimDate</span> ),
+        <span class="k">TREATAS</span> (
+            <span class="k">VALUES</span> ( <span class="t">DimDate</span><span class="col">[MonthStart]</span> ),
+            <span class="t">FactCapacity</span><span class="col">[MonthStart]</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v"><code>REMOVEFILTERS(DimDate)</code> drops the day level filter that the physical relationship cannot use.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v"><code>TREATAS</code> puts the filter back at month grain. Filter arguments are evaluated in the context outside <code>CALCULATE</code>, so <code>VALUES(DimDate[MonthStart])</code> still sees the original selection and returns 2025-01-01 for any day in January.</div></div>
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">176 unfiltered. MSP January 30, TUS January 25, LAS March 20, PHX March 16.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>TREATAS</code> here. It applies an existing single column table as a filter without scanning the fact, and it does not require the relationship to be usable at day grain. <code>FILTER(ALL(FactCapacity), ...)</code> scans the whole fact to do the same job.</div></div>
+    <div class="linex-row"><div class="linex-k">Cost</div><div class="linex-v">Filter to 2025-01-15 alone and this returns a full month of capacity against one day of labour. There is no honest daily number, because the source has none. Put "capacity is monthly" in the visual title and mean it. The planner's 15 January click now returns a figure, and the title tells her it is a month of capacity standing behind one day of work.</div></div>
+  </div>
+
+  <p>Hours booked against hours planned.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Utilisation Pct</span></div>
+    <pre><code>Utilisation Pct <span class="op">=</span>
+    <span class="k">DIVIDE</span> ( <span class="col">[Labor Hours]</span>, <span class="col">[Planned Hours Month Safe]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">62.0 over 176, so 35.2 percent overall. MSP January 22.5 over 30 is 75.0 percent, TUS January 50.0 percent, MSP February 40.0 percent, TUS February 40.0 percent, LAS March 25.0 percent, MSP March and PHX March both zero.</div></div>
+    <div class="linex-row"><div class="linex-k">Earlier name</div><div class="linex-v"><a class="xref" href="#ch-02">Chapter 2</a> and <a class="xref" href="#ch-07">Chapter 7</a> call this <code>Utilisation</code> and divide by the plain <code>Planned Hours</code>. Every figure above is identical under either denominator, because both read the same 176 planned hours at month grain or coarser. They part company only below month grain, where the plain <code>Planned Hours</code> returns blank for any day that is not the first of a month and <code>Planned Hours Month Safe</code> returns the whole month. <a class="xref" href="#ch-16">Chapter 16</a> sets out four ways to handle that, and this measure is the second of them. That chapter folds the same <code>TREATAS</code> step into <code>Planned Hours</code> itself, keyed on MonthKey instead of MonthStart, and then keeps a guarded <code>Utilisation</code> that refuses to answer below month grain.</div></div>
+  </div>
+
+  <p>Planned hours at station and month combinations where nobody booked any time.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Idle Planned Hours</span></div>
+    <pre><code>Idle Planned Hours <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="k">SUMMARIZE</span> (
+            <span class="t">FactCapacity</span>,
+            <span class="t">DimStation</span><span class="col">[StationCode]</span>,
+            <span class="t">DimDate</span><span class="col">[MonthStart]</span>
+        ),
+        <span class="k">VAR</span> Planned <span class="op">=</span> <span class="col">[Planned Hours]</span>
+        <span class="k">VAR</span> Booked <span class="op">=</span> <span class="col">[Labor Hours]</span>
+        <span class="k">RETURN</span>
+            <span class="k">IF</span> ( Booked <span class="op">=</span> <span class="n">0</span>, Planned, <span class="n">0</span> )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">46 hours: MSP March 30 plus PHX March 16. Both are planned capacity that produced no recorded work.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>SUMMARIZE</code> over columns of DimStation and DimDate here. Grouping on the fact's own columns would give the right list of pairs. The engine then turns the row the iterator is standing on into a filter, a move called context transition, and that filter would reach FactCapacity only. FactLabor would stay unfiltered, because filters do not travel from the many side to the one side.</div></div>
+  </div>
+
+  <h4>Heavy maintenance planning</h4>
+
+  <p>The planner froze a baseline for WO-1003 weeks before the aircraft arrived: 13.0 hours of work. The check was released on 2025-02-05 having taken 12.5. Somewhere in between, production control revised the forecast to 16.5. Three numbers, one work order, and a meeting in which all three people believe theirs is the manhour figure.</p>
+
+  <p>Six measures settle that meeting. Nothing else in the library depends on them, and they depend on three tables the diagram above does not draw, because Meridian sends nine extracts and the diagram covers six. <code>HMCCSchedule</code> is the control board kept by the Heavy Maintenance Control Centre, one row per work order, and it is the only place <code>ServiceLine</code> and <code>CheckType</code> exist at all. Its four service lines are Heavy, Light, Line, and Cabin and IFE, where IFE stands for in-flight entertainment. It is merged into FactWorkOrder in Power Query. One row on each side makes it a one to one, and a one to one is a merge waiting to happen. <code>HeavyPreInput</code> is the pre-input pack, the tab a planner fills in weeks before the aircraft arrives, at one row per work order per trade, loaded as FactPreInput with 8 rows. <code>ManhourForecast</code> is production control's re-forecast, one row per work order per revision, loaded as FactForecast with 8 rows. <a class="xref" href="#ch-B">Chapter B</a> builds all six of these from the source rows and argues for each choice. What follows is the reference copy.</p>
+
+  <p>The three numbers underneath them are available, projected and achieved. Learn those three words, because this section uses them and nothing else. Available is what the pre-input pack said the work should take, frozen at induction so that performance has something stable to be measured against. That is the planner's 13.0. Projected is the current estimate of the final total, revised as findings land. A technician opens a panel, finds corrosion that no routine task card covers, raises a non-routine card, and the number moves. That is production control's 16.5. Each revision supersedes the one before it, so revisions are never added together. Achieved is booked time from the timesheet system, and of the three it is the one that records something that actually happened. That is the shop floor's 12.5. The function that owns the second number is that control centre, HMCC for short. Treat those four letters with more suspicion than you treat AOG, which means the same thing in every shop. Other shops call the identical function production control or the base maintenance control centre, and the line maintenance equivalent is usually MOC, Maintenance Operations Control.</p>
+
+  <p>The planner's frozen baseline, summed from the pre-input pack.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Available Hours</span></div>
+    <pre><code>Available Hours <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactPreInput</span><span class="col">[PlannedHours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">57.0 over eight rows. By work order, WO-1001 13.0, WO-1003 13.0, WO-1004 12.0, WO-1006 10.0 and WO-1008 9.0. By trade, Airframe 34.0, Avionics 4.0, Engine 5.0, Cabin 12.0 and NDT 2.0.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>SUM</code> here, for the same reason Planned Hours uses it. Each row is one trade on one work order, so no row overlaps another and available is fully additive across every dimension in the model. <code>SUMX</code> would add a scan and change nothing.</div></div>
+    <div class="linex-row"><div class="linex-k">Watch the name</div><div class="linex-v"><code>FactPreInput[PlannedHours]</code> and <code>FactCapacity[PlannedHours]</code> are two different columns with one name. The first is demand, what the work needs. The second is supply, what the shop can staff. Utilisation compares them, so rename one of the two in Power Query before somebody drags the wrong field onto a chart and gets a number that looks reasonable.</div></div>
+  </div>
+
+  <p>Booked time, under the name production control reads it in.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Achieved Hours</span></div>
+    <pre><code>Achieved Hours <span class="op">=</span>
+    <span class="col">[Labor Hours]</span></code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">62.0 unfiltered. By service line, Heavy 38.0, Cabin and IFE 10.0, Light 9.0 plus Line 5.0. Restricted to the five work orders that have a pre-input pack it is 48.0, and 48.0 plus 14.0 ties back to the 62.0 that every other measure in this library reports.</div></div>
+    <div class="linex-row"><div class="linex-k">Same measure</div><div class="linex-v"><a class="xref" href="#ch-B">Chapter B</a> writes this out as <code>SUM(FactLabor[Hours])</code>, which is the definition of <code>Labor Hours</code> at the top of this library. Two definitions of one expression is a defect. One definition carrying a second name is fine, and the second name earns its place here. Put Labor Hours in a matrix beside Available Hours and Projected Hours, and the reader takes it for a different kind of number.</div></div>
+  </div>
+
+  <p>The current estimate of the final total, taking the newest revision of each work order and discarding the rest.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Projected Hours</span></div>
+    <pre><code>Projected Hours <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="k">VALUES</span> ( <span class="t">FactForecast</span><span class="col">[WorkOrderID]</span> ),
+        <span class="k">VAR</span> LatestRevision <span class="op">=</span>
+            <span class="k">CALCULATE</span> ( <span class="k">MAX</span> ( <span class="t">FactForecast</span><span class="col">[RevisionDate]</span> ) )
+        <span class="k">RETURN</span>
+            <span class="k">CALCULATE</span> (
+                <span class="k">SUM</span> ( <span class="t">FactForecast</span><span class="col">[ProjectedHours]</span> ),
+                <span class="t">FactForecast</span><span class="col">[RevisionDate]</span> <span class="op">=</span> LatestRevision
+            )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>VALUES</code> returns the work orders visible in the current filter context. Five of them here, because only five work orders were ever forecast.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 4 and 5</div><div class="linex-v">The bare <code>CALCULATE</code> performs a context transition. It turns the work order the iterator is standing on into a filter, so <code>MAX</code> returns the latest revision date for that one work order. An unfiltered <code>MAX</code> would return the latest date in the whole table.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 7 to 10</div><div class="linex-v">The inner <code>CALCULATE</code> keeps the work order and replaces the date filter with the single date found above. One row survives per work order, and <code>SUMX</code> adds the five.</div></div>
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">63.5, being WO-1001 14.0, WO-1003 16.5, WO-1004 12.0, WO-1006 13.5 and WO-1008 7.5. A plain <code>SUM</code> of the same table returns 99.5, which adds superseded revisions to live ones and describes nothing that ever happened.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>MAX</code> of the revision date here. <code>MAX</code> of the projected hours also returns 63.5, because every Meridian revision happens to move upwards, and it fails the first day a controller cuts a forecast after a finding turns out to be cosmetic. A measure that is right for the wrong reason cannot be tested, because the test passes. Filtering on the text Rev 1 is worse again: it loses the three work orders that were never revised, and it sorts Rev 10 ahead of Rev 2 the moment a check runs long.</div></div>
+    <div class="linex-row"><div class="linex-k">Cost</div><div class="linex-v">This is semi additive, so the date selection decides which revision is the latest one, assuming you joined <code>RevisionDate</code> to the calendar. Slice to March and only the two work orders revised in March survive, 13.5 plus 7.5, so the card reads 21.0 and looks like the workload collapsed. That is arguably right, in that it answers what production control thought during March, and arguably wrong on a card labelled Projected Hours. Decide which, then say so on the visual. <a class="xref" href="#ch-16">Chapter 16</a> covers the family.</div></div>
+  </div>
+
+  <p>The planner graded against the shop floor: what the plan said, over what the work took.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Performance Factor</span></div>
+    <pre><code><span class="c">// above 100 percent means the work came in under the</span>
+<span class="c">// frozen plan. Confirm the direction locally.</span>
+Performance Factor <span class="op">=</span>
+    <span class="k">DIVIDE</span> ( <span class="col">[Available Hours]</span>, <span class="col">[Achieved Hours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">94.7 percent across the three closed heavy checks, being 36.0 available over 38.0 achieved. WO-1001 reads 96.3 percent, WO-1003 104.0 percent and WO-1006 83.3 percent.</div></div>
+    <div class="linex-row"><div class="linex-k">Direction</div><div class="linex-v">Plenty of shops invert this and divide achieved by available, so that a figure above 100 percent is bad news rather than good. Neither convention is more correct and both are in use. Ask production control which way they read it, write the answer into the measure description, and never assume the report you inherited used your convention.</div></div>
+    <div class="linex-row"><div class="linex-k">Scope</div><div class="linex-v">Filter to closed heavy checks before anyone sees it. On an unfiltered page it divides 57.0 by 62.0 and reads 91.9 percent, which sets a plan that excludes light maintenance against hours that include it. The number is arithmetically fine and answers no question.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>DIVIDE</code> with no third argument, so a work order with no pre-input pack comes back blank instead of zero. Supply a zero and the three light work orders report a performance factor of zero percent, which reads as a team that achieved nothing against its plan. They had no plan. Those are different statements and only one of them starts an argument you cannot win.</div></div>
+  </div>
+
+  <p>Production control graded instead: what the work took, over what the last forecast said it would take.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Forecast Accuracy</span></div>
+    <pre><code><span class="c">// measured at close. Below 100 percent means the last</span>
+<span class="c">// forecast was too high.</span>
+Forecast Accuracy <span class="op">=</span>
+    <span class="k">DIVIDE</span> ( <span class="col">[Achieved Hours]</span>, <span class="col">[Projected Hours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">86.4 percent across the same three closed checks, being 38.0 achieved over 44.0 projected. WO-1001 reads 96.4 percent, WO-1003 75.8 percent and WO-1006 88.9 percent.</div></div>
+    <div class="linex-row"><div class="linex-k">Read it with the one above</div><div class="linex-v">WO-1003 scores 104.0 percent on performance and 75.8 percent on forecast accuracy. The plan was sound, the check beat it, and the forecast written in between said 16.5 against an eventual 12.5, so it was 4.0 hours too high. That is a forecasting problem, and the pair of measures is what separates it from an execution problem. Either one on its own would have blamed the wrong department. That is the WO-1003 argument settled. The planner's 13.0 was sound, the shop beat it at 12.5, and the 16.5 written in between is the number that needs explaining.</div></div>
+    <div class="linex-row"><div class="linex-k">Scope</div><div class="linex-v">Closed work only. On an open check the numerator is still growing, so the ratio starts near zero and climbs all week, and anybody reading it before the aircraft leaves is reading progress as accuracy.</div></div>
+  </div>
+
+  <p>What the current forecast still expects to be booked on work that has not finished.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Remaining To Go</span></div>
+    <pre><code>Remaining To Go <span class="op">=</span>
+    <span class="k">VAR</span> Forecast <span class="op">=</span> <span class="col">[Projected Hours]</span>
+    <span class="k">VAR</span> Booked <span class="op">=</span> <span class="col">[Achieved Hours]</span>
+    <span class="k">VAR</span> IsOpen <span class="op">=</span>
+        <span class="k">ISBLANK</span> (
+            <span class="k">CALCULATE</span> ( <span class="k">MAX</span> ( <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> ) )
+        )
+    <span class="k">RETURN</span>
+        <span class="k">IF</span> (
+            IsOpen <span class="op">&amp;&amp;</span> <span class="k">NOT</span> <span class="k">ISBLANK</span> ( Forecast ),
+            Forecast <span class="op">-</span> Booked
+        )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 2 and 3</div><div class="linex-v">Evaluate each measure once and hold it. Both are referenced below, and the forecast selection is the expensive one to repeat.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 4 to 7</div><div class="linex-v">A work order with no close date is still in the hangar. <code>ISBLANK</code> of the maximum close date in the current context is true for WO-1004 and WO-1008 and false for the other six.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 9 to 12</div><div class="linex-v">Two guards, and only one of them earns its keep against these eight rows. Drop the open test and closed checks report work still to come: WO-1003 would show 16.5 less 12.5, which is 4.0 hours outstanding on an aircraft released on 2025-02-05. The blank test changes nothing here, because every light work order is already closed and the open test catches it first. Keep it anyway. It is there for the first quarter in which a light job is still in the hangar at the cutoff. A blank forecast less 9.0 booked hours evaluates to minus 9.0, and the card then reports negative work outstanding.</div></div>
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">9.5 hours, being 2.0 on WO-1004 (12.0 less 10.0) and 7.5 on WO-1008 (7.5 less 0.0). Without the guards the same subtraction totals 15.5 across the five forecast work orders, and 6.0 of that belongs to checks that were released weeks ago.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v">An <code>IF</code> with the else branch left out, so the result comes back blank. Zero would put a closed check on the same footing as an open check that is running exactly to forecast, and a production controller reads those two cells very differently at eight in the morning.</div></div>
+  </div>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>None of these words is standardised. Available is planned in one shop, budgeted in the next and sold in a third, and sold is the figure the customer was quoted, which is allowed to differ from the internal estimate on purpose. Projected is also called forecast, or estimate at completion. Achieved is actual, booked, expended or clocked. The same word can mean the frozen baseline in one report and the live forecast in the next, inside the same building. Before you write any of these six measures against a real extract, write down the local definition of each term. Get somebody in production control to agree it in writing. Paste it into the measure description, so that the definition travels with the model instead of living in your head.</p>
+  </aside>
+
+  <h4>Manpower planning</h4>
+
+  <p>The cabin line missed February by one hour. The production controller wants to know why. The shift supervisor says his crew worked every hour it was given, and the planner who set the roster back in January has already moved on to March. All three of them are right, and the eight measures below are how you show that in a meeting instead of arguing about it.</p>
+
+  <p>These measures come from the resource planning side of the shop, which sends its own set of extracts again. The heavy maintenance section above took Meridian from six extracts to nine. Manpower planning sends six more, and five of them stay as tables of their own. <code>RPODemand</code> is what the central resource planning function asked the shop to deliver, at one row per service line per month, six rows and 75.0 hours. <code>CrewRoster</code> is attended hours, meaning hours people are rostered to be present and paid. It sits at the same service line and month grain, six rows and 109.0 hours. <code>ProductivityFactor</code> holds one row per service line, carrying the fraction of attended time that reaches a job card. <code>DeptSubmission</code> is the official month end figure each department reports upward, six rows and 63.0 hours. <code>CrewCodeMap</code> is the crew code to service line mapping you maintain by hand. The sixth file, <code>CrewAssignment</code>, says which crew each technician belongs to, and it merges onto DimTechnician because one row per technician is a one to one. <a class="xref" href="#ch-C">Chapter C</a> builds the planning chain from these rows and <a class="xref" href="#ch-D">Chapter D</a> builds the crew route. What follows is the reference copy.</p>
+
+  <p>The factor is the one number in this chain that people argue about, so read it slowly. Meridian books 0.88 for heavy and 0.68 for line, for light, and for cabin and IFE. Those two values are illustrative and they belong to Meridian. Every shop sets its own and reviews them, and heavy normally runs higher because a hangar crew works a continuous shift on one aircraft while a line crew waits for arrivals. The factor absorbs briefings, tool collection, travel to stand, waiting for access and paperwork. All of that is paid time. None of it lands on a job card.</p>
+
+  <p>What the resource planning function asked the shop to deliver.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Demand Hours</span></div>
+    <pre><code><span class="c">// what the business asked for, before any roster exists</span>
+Demand Hours <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">RPODemand</span><span class="col">[DemandHours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">75.0 over six rows. Heavy 48.0, being 30.0 in January, 14.0 in February and 4.0 in March. Light 10.0, cabin and IFE 11.0, line 6.0.</div></div>
+    <div class="linex-row"><div class="linex-k">Why SUM</div><div class="linex-v">One row per service line per month, and nothing on the row needs multiplying before it is added. <code>SUMX</code> would add a scan and return the same 75.0.</div></div>
+    <div class="linex-row"><div class="linex-k">Cost</div><div class="linex-v">Demand is published for six service line and month combinations only. Filter to light in February and the measure comes back blank, because the planning function asked for no light work that month. Blank there means not asked for. A visual that prints zero instead is making a claim the source never made.</div></div>
+  </div>
+
+  <p>Hours the roster says people will be present and paid for.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Attended Hours</span></div>
+    <pre><code><span class="c">// hours people are rostered to be present and paid</span>
+Attended Hours <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">CrewRoster</span><span class="col">[AttendedHours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">109.0 over six rows. Heavy 68.0, being 40.0, 20.0 and 8.0 across the three months. Light 16.0, cabin and IFE 15.0, line 10.0.</div></div>
+    <div class="linex-row"><div class="linex-k">Why SUM</div><div class="linex-v">The roster already holds hours. Counting technicians and multiplying by a shift length would have to model part shifts, overtime and absence before it agreed with 109.0, and every one of those assumptions would be yours to defend.</div></div>
+    <div class="linex-row"><div class="linex-k">Watch the word</div><div class="linex-v">Attended hours are paid presence. All 109.0 of them are on the payroll and only some of them reach a job card. The distance between those two statements is the next measure.</div></div>
+  </div>
+
+  <p>The ceiling: attended hours multiplied by the productivity factor for that service line.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Achievable Hours</span></div>
+    <pre><code><span class="c">// attended times factor, the real ceiling.  87.72</span>
+Achievable Hours <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="t">CrewRoster</span>,
+        <span class="t">CrewRoster</span><span class="col">[AttendedHours]</span>
+            <span class="op">*</span> <span class="k">RELATED</span> ( <span class="t">ProductivityFactor</span><span class="col">[Factor]</span> )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 3 to 7</div><div class="linex-v"><code>SUMX</code> walks CrewRoster one row at a time. <code>RELATED</code> reads that row's factor from ProductivityFactor, which sits on the one side of a many to one relationship on the service line.</div></div>
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">87.72. Row by row, heavy January is 40.0 times 0.88, which is 35.20. Light January is 16.0 times 0.68, which is 10.88. Heavy February is 20.0 times 0.88, which is 17.60. Cabin February is 15.0 times 0.68, which is 10.20. Line March is 10.0 times 0.68, which is 6.80. Heavy March is 8.0 times 0.88, which is 7.04.</div></div>
+    <div class="linex-row"><div class="linex-k">Why SUMX</div><div class="linex-v">The factor changes with the service line, so the multiplication belongs inside the row. Summing attended hours first and multiplying once picks a single factor for all 109.0 hours, and no such factor exists in this shop.</div></div>
+    <div class="linex-row"><div class="linex-k">Why RELATED</div><div class="linex-v">A relationship already runs from ProductivityFactor down to CrewRoster, and <code>RELATED</code> follows it from the many side. <code>LOOKUPVALUE</code> would rescan the factor table once per roster row to read the same four values.</div></div>
+  </div>
+
+  <p>The weighted ratio of those two, which is the number a planning pack gets wrong most often.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Overall Productivity Factor</span></div>
+    <pre><code><span class="c">// weighted.  87.72 over 109.0 is 80.5 percent</span>
+Overall Productivity Factor <span class="op">=</span>
+    <span class="k">DIVIDE</span> ( <span class="col">[Achievable Hours]</span>, <span class="col">[Attended Hours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">87.72 divided by 109.0 is 0.80477, so 80.5 percent. The same two measures give the ratio for any service line, any month, or the whole quarter, because both halves are recomputed at whatever level the visual asks for.</div></div>
+    <div class="linex-row"><div class="linex-k">The trap</div><div class="linex-v">Put the factor on the roster as a calculated column and average it and you get 4.68 divided by 6, which is 0.78, so 78.0 percent. Every row gets one vote. Heavy carries 68.0 of the 109.0 attended hours and the cabin row carries 15.0, so one vote each is the wrong arithmetic. This is the average of averages error and it is the most common wrong number in a planning pack.</div></div>
+    <div class="linex-row"><div class="linex-k">Why DIVIDE</div><div class="linex-v">The slash operator would error on any service line with no roster hours at all, and that error travels up into every subtotal above it. <code>DIVIDE</code> returns blank and the visual keeps working.</div></div>
+    <div class="linex-row"><div class="linex-k">Earlier name</div><div class="linex-v"><a class="xref" href="#ch-C">Chapter C</a> calls this <code>Productivity Factor</code> and writes both halves out as <code>SUMX</code> expressions. It is the same 80.5 percent. The library puts Overall in the name so that nobody reads it as <code>Performance Factor</code> above, which divides available hours by achieved hours and answers a question about a check rather than about a roster.</div></div>
+  </div>
+
+  <p>Achieved hours are booked time from the timesheet, and that measure is already in this library under heavy maintenance planning, where <code>Achieved Hours</code> reads <code>[Labor Hours]</code> and returns 62.0. The planning chain uses it unchanged. Across the six planning rows it reads heavy January 26.0, light January 9.0, heavy February 12.0, cabin February 10.0, line March 5.0 and heavy March 0.0. Those six add to 62.0, which ties back to every other total in this chapter.</p>
+
+  <p>The other achieved number, and the one the business actually reports.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Submitted Hours</span></div>
+    <pre><code><span class="c">// the official month end figure the department reported</span>
+Submitted Hours <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">DeptSubmission</span><span class="col">[SubmittedHours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">63.0 over six rows. Heavy 39.0, being 27.0, 12.0 and 0.0. Light 9.0, cabin and IFE 10.0, line 5.0.</div></div>
+    <div class="linex-row"><div class="linex-k">Why a second measure</div><div class="linex-v">DeptSubmission and FactLabor measure the same hours on different days. The department submits at the month end cutoff and the timesheet keeps moving afterwards. Both get quoted in the same meeting, so both get a measure and a name that says which one it is.</div></div>
+  </div>
+
+  <p>The gap between the two achieved numbers, published as a number of its own.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Submission Variance</span></div>
+    <pre><code>Submission Variance <span class="op">=</span>
+    <span class="k">VAR</span> Submitted <span class="op">=</span> <span class="col">[Submitted Hours]</span>
+    <span class="k">VAR</span> Booked <span class="op">=</span> <span class="col">[Achieved Hours]</span>
+    <span class="k">RETURN</span>
+        <span class="k">IF</span> (
+            <span class="k">NOT</span> <span class="k">ISBLANK</span> ( Submitted )
+                <span class="op">||</span> <span class="k">NOT</span> <span class="k">ISBLANK</span> ( Booked ),
+            Submitted <span class="op">-</span> Booked
+        )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">1.0 hour across the quarter, all of it on heavy January, where the department submitted 27.0 against 26.0 in the timesheet. One late booking was corrected after the submission cutoff.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 5 to 9</div><div class="linex-v">The guard. On a service line and month where neither figure exists, a bare subtraction returns zero, and a zero variance reads as two systems agreeing. Blank reads as nothing to compare, which is the truth.</div></div>
+    <div class="linex-row"><div class="linex-k">Earlier name</div><div class="linex-v"><a class="xref" href="#ch-D">Chapter D</a> writes the two inputs as <code>Achieved Hours (Submitted)</code> and <code>Achieved Hours (Timesheet)</code>. That is the same pair of sums, under names built to sit next to each other in a field list. Same 1.0 hour.</div></div>
+    <div class="linex-row"><div class="linex-k">Scope</div><div class="linex-v">This belongs on the data quality page beside <code>Orphan Parts Cost</code>. One hour is small, and it is the entire distance between two numbers that both get quoted as the achieved figure for January.</div></div>
+  </div>
+
+  <p>The last pair splits a missed target into the two things that cause it.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Structural Shortfall, Execution Shortfall</span></div>
+    <pre><code><span class="c">// the roster was too small for the demand</span>
+Structural Shortfall <span class="op">=</span>
+    <span class="col">[Demand Hours]</span> <span class="op">-</span> <span class="col">[Achievable Hours]</span>
+
+<span class="c">// the crew did not convert the ceiling it was given</span>
+Execution Shortfall <span class="op">=</span>
+    <span class="col">[Achievable Hours]</span> <span class="op">-</span> <span class="col">[Achieved Hours]</span></code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns, cabin February</div><div class="linex-v">Demand 11.0, achievable 10.20, achieved 10.00. Structural shortfall is 11.0 less 10.20, which is 0.80. Execution shortfall is 10.20 less 10.00, which is 0.20. The two add to the 1.00 hour the line missed against demand, and four fifths of that miss was a rostering decision taken in January.</div></div>
+    <div class="linex-row"><div class="linex-k">Returns, quarter</div><div class="linex-v">Structural shortfall reads 75.0 less 87.72, which is minus 12.72. Execution shortfall reads 87.72 less 62.0, which is 25.72. A negative structural shortfall means the roster gave more ceiling than the demand needed, which it did on five of the six rows.</div></div>
+    <div class="linex-row"><div class="linex-k">Cost</div><div class="linex-v">A grand total nets the rows against each other, so the 0.80 that matters disappears into the minus 12.72. Put this pair on a matrix by service line and month. On a card it says nothing useful.</div></div>
+    <div class="linex-row"><div class="linex-k">Why two measures</div><div class="linex-v">A single variance cannot say which of the two happened, and the two owners are different people. Resource scheduling owns the roster size. The shift supervisor owns the conversion. Give a meeting one number and it will pick an owner by seniority.</div></div>
+    <div class="linex-row"><div class="linex-k">Cost again</div><div class="linex-v">Both measures stand on the factor, so both are worth exactly what the factor is worth. If 0.68 was set three years ago and nobody has looked at it since, structural shortfall is measuring an assumption and calling it a shortfall.</div></div>
+  </div>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Averaging the productivity factor. It is the shortest route to a wrong number in this whole chapter, and it survives review because 78.0 percent and 80.5 percent both look like reasonable answers. Weight it by attended hours every time: divide 87.72 by 109.0, once, at whatever level the visual asks for. That rule already governs cost per hour and utilisation earlier in this library, and it will govern the next ratio anybody asks you for.</p>
+  </aside>
+
+  <details class="expand" open>
+    <summary>The planning chain traced by hand, all six rows</summary>
+    <div class="expand-body">
+      <p>Six rows carry every number in this section. Read each one across: demand is what was asked for, attended is what was rostered, achievable is attended times the factor, achieved is what the timesheet recorded, and submitted is what the department reported at the month end.</p>
+
+      <ul class="list">
+        <li>Heavy, January. Demand 30.0, attended 40.0, factor 0.88, achievable 35.20, achieved 26.0, submitted 27.0. The one row in the quarter where the two achieved numbers disagree.</li>
+        <li>Light, January. Demand 10.0, attended 16.0, factor 0.68, achievable 10.88, achieved 9.0, submitted 9.0.</li>
+        <li>Heavy, February. Demand 14.0, attended 20.0, factor 0.88, achievable 17.60, achieved 12.0, submitted 12.0.</li>
+        <li>Cabin and IFE, February. Demand 11.0, attended 15.0, factor 0.68, achievable 10.20, achieved 10.0, submitted 10.0. The only row where demand sits above achievable.</li>
+        <li>Line, March. Demand 6.0, attended 10.0, factor 0.68, achievable 6.80, achieved 5.0, submitted 5.0.</li>
+        <li>Heavy, March. Demand 4.0, attended 8.0, factor 0.88, achievable 7.04, achieved 0.0, submitted 0.0.</li>
+      </ul>
+
+      <p>Add the columns and you have the five totals the measures return: demand 75.0, attended 109.0, achievable 87.72, achieved 62.0, submitted 63.0. Three headline ratios fall straight out of them. Demand over achievable is 75.0 divided by 87.72, which is 85.5 percent, and it answers whether there was enough capacity for the ask. Achieved over achievable is 62.0 divided by 87.72, which is 70.7 percent, and it answers whether the capacity was used. Achieved over demand is 62.0 divided by 75.0, which is 82.7 percent, and it answers whether the shop delivered what was asked.</p>
+
+      <p>Run the cabin row backwards and the rostering decision turns into a number a planner can act on. Cabin and IFE was asked for 11.0 hours at a factor of 0.68, so the roster had to supply 11.0 divided by 0.68, which is 16.18 attended hours. It supplied 15.0. The line was 1.18 attended hours short before anybody picked up a tool, and 1.18 multiplied by 0.68 brings you back to the 0.80 of structural shortfall the measure reported. Same fact, stated in attended hours instead of achievable hours. Every other row in the quarter was covered: heavy January needed 34.09 against 40.0 rostered, light January 14.71 against 16.0, heavy February 15.91 against 20.0, line March 8.82 against 10.0, and heavy March 4.55 against 8.0.</p>
+    </div>
+  </details>
+
+  <h4>Many to many and the bridge</h4>
+
+  <p>The resourcing manager wants to know how much A&amp;P work the shop did this quarter. You put certification down the rows and labour hours in the values. The four certification rows add to 85.0. The total row underneath them reads 62.0. He asks which figure he should quote, and both of them are correct.</p>
+
+  <p>Certifications are held by technicians, and technicians book hours. A bridge table is what sits between the two: one row per technician per certification held, which is <code>BridgeTechCert</code> in this model. Nothing in the data says which certification was actually used on which job, so any attribution of hours to a certification is an assumption. The first measure below makes that assumption visible. The second counts people instead of hours, which is usually the honest answer. The third allocates, which makes totals reconcile at the cost of inventing a fraction that no timesheet supports.</p>
+
+  <p>Hours belonging to technicians who hold the selected certification.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Hours With Certification</span></div>
+    <pre><code>Hours With Certification <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">CROSSFILTER</span> (
+            <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span>,
+            <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span>,
+            <span class="k">BOTH</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">A&amp;P 39.0, Avionics 10.5, NDT 12.0, Engine Run 23.5. Those four add to 85.0 against a true total of 62.0.</div></div>
+    <div class="linex-row"><div class="linex-k">Earlier name</div><div class="linex-v"><a class="xref" href="#ch-08">Chapter 8</a> and <a class="xref" href="#ch-12">Chapter 12</a> call this measure <code>Hours by Certification</code> and define it identically. <a class="xref" href="#ch-14">Chapter 14</a> calls the same expression <code>Hours Covered Scoped</code>, to sit beside the two other implementations it compares there. The library renames it once more only so that it pairs with <code>Technicians With Certification</code> below. All three are one measure: A&amp;P 39.0, Avionics 10.5, NDT 12.0, Engine Run 23.5, and 62.0 on a total row. <a class="xref" href="#ch-14">Chapter 14</a> and <a class="xref" href="#ch-15">Chapter 15</a> also give <code>TREATAS</code> forms that need no bidirectional hop at all and return the same four row values. Their totals are the thing to watch. <code>Hours Covered Virtual</code> in <a class="xref" href="#ch-14">Chapter 14</a> restricts the total to certified staff and prints 52.0. The <a class="xref" href="#ch-15">Chapter 15</a> version wraps the traversal in <code>ISFILTERED</code>, so its total comes back to 62.0. Both chapters say which they are doing and why.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>CROSSFILTER</code> inside the measure here. Set the relationship to both directions in the model and the double counting spreads across the whole file. Written into the measure, it exists only where a certification is on the axis, and every other measure keeps a single unambiguous filter path.</div></div>
+  </div>
+
+  <p>Technicians holding the selected certification, which is additive in a way hours are not.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Technicians With Certification</span></div>
+    <pre><code>Technicians With Certification <span class="op">=</span>
+    <span class="k">DISTINCTCOUNT</span> ( <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">A&amp;P 3, Avionics 3, NDT 2, Engine Run 2, and 6 with no certification selected. The row values still add to more than 6, because the same people are counted under several certifications, but nobody reads a headcount as a sum without checking.</div></div>
+  </div>
+
+  <p>The overlap, stated as a number so the reader knows how much of the difference is real.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Certification Overlap Hours</span></div>
+    <pre><code>Certification Overlap Hours <span class="op">=</span>
+    <span class="k">VAR</span> AcrossCerts <span class="op">=</span>
+        <span class="k">SUMX</span> (
+            <span class="k">VALUES</span> ( <span class="t">DimCertification</span><span class="col">[CertCode]</span> ),
+            <span class="col">[Hours With Certification]</span>
+        )
+    <span class="k">VAR</span> Covered <span class="op">=</span> <span class="col">[Hours With Certification]</span>
+    <span class="k">RETURN</span>
+        AcrossCerts <span class="op">-</span> Covered</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">85.0 less 62.0, so 23.0 hours of overlap. That figure is the entire distance between a bridge table and a lie, and it is the number to hand the resourcing manager alongside the 85.0.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>VALUES</code> inside the iterator here, so that the overlap responds to a certification slicer. <code>ALL</code> would ignore the slicer entirely. Pick two certifications and the measure reports the overlap between those two, which is the question a resourcing manager actually asks.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v">The subtrahend is <code>[Hours With Certification]</code>. Using <code>[Labor Hours]</code> there looks identical at first, because both read 62.0 on an unfiltered page, and the difference stays invisible until somebody uses the slicer the line above promises. Select A&amp;P and NDT: the iterator adds 39.0 and 12.0 to reach 51.0, and the honest comparison is the 39.0 hours belonging to the four technicians who hold either certification, which leaves 12.0 of overlap. Subtracting a flat 62.0 there would return minus 11.0, and a negative overlap is not a number anyone can act on.</div></div>
+  </div>
+
+  <details class="expand" open>
+    <summary>The allocation variant, and the arithmetic that makes it reconcile</summary>
+    <div class="expand-body">
+      <p>Allocation divides each technician's hours by the number of certifications they hold, then gives each certification its share. Totals reconcile. The individual numbers describe nothing that happened.</p>
+
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Allocated Hours</span></div>
+        <pre><code>Allocated Hours <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="k">CALCULATETABLE</span> (
+            <span class="k">VALUES</span> ( <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span> ),
+            <span class="k">CROSSFILTER</span> (
+                <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span>,
+                <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span>,
+                <span class="k">BOTH</span>
+            )
+        ),
+        <span class="k">VAR</span> CertsHeld <span class="op">=</span>
+            <span class="k">CALCULATE</span> (
+                <span class="k">COUNTROWS</span> ( <span class="t">BridgeTechCert</span> ),
+                <span class="k">REMOVEFILTERS</span> ( <span class="t">DimCertification</span> )
+            )
+        <span class="k">VAR</span> CertsInScope <span class="op">=</span>
+            <span class="k">CALCULATE</span> ( <span class="k">COUNTROWS</span> ( <span class="t">BridgeTechCert</span> ) )
+        <span class="k">VAR</span> HoursForTech <span class="op">=</span> <span class="col">[Labor Hours]</span>
+        <span class="k">RETURN</span>
+            <span class="k">DIVIDE</span> ( HoursForTech <span class="op">*</span> CertsInScope, CertsHeld )
+    )</code></pre>
+      </div>
+
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">Mechanism</div><div class="linex-v">The iterator moves one technician at a time, so <code>[Labor Hours]</code> is that technician's hours through context transition. CertsHeld ignores the certification filter and counts everything the person holds. CertsInScope counts only the certifications on the axis, which is 1 in a normal matrix row.</div></div>
+        <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">A&amp;P 26.0, Avionics 3.5, NDT 6.0, Engine Run 16.5. Those add to 52.0, which is the total for known technicians.</div></div>
+        <div class="linex-row"><div class="linex-k">Earlier form</div><div class="linex-v"><a class="xref" href="#ch-14">Chapter 14</a> calls this <code>Labor Hours Allocated</code> and iterates <code>BridgeTechCert</code> instead of the technician list, with <code>DIVIDE ( TechHours, CertCount )</code> and no CertsInScope factor. It returns the same four figures and the same 52.0. <a class="xref" href="#ch-14">Chapter 14</a> also warns that swapping its bridge iterator for a technician iterator drops the total to 39.0, and that warning applies to the expression written there. This one behaves differently, because CertsInScope puts the multiplier back, so a technician holding three certifications contributes all three thirds on a total row instead of one.</div></div>
+      </div>
+
+      <figure class="tbl">
+        <figcaption><span class="tbl-num">Table 21.2</span> The allocation arithmetic, technician by technician. Hours divided by certifications held.</figcaption>
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr>
+                <th scope="col">Technician</th>
+                <th scope="col" class="num">Hours</th>
+                <th scope="col" class="num">Certs held</th>
+                <th scope="col" class="num">Share each</th>
+                <th scope="col">Goes to</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="key">TECH-01</td><td class="num">12.0</td><td class="num">2</td><td class="num">6.0</td><td>A&amp;P, NDT</td></tr>
+              <tr><td class="key">TECH-02</td><td class="num">16.5</td><td class="num">1</td><td class="num">16.5</td><td>A&amp;P</td></tr>
+              <tr><td class="key">TECH-03</td><td class="num">0</td><td class="num">2</td><td class="num">0</td><td>Avionics, NDT</td></tr>
+              <tr><td class="key">TECH-04</td><td class="num">10.5</td><td class="num">3</td><td class="num">3.5</td><td>A&amp;P, Avionics, Engine Run</td></tr>
+              <tr><td class="key">TECH-05</td><td class="num">13.0</td><td class="num">1</td><td class="num">13.0</td><td>Engine Run</td></tr>
+              <tr><td class="key">TECH-06</td><td class="num">0</td><td class="num">1</td><td class="num">0</td><td>Avionics</td></tr>
+              <tr class="row-bad"><td class="key">TECH-07</td><td class="num">10.0</td><td class="num">0</td><td class="num muted">blank</td><td>Nowhere. No bridge rows, so <code>DIVIDE</code> returns blank</td></tr>
+              <tr class="row-total"><td>Total</td><td class="num">62.0</td><td class="num">10</td><td class="num"></td><td>Allocated total 52.0, being 62.0 less the 10.0 hours that have nowhere to go. A&amp;P 6.0 plus 16.5 plus 3.5 is 26.0. Avionics 3.5. NDT 6.0. Engine Run 3.5 plus 13.0 is 16.5</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+
+      <p>Read the last row carefully before you ship this. The allocated total is 52.0 and the real total is 62.0, because the ten hours booked by the unknown technician TECH-07 have no certifications to be divided between. Allocation always leaks somewhere. Here it leaks exactly where the data quality problem is, which is the one place a leak is tolerable.</p>
+    </div>
+  </details>
+
+  <h4>Percent of total variants</h4>
+
+  <p>The finance manager asks for MSP's share of labour hours. Three percent of total measures are already on the page. One reads 55.6%, one reads 60.5%, and the third moves the moment he touches the station slicer. He wants to know which one is right. All three are.</p>
+
+  <p>Four measures, four different denominators, all built on Labor Hours. Choosing the wrong one is the most common way a correct model produces a wrong report, because every version returns a plausible percentage. Name the denominator in the measure name, and put that name on the visual. Then the answer to his question is whichever measure divides by the thing he meant.</p>
+
+  <p>Share of everything in the model, regardless of any filter on the page.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Pct of All Hours</span></div>
+    <pre><code>Pct of All Hours <span class="op">=</span>
+    <span class="k">DIVIDE</span> (
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">CALCULATE</span> ( <span class="col">[Labor Hours]</span>, <span class="k">REMOVEFILTERS</span> () )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">MSP is 34.5 divided by 62.0, which is 0.5565, so 55.6 percent. It stays 55.6 percent even if the page is filtered to January, which is either exactly what you want or a serious bug.</div></div>
+  </div>
+
+  <p>Share within the station column only, leaving every other filter intact.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Pct of Station</span></div>
+    <pre><code>Pct of Station <span class="op">=</span>
+    <span class="k">DIVIDE</span> (
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">CALCULATE</span> (
+            <span class="col">[Labor Hours]</span>,
+            <span class="k">REMOVEFILTERS</span> ( <span class="t">DimStation</span> )
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">Station shares that respond to a date slicer. In January the denominator is 35.0, where the measure above would use 62.0. MSP January therefore reads 22.5 over 35.0.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>REMOVEFILTERS</code> here. It behaves identically to <code>ALL</code> as a CALCULATE modifier. <code>REMOVEFILTERS</code> cannot be misread as returning a table, which matters when someone else edits your measure at speed.</div></div>
+  </div>
+
+  <p>Share of what the user can currently see, which follows the station slicer but not the row axis.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Pct of Visible Hours</span></div>
+    <pre><code>Pct of Visible Hours <span class="op">=</span>
+    <span class="k">DIVIDE</span> (
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">CALCULATE</span> (
+            <span class="col">[Labor Hours]</span>,
+            <span class="k">ALLSELECTED</span> ( <span class="t">DimStation</span> )
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">Station percentages that always add to 100 within the visual. A column of shares that adds to 100 is taken to be this measure, whichever of the four actually produced it.</div></div>
+    <div class="linex-row"><div class="linex-k">Against Pct of Station</div><div class="linex-v">The two agree until somebody selects a subset of stations. Slice to MSP and TUS and this measure divides MSP by 57.0, the total of what is on screen, so MSP reads 60.5 percent. Pct of Station divides the same 34.5 by 62.0 and reads 55.6 percent, because <code>REMOVEFILTERS</code> throws the selection away instead of restoring it.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>ALLSELECTED(DimStation)</code> here, with the table named. Put months down the rows and stations across the columns. The scoped form releases only the station grouping, so each month row adds to 100 percent. A bare <code>ALLSELECTED()</code> releases the month grouping too, so every cell becomes a share of the whole matrix and only the grand total reaches 100.</div></div>
+  </div>
+
+  <p>Share of the level above, for a matrix with more than one field on the rows.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Pct of Parent</span></div>
+    <pre><code>Pct of Parent <span class="op">=</span>
+    <span class="k">VAR</span> Numerator <span class="op">=</span> <span class="col">[Labor Hours]</span>
+    <span class="k">VAR</span> Denominator <span class="op">=</span>
+        <span class="k">SWITCH</span> (
+            <span class="k">TRUE</span> (),
+            <span class="k">ISINSCOPE</span> ( <span class="t">DimTechnician</span><span class="col">[TechnicianName]</span> ),
+                <span class="k">CALCULATE</span> (
+                    <span class="col">[Labor Hours]</span>,
+                    <span class="k">REMOVEFILTERS</span> ( <span class="t">DimTechnician</span> )
+                ),
+            <span class="k">ISINSCOPE</span> ( <span class="t">DimStation</span><span class="col">[StationCode]</span> ),
+                <span class="k">CALCULATE</span> (
+                    <span class="col">[Labor Hours]</span>,
+                    <span class="k">REMOVEFILTERS</span> ( <span class="t">DimStation</span> )
+                ),
+            <span class="col">[Labor Hours]</span>
+        )
+    <span class="k">RETURN</span>
+        <span class="k">DIVIDE</span> ( Numerator, Denominator )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">On a station then technician matrix, TECH-02 inside MSP reads 16.5 over 34.5. MSP itself reads 34.5 over 62.0. The grand total reads 100 percent.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v"><code>ISINSCOPE</code> rather than <code>HASONEVALUE</code>. <code>HASONEVALUE</code> is true whenever a column happens to be filtered to one member, including by a slicer, so a single station selection would make the measure think it is on the technician level. <code>ISINSCOPE</code> tests grouping, which is the actual question.</div></div>
+    <div class="linex-row"><div class="linex-k">Order</div><div class="linex-v">The <code>SWITCH</code> conditions run deepest level first. Reverse them and every technician row is divided by the station total's parent instead of by the station.</div></div>
+  </div>
+
+  <h4>Data quality measures</h4>
+
+  <p>These belong on a page that only you and the data owner look at. They exist so that a broken source shows up as a number on a screen, weeks before somebody discovers it in a board meeting. Three of them count keys that failed to match, and in a model whose sources agree all three read zero: hours booked to an unknown technician, work orders with no station, and orphan parts lines. None of the three reads zero here. The other two count dimension members that have no facts. That is a legitimate state, and it earns a place on this page anyway, because a figure that has read 2 all quarter and suddenly reads 4 is telling you something changed upstream.</p>
+
+  <p>Hours booked by a technician who is not in the HR extract.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Hours On Unknown Technician</span></div>
+    <pre><code>Hours On Unknown Technician <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Labor Hours]</span>,
+        <span class="t">DimTechnician</span><span class="col">[TechnicianName]</span> <span class="op">=</span> <span class="s">"Unknown technician"</span>
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">10.0 hours, all of them L-506 booked by TECH-07. Known technicians account for 52.0 of the 62.0 total.</div></div>
+  </div>
+
+  <p>Work orders that arrived with no station on them.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Work Orders Without Station</span></div>
+    <pre><code>Work Orders Without Station <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> ),
+        <span class="t">DimStation</span><span class="col">[StationCode]</span> <span class="op">=</span> <span class="s">"UNASSIGNED"</span>
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">1, being WO-1005. It carries 1,875 of parts cost and no labour at all, so it disappears from any station report that filters the blank away instead of mapping it.</div></div>
+  </div>
+
+  <p>Dimension members that have never appeared on a work order.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Aircraft With No Work Orders</span></div>
+    <pre><code>Aircraft With No Work Orders <span class="op">=</span>
+    <span class="k">COUNTROWS</span> (
+        <span class="k">FILTER</span> (
+            <span class="k">VALUES</span> ( <span class="t">DimAircraft</span><span class="col">[ACREG]</span> ),
+            <span class="k">ISBLANK</span> (
+                <span class="k">CALCULATE</span> ( <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> ) )
+            )
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">2, being N120CE and N553KD. Both are legitimate. The registry lists aircraft the shop has not touched this quarter, and a dimension is allowed to be ahead of its facts.</div></div>
+    <div class="linex-row"><div class="linex-k">Choice</div><div class="linex-v">The bare <code>CALCULATE(COUNTROWS(...))</code> is there for context transition. Without it the inner count would ignore the row of the iterator entirely and return 8 every time.</div></div>
+  </div>
+
+  <p>The same test, run against people.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Technicians With No Hours</span></div>
+    <pre><code>Technicians With No Hours <span class="op">=</span>
+    <span class="k">COUNTROWS</span> (
+        <span class="k">FILTER</span> (
+            <span class="k">VALUES</span> ( <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span> ),
+            <span class="k">ISBLANK</span> ( <span class="col">[Labor Hours]</span> )
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">2, being TECH-03 and TECH-06. Both are real staff with no timesheet lines in the quarter, which makes it a question for the roster. The model is behaving correctly.</div></div>
+  </div>
+
+  <p>Parts issue lines that point at a work order number nobody has ever seen.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Orphan Parts Lines</span></div>
+    <pre><code>Orphan Parts Lines <span class="op">=</span>
+    <span class="k">COUNTROWS</span> (
+        <span class="k">FILTER</span> (
+            <span class="t">FactParts</span>,
+            <span class="k">ISBLANK</span> (
+                <span class="k">RELATED</span> ( <span class="t">FactWorkOrder</span><span class="col">[WorkOrderID]</span> )
+            )
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Returns</div><div class="linex-v">1, being P-9007 against WO-1009 for 4,900. One row out of seven, and 4,900 of 28,245 by value, which is 17.3 percent of parts spend.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p>Almost every measure above uses <code>CALCULATE</code> rather than a plain aggregation with a visual level filter. The reason is portability. A visual level filter lives in one visual on one page, cannot be tested or reused, and disappears the moment somebody copies the chart onto a new page. The filter written inside the measure travels with the measure, appears in the definition when a reviewer reads it, and behaves identically in a card, a matrix and an export. The cost is that the filter no longer shows up in the filter pane. A reader who wonders why Closed Work Orders shows 6 while Work Order Count shows 8 has to open the measure to find out. Name measures so that the question does not arise.</p>
+  </div>
+
+  <h3>Filter modifier quick reference</h3>
+
+  <p>Most of these are arguments you pass to <code>CALCULATE</code> to change the filter context instead of adding to it. The last three are table functions and a level test that turn up in the same measures, and the table says where each one belongs. The trap column is the failure each one causes most often in a real report.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 21.3</span> Filter modifiers, what each one does, and how each one goes wrong.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Function</th>
+            <th scope="col">What it does</th>
+            <th scope="col">Typical use</th>
+            <th scope="col">The trap</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>REMOVEFILTERS()</code></td>
+            <td>Clears filters from the named table or column, or from the whole model if given nothing</td>
+            <td>Denominator of a share of everything measure</td>
+            <td>The bare form also clears the date slicer, so a share stays constant while the user thinks they filtered the page</td>
+          </tr>
+          <tr>
+            <td><code>ALL()</code></td>
+            <td>Identical to REMOVEFILTERS as a modifier, and returns a table when used on its own</td>
+            <td>Legacy code and table expressions</td>
+            <td>Reads as "all rows" so people put it in a row filter where it silently returns every row of a fact</td>
+          </tr>
+          <tr>
+            <td><code>ALLEXCEPT()</code></td>
+            <td>Clears every filter on a table except the columns you name</td>
+            <td>Share of a group where the group column must survive</td>
+            <td>It also clears filters that arrive from other tables through relationships, which is rarely what the author expected</td>
+          </tr>
+          <tr>
+            <td><code>ALLSELECTED()</code></td>
+            <td>Restores the filter state the user set outside the visual, ignoring the visual's own row and column grouping</td>
+            <td>Percent of the visible total, so columns add to 100</td>
+            <td>Behaves differently under cross highlighting than under slicing, so two apparently identical pages disagree</td>
+          </tr>
+          <tr>
+            <td><code>ALLNOBLANKROW()</code></td>
+            <td>Clears filters but leaves out the blank row that a broken relationship added</td>
+            <td>Counting real dimension members without counting the orphan bucket</td>
+            <td>Hides the symptom. Against the raw six row registry it reports 6 real tails and quietly stops mentioning N338WA</td>
+          </tr>
+          <tr>
+            <td><code>KEEPFILTERS()</code></td>
+            <td>Intersects your new filter with the existing one instead of replacing it</td>
+            <td>Restricting to AOG work orders without overriding a WOType slicer</td>
+            <td>Leaving it out is the more common error: a plain predicate replaces the user's selection and the number looks fine</td>
+          </tr>
+          <tr>
+            <td><code>USERELATIONSHIP()</code></td>
+            <td>Activates an inactive relationship for this evaluation only</td>
+            <td>Counting on ClosedDate or PromisedDate instead of OpenedDate</td>
+            <td>It needs a relationship that already exists and is inactive. It cannot invent a join, and it silently loses to any measure it does not wrap</td>
+          </tr>
+          <tr>
+            <td><code>CROSSFILTER()</code></td>
+            <td>Changes the direction or cardinality of a relationship for this evaluation</td>
+            <td>Letting a certification filter reach technicians through the bridge</td>
+            <td>Turning it on everywhere by making the model relationship bidirectional creates ambiguity you will meet again in an unrelated visual</td>
+          </tr>
+          <tr>
+            <td><code>TREATAS()</code></td>
+            <td>Applies a table of values as a filter on a column that has no usable relationship</td>
+            <td>Mapping a day level date selection onto month grain capacity</td>
+            <td>Values that do not exist on the target column match nothing, silently. Compare the two domains before you trust the result</td>
+          </tr>
+          <tr>
+            <td><code>VALUES()</code></td>
+            <td>Returns the distinct values of a column in the current filter context, including the blank row</td>
+            <td>Iterating a dimension inside a measure</td>
+            <td>The blank row comes with it, so an iterator over VALUES can evaluate a member that does not exist in the dimension</td>
+          </tr>
+          <tr>
+            <td><code>DISTINCT()</code></td>
+            <td>The same list without the blank row that a broken relationship added</td>
+            <td>Lists shown to users</td>
+            <td>Swapping VALUES for DISTINCT changes a total without changing anything visible in the report</td>
+          </tr>
+          <tr>
+            <td><code>ISINSCOPE()</code></td>
+            <td>Reports whether a column is part of the grouping of the current cell</td>
+            <td>Deciding what a measure does at each level of a matrix</td>
+            <td>Not a filter modifier at all, so it cannot be passed to CALCULATE as an argument. It belongs in an IF or SWITCH</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Asked to explain the difference between <code>ALL</code> and <code>ALLSELECTED</code>, the stock answer is that one ignores filters and the other respects them. That is close enough to be wrong. Both remove filters. The difference is where they get the replacement from: <code>ALL</code> replaces the filter with nothing, and <code>ALLSELECTED</code> replaces it with the filter state that existed before the visual added its own row and column grouping. That is why <code>ALLSELECTED</code> gives 62.0 as a denominator with no slicers applied and 35.0 when January is selected, while <code>ALL</code> gives 62.0 in both cases.</p>
+  </aside>
+
+  <h3>Cardinality and direction quick reference</h3>
+
+  <p>Six settings, and the whole model is built from them. Every one of the sixteen Meridian relationships is many to one and single direction. Two of them, the PromisedDate and ClosedDate date roles, are switched off, and no relationship anywhere in the model filters in both directions.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 21.4</span> Relationship settings, what filters flow, and what each one costs.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Setting</th>
+            <th scope="col">Filter flows</th>
+            <th scope="col">Use it when</th>
+            <th scope="col">What it costs</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-good">
+            <td>Many to one, single</td>
+            <td>From the one side to the many side only</td>
+            <td>Every dimension to fact join, and every header to line join. All sixteen Meridian relationships, fourteen of them active</td>
+            <td>Nothing. This is the default you should have to argue your way out of</td>
+          </tr>
+          <tr>
+            <td>One to many, single</td>
+            <td>The same thing written from the other end</td>
+            <td>When you happened to drag from the dimension. Identical behaviour</td>
+            <td>Only confusion when reading the model as a list</td>
+          </tr>
+          <tr>
+            <td>One to one, single or both</td>
+            <td>Both ways, always, because neither side can fan out</td>
+            <td>Splitting a wide table for security or for column compression</td>
+            <td>If the assumption ever breaks, the refresh fails rather than giving wrong numbers. That is the good failure mode</td>
+          </tr>
+          <tr class="row-bad">
+            <td>Many to many</td>
+            <td>Both ways by default, through a limited relationship</td>
+            <td>Only when you genuinely cannot build a dimension of distinct keys</td>
+            <td>No blank row is added, so rows with keys missing on both sides vanish instead of being caught</td>
+          </tr>
+          <tr>
+            <td>Both directions</td>
+            <td>Dimension filters fact, and fact filters dimension</td>
+            <td>Almost never in the model. Prefer <code>CROSSFILTER</code> inside the one measure that needs it</td>
+            <td>Two paths between the same tables become ambiguous, and Power BI resolves the ambiguity without telling you</td>
+          </tr>
+          <tr>
+            <td>Inactive</td>
+            <td>Nothing, until a measure activates it</td>
+            <td>Role playing dates: PromisedDate and ClosedDate</td>
+            <td>Anyone who writes a measure without <code>USERELATIONSHIP</code> gets the active role and no warning</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h3>Function choice at a glance</h3>
+
+  <p>No function goes into a measure without a reason it beat the obvious alternative, and a reviewer is entitled to ask for that reason on any line. Here are the answers for the functions this library uses to aggregate, iterate and test. The filter modifiers have their own table above and are argued for there.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 21.5</span> Each function in the library, the alternative it was chosen over, and why.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Function</th>
+            <th scope="col">Chosen over</th>
+            <th scope="col">Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>SUM</code></td><td><code>SUMX</code></td><td>The column already holds the value to add. An iterator would add a scan for no gain</td></tr>
+          <tr><td><code>SUMX</code></td><td><code>SUM</code> of two columns multiplied</td><td>Products must be formed inside the row. 62.0 times a rate total is not a cost</td></tr>
+          <tr><td><code>COUNTROWS</code></td><td><code>COUNT</code> on a column</td><td>Counts rows rather than non blank values in one nominated column, so a blank key cannot change the answer</td></tr>
+          <tr><td><code>DISTINCTCOUNT</code></td><td><code>COUNTROWS(VALUES(...))</code></td><td>Same answer in fewer characters. Both include the blank row an unmatched key creates, so reach for <code>DISTINCTCOUNTNOBLANK</code> when that row must not be counted</td></tr>
+          <tr><td><code>CALCULATE</code></td><td>A visual level filter</td><td>The logic travels with the measure, is visible to a reviewer, and behaves the same in every visual type</td></tr>
+          <tr><td><code>CALCULATETABLE</code></td><td><code>FILTER</code> around a table function</td><td>Modifies the filter context before the table is built rather than testing each row after it</td></tr>
+          <tr><td><code>FILTER</code></td><td>A CALCULATE predicate</td><td>Only when the condition compares two columns. A CALCULATE boolean predicate may reference just one</td></tr>
+          <tr><td><code>VALUES</code></td><td><code>ALL</code></td><td>Respects the current filter, so an iterator responds to slicers instead of always covering the whole model</td></tr>
+          <tr><td><code>RELATED</code></td><td><code>LOOKUPVALUE</code></td><td>Follows an existing relationship from the many side. No scan, and it fails loudly if the relationship is removed</td></tr>
+          <tr><td><code>DIVIDE</code></td><td>The slash operator</td><td>Returns blank on a zero denominator instead of an error that poisons every subtotal above it</td></tr>
+          <tr><td><code>DATESYTD</code></td><td><code>TOTALYTD</code></td><td>Returns a table of dates you pass to CALCULATE yourself, so the date role swap stays visible instead of hiding in a wrapper argument</td></tr>
+          <tr><td><code>ALLSELECTED</code></td><td><code>REMOVEFILTERS</code></td><td>Restores the selection the user made outside the visual rather than clearing it, which is what makes a column of shares add to 100</td></tr>
+          <tr><td><code>DATEDIFF</code></td><td>Date subtraction</td><td>Forces an explicit unit and ignores any time component that a datetime column might carry</td></tr>
+          <tr><td><code>AVERAGEX</code></td><td><code>AVERAGE</code></td><td>Lets the row expression exclude the open work orders without a helper column to hold the exclusion</td></tr>
+          <tr><td><code>ISBLANK</code></td><td><code>= BLANK()</code></td><td>Reads as a test rather than an assignment, and it does not treat zero as blank the way a naive comparison can</td></tr>
+          <tr><td><code>ISINSCOPE</code></td><td><code>HASONEVALUE</code></td><td>Tests grouping rather than filtering, so a single member slicer does not make the measure think it is one level deeper</td></tr>
+          <tr><td><code>SWITCH(TRUE())</code></td><td>Nested <code>IF</code></td><td>Level tests read top to bottom in one column, which is how you catch an ordering mistake by eye</td></tr>
+          <tr><td><code>SUMMARIZE</code></td><td><code>ADDCOLUMNS</code> over <code>VALUES</code></td><td>Used for grouping only, never for adding computed columns, which is where SUMMARIZE has its known context problems</td></tr>
+          <tr><td><code>MAX</code>, two arguments</td><td><code>IF</code> with a comparison</td><td>Reads as a floor of zero, and cannot pick up an accidental third branch</td></tr>
+          <tr><td><code>VAR</code> and <code>RETURN</code></td><td>Repeating the expression</td><td>Each variable is evaluated once, in the filter context where it is declared, which is also what makes it debuggable</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h3>Where does this work belong</h3>
+
+  <p>The compact version of the layer table from <a class="xref" href="#ch-04">Chapter 4</a>. If you can only remember one rule, remember this one. Anything that has to appear on an axis, in a slicer or in a sort order must be a column. Anything whose value depends on what the user selected must be a measure.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 21.6</span> Twenty Meridian transformations and their correct layer.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Task</th>
+            <th scope="col">Correct home</th>
+            <th scope="col">Why</th>
+            <th scope="col">What goes wrong elsewhere</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Trim TechnicianID on LaborEntries</td><td>Power Query</td><td>Key hygiene must happen before a relationship uses the key</td><td>Untrimmed, TECH-04 reads 6.0 instead of 10.5</td></tr>
+          <tr><td>Unpivot ShopCapacity</td><td>Power Query</td><td>Reshaping is what M is for: 7 rows by 4 trades gives 28 rows and 176 hours</td><td>A DAX calculated table cannot fold and is rebuilt every refresh</td></tr>
+          <tr><td>Split Certifications to rows</td><td>Power Query</td><td>Produces the 10 row bridge before any relationship exists</td><td>No relationship can join a delimited string</td></tr>
+          <tr><td>Build DimAircraft from two sources</td><td>Power Query</td><td>Append the registry with distinct tails from WorkOrders to get 7 rows</td><td>Without it, 12.0 hours on N338WA sit in a blank row</td></tr>
+          <tr><td>Derive PartCategory from the prefix</td><td>Power Query</td><td>It is a grouping attribute, so it must be a column</td><td>A measure cannot go on an axis, so Engine 15,300 never becomes a bar</td></tr>
+          <tr><td>MonthKey and MonthStart on DimDate</td><td>Power Query</td><td>Needed as a join key and as a sort key, both of which require columns</td><td>Text month names sort alphabetically and no measure can fix that</td></tr>
+          <tr><td>Mark DimDate as a date table</td><td>Model</td><td>Time intelligence needs a contiguous marked calendar</td><td>Every time intelligence function returns blank without explanation</td></tr>
+          <tr><td>Work order turn days</td><td>Power Query</td><td>A property of the row. WO-1006 is 30 days under any filter</td><td>As a measure you cannot bucket or sort by turn days</td></tr>
+          <tr><td>Line cost, Hours times HourlyRate</td><td>Either, default Power Query</td><td>Row level arithmetic on two values that never change</td><td>Genuinely close. Either way the total is 6,326.50</td></tr>
+          <tr><td>Total labor cost</td><td>Measure</td><td>6,326.50 is the total only when nothing is filtered</td><td>A stored total is wrong for every subtotal and gets summed twice</td></tr>
+          <tr><td>Utilisation percentage</td><td>Measure</td><td>A ratio of two aggregates that must be recomputed at every level</td><td>Stored per row, the total becomes an average of averages</td></tr>
+          <tr><td>Fixing a missing StationCode at source</td><td>Source system</td><td>WO-1005 has no station because a form allowed it. Every layer above is a workaround</td><td>You will map blanks to UNASSIGNED forever, and the shop will keep creating them</td></tr>
+          <tr><td>Merge HMCCSchedule into FactWorkOrder</td><td>Power Query</td><td>One row per work order on both sides, so service line and check type become header columns</td><td>Related one to one instead, the model carries two start dates and two authors pick different ones</td></tr>
+          <tr><td>Load HeavyPreInput as its own fact</td><td>Power Query</td><td>Demand at work order and trade grain, which is the grain of nothing else in the model</td><td>Flattened onto the header, WO-1003's 13.0 stops being 8.0 airframe plus 5.0 engine</td></tr>
+          <tr><td>Latest revision per work order on ManhourForecast</td><td>Measure</td><td>Which revision is the latest depends on the dates the report has selected, so it cannot be settled at refresh</td><td>Filtered to the newest row in Power Query, the model can never show what the forecast said mid check</td></tr>
+          <tr><td>Load RPODemand as its own fact</td><td>Power Query</td><td>Demand sits at one row per service line per month, a grain no other table in the model shares</td><td>Flattened onto the roster, demand and attended hours read as one measurement and the 75.0 gets defended by the department that did not produce it</td></tr>
+          <tr><td>Load CrewRoster as its own fact</td><td>Power Query</td><td>Attended hours are supply at the same grain as demand, produced by a different function, so they need their own table</td><td>Joined into one table with demand, any service line rostered without being asked for, or asked for without being rostered, falls out of whichever side the join keeps</td></tr>
+          <tr><td>Load ProductivityFactor as its own table</td><td>Power Query</td><td>The factor is a rate. One row per service line puts it on the one side of the join, where <code>RELATED</code> can read it inside the iterator</td><td>Typed into the measures as 0.88 and 0.68, the next review changes them and every measure that touches achievable hours has to be edited by hand</td></tr>
+          <tr><td>Load DeptSubmission as its own fact</td><td>Power Query</td><td>The official month end figure is a separate measurement from the timesheet, taken on a different day at a coarser grain</td><td>Written over FactLabor, the 1.0 hour between 63.0 and 62.0 vanishes and the reconciliation can never be run again</td></tr>
+          <tr><td>Merge CrewAssignment onto DimTechnician, keep CrewCodeMap</td><td>Power Query</td><td>One row per technician is a one to one, so the crew code belongs on the technician. The map stays a table because the data quality page compares the two code lists</td><td>Written as a nested IF calculated column instead, CRW-XX9 lands in an Other bucket nobody chases, and the person who owns the map cannot review it</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h3>Fifteen point measure review</h3>
+
+  <p>The model level review is in <a class="xref" href="#ch-20">Chapter 20</a>. This one is for the DAX. Run it on every measure before it goes into a report that someone else will read. Run it again on any measure that produced a number a stakeholder questioned. A measure that has been questioned once will be questioned again.</p>
+
+  <ol class="list">
+    <li>Does the name say which date role and which denominator it uses? Work Orders Closed and Work Orders Opened are two measures, never one measure and a bookmark.</li>
+    <li>Does it return the answer key figure with no filters at all? If Labor Hours is not 62.0 on an empty page, nothing downstream is worth checking.</li>
+    <li>Does the total equal the sum of the rows, and if not, do you know precisely why? Certification rows adding to 85.0 against a total of 62.0 is acceptable only when it is labelled.</li>
+    <li>Does every division use <code>DIVIDE</code>? Search the definition for a slash character.</li>
+    <li>Does every ratio divide a sum by a sum, rather than averaging a per row ratio?</li>
+    <li>Is every filter modifier scoped to a named table or column? A bare <code>REMOVEFILTERS()</code> should appear only in a measure whose name contains the words all or model wide.</li>
+    <li>Does the measure survive a date slicer? Set the page to February and check that the number moves in the direction you expect, and by how much.</li>
+    <li>Does it survive a station slicer, a technician slicer, and both at once?</li>
+    <li>Does it behave in a card as well as in a table? A card evaluates once, at the top, with no grouping to lean on.</li>
+    <li>Does it behave at a matrix subtotal? Add the children by hand for one group and compare.</li>
+    <li>Are there any hidden iterators over a whole fact table that could be a single column predicate instead?</li>
+    <li>Does it reference a calculated column that could have been made in Power Query? If so, note the refresh cost and decide deliberately.</li>
+    <li>Does it handle blank inputs the way the audience needs? Blank and zero mean different things, and WO-1008 with no activity is not the same as a work order with zero cost.</li>
+    <li>Is the format string set on the measure itself, so that every visual inherits it? A percentage that only looks like a percentage in one chart will be exported as a raw decimal.</li>
+    <li>Can you explain the measure out loud, in one sentence, without reading the code? If not, split it into two measures and let one call the other.</li>
+  </ol>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Point two of that list catches more defects than the other fourteen combined. Before you write a single measure against a new model, build a table with the four base aggregates and no slicers, and compare it against figures you calculated by hand from the source. It takes ten minutes. Skipping it means every later number you check has two possible explanations, and you will spend a day telling them apart.</p>
+  </aside>
+
+  <h3>What to do next</h3>
+
+  <p>Rebuild the Meridian model from the six raw tables without looking at the answers. Compare every figure against the key in one table. Pay attention to which ones you got wrong, and let the count of them go, because the pattern is what teaches you something. Write the grain of each table into its description field in model view, in the form one row per technician per work order per day. Grain is the one fact about a table that everybody forgets and nobody can reconstruct from a screenshot. Then do the same on a model of your own, with your own data, where you cannot check the answer at the back of the book, and where the missing station code belongs to a person you can go and talk to. This document has covered the modelling core: grain, keys, relationships, filter context, role playing dimensions, many to many, and the diagnosis of each of those when it goes wrong. It has not covered composite models and the mixed storage modes that come with them, user defined aggregations over a large fact, incremental refresh policies and partitioning, row level security beyond the shape of the problem, or calculation groups past the brief treatment in <a class="xref" href="#ch-13">Chapter 13</a>. Those five sit on top of what you have just learned, and each one is a poor idea in a model whose grain and keys are not already correct. When you meet them, you will meet them because a model that works has become too slow or too large, which is a better problem than the one you started with.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Diagnose in the order symptom, cause, check, fix. The check column exists to rule causes out, and applying a fix first destroys the evidence you would need if it was the wrong fix.</li>
+      <li>Every measure in the library is a base aggregate plus a filter change. If you know what Labor Hours returns and what the modifier does, you can predict the result before you run it.</li>
+      <li>Name measures after their denominator and their date role. Pct of All Hours and Pct of Visible Hours differ by one modifier, agree on an unfiltered page, and disagree the moment anybody touches a slicer.</li>
+      <li>Many to one, single direction is the default. Bidirectional filtering belongs in one measure, through <code>CROSSFILTER</code>. Set it in the model and it reaches visuals you have not built yet.</li>
+      <li>62.0 hours, 6,326.50 labour cost, 28,245 parts, 176 planned hours, 8 work orders. Check these four aggregates and the count against a new build before you write anything else.</li>
+      <li>Utilisation at day grain is not available in this data, and no DAX will create it. Say so in the visual title. A measure that stays silent is making a promise the data cannot keep.</li>
+      <li>Demand 75.0, attended 109.0, achievable 87.72, achieved 62.0, submitted 63.0. Five words, five numbers, and the productivity factor is the only bridge between attended and achievable. Weight that factor by attended hours or it reads 78.0 percent instead of 80.5.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="20.html"><span class="pn-dir">Previous</span><span class="pn-t">Anti-patterns and how to recognise them</span></a><a class="pn" href="E.html"><span class="pn-dir">Next</span><span class="pn-t">Your shop, mapped onto this document</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

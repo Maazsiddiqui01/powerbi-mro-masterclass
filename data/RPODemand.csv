@@ -1,0 +1,7 @@
+ServiceLine,Month,DemandHours
+Heavy,2025-01,30.0
+Light,2025-01,10.0
+Heavy,2025-02,14.0
+Cabin and IFE,2025-02,11.0
+Line,2025-03,6.0
+Heavy,2025-03,4.0

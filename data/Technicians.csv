@@ -1,0 +1,7 @@
+TechnicianID,TechnicianName,HomeStation,EmployeeType,Certifications
+TECH-01,R. Okafor,MSP,Staff,A&P; NDT
+TECH-02,M. Halvorsen,MSP,Staff,A&P
+TECH-03,J. Prieto,TUS,Staff,Avionics; NDT
+TECH-04,D. Sandoval,TUS,Contract,A&P; Avionics; Engine Run
+TECH-05,K. Ibrahim,LAS,Staff,Engine Run
+TECH-06,L. Petrov,MSP,Contract,Avionics

@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Calculated column or measure</title>
+</head>
+<body data-ch="10">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">10</span><span class="tb-title">Calculated column or measure</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-10">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 4 . Evaluation context and DAX</div>
+    <h2 class="chapter-title"><span class="chapter-num">10</span>Calculated column or measure</h2>
+    <p class="chapter-lede">After this chapter you will be able to look at any Meridian requirement and decide, before writing code, whether it belongs in a calculated column, a measure, a calculated table or Power Query. You will also be able to name the exact symptom each wrong choice produces, and prove it with the row counts in the model.</p>
+  </div>
+
+  <p class="lead">The finance manager wants one number. What did Meridian quote for the quarter? You put a card on the page and it reads 46,600. She writes it down and it goes on a slide. The true figure is 38,100.</p>
+
+  <p>The card is doing its arithmetic correctly. The mistake was made three weeks earlier, when somebody chose to store a value in a column instead of computing it in a measure. A calculated column and a measure share one formula bar and run on completely different machinery underneath. Most of the reporting bugs that get blamed on DAX come from that choice made wrong. Two failures account for nearly all of them: values that refuse to respond to a slicer, and totals that come out too high. This chapter works through both, and it ends with the 38,100.</p>
+
+  <h3>One difference, and everything else follows from it</h3>
+
+  <p>Start with the calculated column. A calculated column is a new column you add to a table with a DAX formula, and the engine evaluates that formula once per row of the table. The evaluation happens during data refresh, which is the load step that pulls source data into the model. It runs before any report is open and before any user exists. The result is written into the model as a real column. It is encoded and compressed next to the columns that came from the source, and it occupies memory whether a single visual uses it or not. Once refresh finishes, the value is frozen until the next refresh.</p>
+
+  <p>Now the measure. A measure is a DAX formula that returns one value, and the engine evaluates it once per cell, at query time. Nothing is stored. When a visual renders, the engine works out the filter context for each cell of that visual. Filter context is the set of filters in force at that moment, arriving from slicers, from the rows and columns of the visual, and from page filters. The engine applies that filter context and runs your expression inside it. Change a slicer and every cell is recomputed against a different filter context. The measure has no memory of yesterday and no existence outside the query that asked for it.</p>
+
+  <p>That is the whole difference between a calculated column and a measure. Everything else in this chapter follows from it. Hold those two paragraphs in your head and you can derive most of the guidance yourself, with nothing left to memorise.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 10.1</span> The mechanical contrast. Read the first row and the rest follows.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Property</th><th scope="col">Calculated column</th><th scope="col">Measure</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Evaluated</th><td>Once per row, at refresh</td><td>Once per cell, at query time</td></tr>
+          <tr><th scope="row">Stored</th><td>Yes, compressed in the model</td><td>No, nothing is persisted</td></tr>
+          <tr><th scope="row">Starting context</th><td>Row context over its own table</td><td>Filter context of the cell</td></tr>
+          <tr><th scope="row">Reacts to slicers</th><td class="cell-bad">No, never</td><td class="cell-good">Yes, always</td></tr>
+          <tr><th scope="row">Costs you</th><td>Memory and refresh time</td><td>CPU on every query</td></tr>
+          <tr><th scope="row">Usable on an axis or in a slicer</th><td class="cell-good">Yes</td><td class="cell-bad">No</td></tr>
+          <tr><th scope="row">Usable in a relationship</th><td class="cell-good">Yes</td><td class="cell-bad">No</td></tr>
+          <tr><th scope="row">Fixed at</th><td>Last refresh</td><td>The question being asked now</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h3>Symptom one: a number that ignores the slicer</h3>
+
+  <p>The shift supervisor at TUS wants a leaderboard. Who logged the most labour hours, ranked, so he can put it on the wall. You build it, he opens it, and he clicks TUS in the station slicer. The technician at the top of his list is ranked fourth, and nobody on screen is ranked first. He tells you the report is broken.</p>
+
+  <p>Here is how the ranking was built. Ranking feels like an attribute of a person, so it went on <code>DimTechnician</code> as a calculated column. The code below is careful. It handles context transition correctly, which is more than most first attempts manage. Context transition is the step where the row the engine is currently sitting on becomes a filter, and line 5 is where it happens.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">DimTechnician[HoursRank], calculated column, wrong tool</span></div>
+    <pre><code><span class="c">// Calculated column on DimTechnician</span>
+<span class="col">HoursRank</span> <span class="op">=</span>
+<span class="k">RANKX</span> (
+    <span class="t">DimTechnician</span>,
+    <span class="k">CALCULATE</span> ( <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ) ),
+    ,
+    <span class="k">DESC</span>,
+    <span class="k">DENSE</span>
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>RANKX</code> and not <code>RANK</code>. <code>RANK</code> is the newer window function and it needs an explicit <code>ORDERBY</code> relation. That makes it a good fit for visual calculations and DAX queries, and a poor fit for a stored model object. <code>RANKX</code> takes a table expression and an expression to evaluate over it, which is exactly the shape needed here.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v">The table to rank over is the whole of <code>DimTechnician</code>, all seven rows including the Unknown row that catches TECH-07.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v"><code>CALCULATE</code> earns its place here. Inside a calculated column the engine has row context, which means it knows which row of <code>DimTechnician</code> it is sitting on. It has no filter context at all. So a bare <code>SUM ( FactLabor[Hours] )</code> would see the entire fact table and return 62.0 on every single row. <code>CALCULATE</code> performs context transition. It converts the current row of <code>DimTechnician</code> into a filter, and that filter propagates down the relationship to <code>FactLabor</code>. <code>SUM</code> and not <code>SUMX</code> because <code>Hours</code> is a stored column, so <code>SUM</code> can be answered straight from the compressed column.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v">The third argument is left empty deliberately. <code>RANKX</code> accepts an optional value to place in the ranking, and omitting it tells the engine to evaluate the expression in the current context and rank that result. The bare comma has to stay, because the two arguments after it are positional. Delete the empty slot and <code>DESC</code> slides into the value position, which changes the meaning of the call rather than raising a clean error.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 7 and 8</div><div class="linex-v"><code>DESC</code> so the highest hours get rank 1. <code>DENSE</code> so tied ranks do not leave gaps behind them. TECH-03 and TECH-06 both have zero hours and both sit at the bottom, so <code>DENSE</code> and the default <code>SKIP</code> happen to agree in this dataset. They stop agreeing the moment a tie appears mid-list. Write the argument explicitly every time and the question never comes up.</div></div>
+  </div>
+
+  <p>Refresh the model and the column materialises. It is correct, in the narrow sense that it answers the question it was asked.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 10.2</span> HoursRank as stored in the model after refresh. This is the only answer the column will ever give.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Technician</th><th scope="col">Home station</th><th scope="col" class="num">Labour hours</th><th scope="col" class="num">HoursRank</th></tr></thead>
+        <tbody>
+          <tr><td class="key">TECH-02</td><td>MSP</td><td class="num">16.5</td><td class="num">1</td></tr>
+          <tr><td class="key">TECH-05</td><td>LAS</td><td class="num">13.0</td><td class="num">2</td></tr>
+          <tr><td class="key">TECH-01</td><td>MSP</td><td class="num">12.0</td><td class="num">3</td></tr>
+          <tr><td class="key">TECH-04</td><td>TUS</td><td class="num">10.5</td><td class="num">4</td></tr>
+          <tr><td class="key">TECH-07</td><td>Unassigned</td><td class="num">10.0</td><td class="num">5</td></tr>
+          <tr><td class="key">TECH-03</td><td>TUS</td><td class="num">0.0</td><td class="num">6</td></tr>
+          <tr><td class="key">TECH-06</td><td>MSP</td><td class="num">0.0</td><td class="num">6</td></tr>
+          <tr class="row-total"><td>Total</td><td></td><td class="num">62.0</td><td class="num"></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Now put a station slicer on the page and select TUS, the way the shift supervisor did. Note carefully which field that slicer has to use. The Meridian model deliberately has no relationship between <code>DimStation</code> and <code>DimTechnician</code>. Creating one would give two filter paths from <code>DimStation</code> into <code>FactLabor</code>: one through <code>FactWorkOrder</code>, one through <code>DimTechnician</code>. The station attribute that filters technicians directly is <code>DimTechnician[HomeStation]</code>, and that is the field on the slicer.</p>
+
+  <p>Select TUS. The visual now shows two technicians, TECH-03 and TECH-04. The rank column still says 6 and 4. Nobody is ranked first, which is exactly the screen the shift supervisor was looking at. The usual next move is to decide DAX is broken and start adding <code>CALCULATE</code> wrappers to a value that was written to disk before anyone opened the file.</p>
+
+  <p>It is not broken. <code>HoursRank</code> was computed at refresh time, when a TUS selection did not exist. The column answers one fixed question, permanently: where does this technician rank among all seven technicians in the model. The user is asking a different one: where does this technician rank among the technicians on screen right now. Only an object evaluated after the click can answer that.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Hours and Technician Rank, measures</span></div>
+    <pre><code><span class="col">Labor Hours</span> <span class="op">=</span>
+<span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )
+
+<span class="col">Technician Rank</span> <span class="op">=</span>
+<span class="k">RANKX</span> (
+    <span class="k">ALLSELECTED</span> ( <span class="t">DimTechnician</span><span class="col">[TechnicianName]</span> ),
+    <span class="col">[Labor Hours]</span> <span class="op">+</span> <span class="n">0</span>,
+    ,
+    <span class="k">DESC</span>,
+    <span class="k">DENSE</span>
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v"><code>ALLSELECTED</code> over the technician name column. This removes the filter that the current row of the visual puts on the technician, so each cell can see its peers. It keeps the filters that arrived from outside the visual, and the slicer is one of those.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 7</div><div class="linex-v">The expression is the measure itself. A measure reference carries no table name, so it is written <code>[Labor Hours]</code>, while the column it sums is written <code>FactLabor[Hours]</code>. The ranking is computed from whatever <code>Labor Hours</code> returns under the current filters. The <code>+ 0</code> is deliberate. TECH-03 has no rows in <code>FactLabor</code> at all, so <code>SUM</code> returns a blank, and I do not want the rank order to depend on how blanks sort. Adding zero makes the value explicit and the result deterministic. It also keeps TECH-03 visible in the table, because a blank measure result would drop the row from the visual entirely.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 9 and 10</div><div class="linex-v">Same tie handling as the column version, for the same reason. Line 8 is the same empty value slot, kept for the same positional reason.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>ALLSELECTED</code> and not <code>ALL</code>: <code>ALL</code> would strip the slicer as well as the row filter, so under a TUS selection it would rank TECH-04 against all seven technicians and hand back rank 4 again. You would have written a measure that reproduces the calculated column's bug with more effort. <code>ALLSELECTED</code> and not <code>VALUES</code>: <code>VALUES</code> returns the technicians visible in the current filter context. Inside a row of the visual that context has already narrowed to one technician. Every cell would rank a single-row table, and every cell would return 1.</p>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 10.3</span> Home station slicer set to TUS. The stored column and the measure disagree, and the measure is the one answering the user's question.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Technician</th><th scope="col" class="num">Labour hours</th><th scope="col" class="num">HoursRank, column</th><th scope="col" class="num">Technician Rank, measure</th></tr></thead>
+        <tbody>
+          <tr class="row-good"><td class="key">TECH-04</td><td class="num">10.5</td><td class="num cell-bad">4</td><td class="num cell-good">1</td></tr>
+          <tr><td class="key">TECH-03</td><td class="num">0.0</td><td class="num cell-bad">6</td><td class="num cell-good">2</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Remove the slicer and <code>Technician Rank</code> returns 4 for TECH-04, matching the column exactly. Same logic as the column, evaluated against a context that is allowed to change. The column is a photograph and the measure is a window. The shift supervisor gets the leaderboard he asked for: with TUS selected, TECH-04 is first on 10.5 hours and TECH-03 is second on 0.0.</p>
+
+  <h3>Symptom two: duplicated rows and inflated totals</h3>
+
+  <p>Back to the finance manager and her 46,600. She wants the quoted value of the quarter's work, one number, for a slide. This failure costs money because the number looks completely normal. A stuck rank announces itself on screen. An inflated total sits there looking like a number, in a card, on a slide.</p>
+
+  <p>Grain is the question of what one row of a table stands for, and the whole bug lives in the answer. <code>FactWorkOrder</code> is at header grain: one row per work order, eight rows in all. <code>QuotedAmount</code> lives there because a quote is a property of a work order. <code>FactLabor</code> is at line grain: one row per labour line, eight rows spread unevenly across only six work orders. WO-1001 has two labour lines. WO-1003 has two. WO-1005 and WO-1008 have none at all. That uneven spread is the whole mechanism of the bug.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 380" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><text x="30.0" y="24.0" class="d-t" fill="#AE4419">Header grain</text><text x="430.0" y="24.0" class="d-t" fill="#AE4419">Line grain</text><rect x="30.0" y="44.0" width="250.0" height="116.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.4"/><text x="42.0" y="62.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="30" y1="70" x2="280" y2="70" stroke="#AE4419" stroke-width="1"/><text x="42.0" y="90.0" class="d-m">WO-1001</text><text x="268.0" y="90.0" class="d-m" text-anchor="end">3,000</text><text x="42.0" y="120.0" class="d-m">WO-1002</text><text x="268.0" y="120.0" class="d-m" text-anchor="end">3,200</text><text x="42.0" y="150.0" class="d-m">WO-1003</text><text x="268.0" y="150.0" class="d-m" text-anchor="end">12,500</text><rect x="430.0" y="44.0" width="300.0" height="176.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.4"/><text x="442.0" y="62.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="430" y1="70" x2="730" y2="70" stroke="#AE4419" stroke-width="1"/><text x="442.0" y="90.0" class="d-m">L-501</text><text x="540.0" y="90.0" class="d-m" fill="#77746B">WO-1001</text><text x="718.0" y="90.0" class="d-m" text-anchor="end">7.5</text><path d="M280,85.0 C350,85.0 370,85.0 430,85.0" class="d-line-hot" fill="none"/><text x="442.0" y="120.0" class="d-m">L-502</text><text x="540.0" y="120.0" class="d-m" fill="#77746B">WO-1001</text><text x="718.0" y="120.0" class="d-m" text-anchor="end">6.0</text><path d="M280,85.0 C350,85.0 370,115.0 430,115.0" class="d-line-hot" fill="none"/><text x="442.0" y="150.0" class="d-m">L-503</text><text x="540.0" y="150.0" class="d-m" fill="#77746B">WO-1002</text><text x="718.0" y="150.0" class="d-m" text-anchor="end">9.0</text><path d="M280,115.0 C350,115.0 370,145.0 430,145.0" class="d-line-hot" fill="none"/><text x="442.0" y="180.0" class="d-m">L-504</text><text x="540.0" y="180.0" class="d-m" fill="#77746B">WO-1003</text><text x="718.0" y="180.0" class="d-m" text-anchor="end">8.0</text><path d="M280,145.0 C350,145.0 370,175.0 430,175.0" class="d-line-hot" fill="none"/><text x="442.0" y="210.0" class="d-m">L-505</text><text x="540.0" y="210.0" class="d-m" fill="#77746B">WO-1003</text><text x="718.0" y="210.0" class="d-m" text-anchor="end">4.5</text><path d="M280,145.0 C350,145.0 370,205.0 430,205.0" class="d-line-hot" fill="none"/><text x="300.0" y="218.0" class="d-lbl" fill="#77746B">one header row</text><text x="300.0" y="232.0" class="d-lbl" fill="#77746B">fans out to many</text><text x="300.0" y="246.0" class="d-lbl" fill="#77746B">line rows</text><rect x="30.0" y="250.0" width="360.0" height="108.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="44.0" y="272.0" class="d-t" fill="#98281E">Pull QuotedAmount down to line grain</text><text x="44.0" y="292.0" class="d-m">3,000 + 3,000 + 3,200 + 12,500 + 12,500</text><text x="44.0" y="310.0" class="d-s">WO-1001 and WO-1003 counted twice.</text><text x="44.0" y="328.0" class="d-s">Work orders with no labor line vanish entirely.</text><text x="44.0" y="348.0" class="d-s" font-style="italic">Two independent errors in one column.</text><rect x="430.0" y="250.0" width="440.0" height="108.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="444.0" y="272.0" class="d-t" fill="#2B6140">Keep each measure at its own grain</text><text x="444.0" y="292.0" class="d-m">Quoted Amount  =  SUM ( FactWorkOrder[QuotedAmount] )   38,100</text><text x="444.0" y="310.0" class="d-m">Labor Cost     =  SUMX ( FactLabor, ... )                6,326.50</text><text x="444.0" y="328.0" class="d-s">The model joins them at the visual, not in a column.</text><text x="444.0" y="348.0" class="d-s" font-style="italic">If a measure needs DISTINCT to stop double counting, it is on the wrong table.</text></svg></div><figcaption><span class="fig-num">Figure 10.1</span>Header grain fans out to line grain, and header values duplicate when they follow.</figcaption></figure>
+
+  <p>Look at the curved lines leaving the header rows on the left. WO-1001 fans out into two labour lines, L-501 and L-502, and WO-1003 fans out into L-504 and L-505, so anything copied down those lines arrives twice. WO-1002 has a single labour line and looks perfectly healthy. The extract drawn here is three of the eight work orders and five of the eight labour lines. That is enough to show the fan, and not enough to show the opposite failure. The red card states that one in words instead: work orders with no labor line vanish entirely. In the full data those are WO-1005 and WO-1008. That same red card adds only the five lines drawn, 3,000 plus 3,000 plus 3,200 plus 12,500 plus 12,500, and the full eight labour lines take the same arithmetic to 46,600. The green card shows the shape to aim for. <code>Quoted Amount</code> reads 38,100 from <code>FactWorkOrder</code>, <code>Labor Cost</code> reads 6,326.50 from <code>FactLabor</code>, and each measure is left on its own table. The picture is the bug. Everything below is just the arithmetic of that picture.</p>
+
+  <p>The page the finance manager was reading is a labour page, built around hours and technicians. She wanted quoted value on it too. The obvious move is to bring the quote down onto the labour table so it sits next to the hours.</p>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <p>A calculated column on <code>FactLabor</code> that pulls the header value down to line grain, then a measure that sums it.</p>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">FactLabor[WOQuoted]</span></div>
+        <pre><code><span class="col">WOQuoted</span> <span class="op">=</span>
+<span class="k">RELATED</span> ( <span class="t">FactWorkOrder</span><span class="col">[QuotedAmount]</span> )
+
+<span class="col">Quoted Amount</span> <span class="op">=</span>
+<span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[WOQuoted]</span> )</code></pre>
+      </div>
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>RELATED</code> and not <code>LOOKUPVALUE</code>, because a relationship from <code>FactLabor</code> to <code>FactWorkOrder</code> already exists and <code>RELATED</code> walks it. The DAX on this line is valid. It is pointed the correct way, many side to one side, and it returns exactly what it promises.</div></div>
+        <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v">The damage happens at this line. The line above it is innocent. <code>SUM</code> now aggregates a header value that has been copied onto eight line rows, so the row count of <code>FactLabor</code> decides the answer and the row count of <code>FactWorkOrder</code> stops mattering.</div></div>
+      </div>
+      <p>It refreshes without an error, the column populates, the measure returns a plausible currency figure. Result: <strong>46,600</strong>.</p>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <p>Leave <code>QuotedAmount</code> where it belongs, on <code>FactWorkOrder</code>, and aggregate it with a measure.</p>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Quoted Amount</span></div>
+        <pre><code><span class="col">Quoted Amount</span> <span class="op">=</span>
+<span class="k">SUM</span> ( <span class="t">FactWorkOrder</span><span class="col">[QuotedAmount]</span> )</code></pre>
+      </div>
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>SUM</code> and not <code>SUMX</code>, because <code>QuotedAmount</code> is a stored column and there is no row-by-row expression to evaluate, so the engine answers from the compressed column. No <code>CALCULATE</code> either: nothing about the filter context is being modified, and wrapping an aggregation in <code>CALCULATE</code> for decoration only makes the code harder to read.</div></div>
+      </div>
+      <p>Eight rows in, eight values summed, one per work order. Result: <strong>38,100</strong>, in every filter context that reaches <code>FactWorkOrder</code>.</p>
+    </div>
+  </div>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Wrong total</div><div class="kv-v">46,600</div></div>
+    <div class="kv-item"><div class="kv-k">True total</div><div class="kv-v">38,100</div></div>
+    <div class="kv-item"><div class="kv-k">Overstatement</div><div class="kv-v">8,500</div></div>
+    <div class="kv-item"><div class="kv-k">Independent causes</div><div class="kv-v">Two</div></div>
+  </div>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>A quoted value card that reads 46,600, which is 22 per cent above the truth of 38,100. The damage spreads from there. A margin card built as quoted minus actual reads 16,928.50 instead of 8,428.50. The whole 8,500 of phantom quote lands in the margin and nothing offsets it, so the job book looks roughly twice as profitable as it is. Slice it by station and the individual station figures are wrong too. Each one is wrong by a plausible amount, so nothing triggers suspicion. The number only fails a check if somebody adds the eight quotes up by hand. That is exactly the check nobody performs on a dashboard that has been live for a quarter.</p>
+  </div>
+
+  <details class="expand" open>
+    <summary>Trace this by hand, row by row</summary>
+    <div class="expand-body">
+      <p>Every row of <code>FactLabor</code> gets the quote of its parent work order stamped onto it. The relationship is many to one from <code>FactLabor</code> to <code>FactWorkOrder</code>, so <code>RELATED</code> resolves cleanly and no error is raised anywhere.</p>
+      <figure class="tbl">
+        <figcaption><span class="tbl-num">Table 10.4</span> The eight FactLabor rows with the header quote pulled down. Sum the right-hand column and you get the wrong answer.</figcaption>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th scope="col">LaborID</th><th scope="col">WorkOrderID</th><th scope="col" class="num">Hours</th><th scope="col" class="num">WOQuoted</th></tr></thead>
+            <tbody>
+              <tr><td class="key">L-501</td><td class="key">WO-1001</td><td class="num">7.5</td><td class="num">3,000</td></tr>
+              <tr class="row-bad"><td class="key">L-502</td><td class="key">WO-1001</td><td class="num">6.0</td><td class="num cell-bad">3,000</td></tr>
+              <tr><td class="key">L-503</td><td class="key">WO-1002</td><td class="num">9.0</td><td class="num">3,200</td></tr>
+              <tr><td class="key">L-504</td><td class="key">WO-1003</td><td class="num">8.0</td><td class="num">12,500</td></tr>
+              <tr class="row-bad"><td class="key">L-505</td><td class="key">WO-1003</td><td class="num">4.5</td><td class="num cell-bad">12,500</td></tr>
+              <tr><td class="key">L-506</td><td class="key">WO-1004</td><td class="num">10.0</td><td class="num">4,000</td></tr>
+              <tr><td class="key">L-507</td><td class="key">WO-1006</td><td class="num">12.0</td><td class="num">7,500</td></tr>
+              <tr><td class="key">L-508</td><td class="key">WO-1007</td><td class="num">5.0</td><td class="num">900</td></tr>
+              <tr class="row-total"><td>Total</td><td></td><td class="num">62.0</td><td class="num">46,600</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+      <p>The arithmetic, spelled out: 3,000 plus 3,000 is 6,000. Plus 3,200 is 9,200. Plus 12,500 is 21,700. Plus 12,500 is 34,200. Plus 4,000 is 38,200. Plus 7,500 is 45,700. Plus 900 is 46,600.</p>
+      <p>The true total is 3,000 plus 3,200 plus 12,500 plus 4,000 plus 2,000 plus 7,500 plus 900 plus 5,000, which is 38,100.</p>
+      <p>The gap is 8,500, and it is made of two errors pulling in opposite directions.</p>
+      <ol class="list">
+        <li><strong>Over-count.</strong> WO-1001 has two labour lines, so its 3,000 is counted twice. WO-1003 has two labour lines, so its 12,500 is counted twice. That adds 15,500 that does not exist.</li>
+        <li><strong>Under-count.</strong> WO-1005 and WO-1008 have no labour lines whatsoever, so they contribute nothing. That silently drops 2,000 plus 5,000, which is 7,000 of real quoted value.</li>
+      </ol>
+      <p>15,500 minus 7,000 is 8,500, which reconciles exactly to the gap. The two errors are independent of each other. Fixing the duplication alone would still leave you 7,000 short. The two work orders that vanished are the ones a shop manager is most likely to ask about, because one of them is still open.</p>
+    </div>
+  </details>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p><code>RELATED</code> inside a calculated column on a fact table is the most reliable way to inflate a total in Power BI. The function itself is fine. It is the right choice over <code>LOOKUPVALUE</code> when a relationship already exists, because it follows that relationship instead of scanning the target table for a match. The mistake is what you do next. Pull a header value down to line grain and it inherits the line table's row count, so any <code>SUM</code> over it counts each header once per line. Two labour lines means the quote counts twice. Zero labour lines means it disappears. One question before you type <code>RELATED</code> in a column: is the value I am pulling repeated across the rows I am pulling it into. If yes, write a measure against the table where the value lives.</p>
+  </aside>
+
+  <h3>The correct approach, and then the harder case</h3>
+
+  <p>The finance manager gets her number here, and it is 38,100. <code>SUM ( FactWorkOrder[QuotedAmount] )</code> is the model working exactly as designed. Slice by <code>DimStation</code> and the filter reaches <code>FactWorkOrder</code> directly, so MSP returns the sum of its own work orders and nothing else. Slice by <code>DimWOType</code> and the same thing happens. Put labour hours beside it and both measures answer independently at their own grain, which is what measures are for. <code>SUM</code> and not <code>SUMX</code> because <code>QuotedAmount</code> is a stored column that needs no row-by-row expression, so the engine answers from the compressed column without materialising anything.</p>
+
+  <p>That claim is worth proving, because "it works under a slicer" is the exact thing the calculated column failed at. Put the same measure on two different fields and add the columns up.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 10.5</span> One measure, two slicer fields, two correct decompositions. Both add back to 38,100 because the filter reaches FactWorkOrder at header grain either way.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Field on rows</th><th scope="col">Member</th><th scope="col">Work orders it holds</th><th scope="col" class="num">Quoted Amount</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">DimStation[StationCode]</th><td class="key">MSP</td><td>WO-1001, WO-1002, WO-1006, WO-1008</td><td class="num">18,700</td></tr>
+          <tr><th scope="row">DimStation[StationCode]</th><td class="key">TUS</td><td>WO-1003, WO-1004</td><td class="num">16,500</td></tr>
+          <tr><th scope="row">DimStation[StationCode]</th><td class="key">LAS</td><td>WO-1007</td><td class="num">900</td></tr>
+          <tr><th scope="row">DimStation[StationCode]</th><td class="key">UNASSIGNED</td><td>WO-1005, whose station arrived blank</td><td class="num">2,000</td></tr>
+          <tr><th scope="row" class="muted">DimStation[StationCode]</th><td class="key muted">PHX</td><td class="muted">None, PHX exists only in the capacity plan</td><td class="num muted">blank</td></tr>
+          <tr class="row-total"><td>Station total</td><td></td><td></td><td class="num">38,100</td></tr>
+          <tr><th scope="row">DimWOType[WOType]</th><td class="key">Scheduled</td><td>WO-1001, WO-1003, WO-1006, WO-1008</td><td class="num">28,000</td></tr>
+          <tr><th scope="row">DimWOType[WOType]</th><td class="key">AOG</td><td>WO-1002, WO-1005, WO-1007</td><td class="num">6,100</td></tr>
+          <tr><th scope="row">DimWOType[WOType]</th><td class="key">Mod</td><td>WO-1004</td><td class="num">4,000</td></tr>
+          <tr class="row-total"><td>Work order type total</td><td></td><td></td><td class="num">38,100</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Check the station column by hand: 18,700 plus 16,500 plus 900 plus 2,000 is 38,100. Now the type column: 28,000 plus 6,100 plus 4,000 is also 38,100. Each work order is counted exactly once in each decomposition. Each work order is one row of <code>FactWorkOrder</code>, and it belongs to exactly one station and exactly one type. PHX returns a blank. That is correct, and most report consumers will read it as a bug, so decide deliberately whether you hide the row or coalesce it to zero. A zero would claim PHX quoted nothing, which says something different from PHX having no work orders at all. The same measure over <code>FactLabor[WOQuoted]</code> would have split 46,600 across those members instead, and every one of those station figures would have looked individually defensible.</p>
+
+  <p>The genuinely harder case is quoted against actual, because actual comes from two facts at two different grains. Labour is at technician-day grain, parts are at issue-line grain, and neither can be added to the other by putting a column somewhere. Five measures handle it.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">The quoted versus actual measure set</span></div>
+    <pre><code><span class="col">Labor Cost</span> <span class="op">=</span>
+<span class="k">SUMX</span> ( <span class="t">FactLabor</span>, <span class="t">FactLabor</span><span class="col">[Hours]</span> <span class="op">*</span> <span class="t">FactLabor</span><span class="col">[HourlyRate]</span> )
+
+<span class="col">Parts Cost</span> <span class="op">=</span>
+<span class="k">SUMX</span> ( <span class="t">FactParts</span>, <span class="t">FactParts</span><span class="col">[Qty]</span> <span class="op">*</span> <span class="t">FactParts</span><span class="col">[UnitCost]</span> )
+
+<span class="col">Actual Cost</span> <span class="op">=</span>
+<span class="col">[Labor Cost]</span> <span class="op">+</span> <span class="col">[Parts Cost]</span>
+
+<span class="col">Quoted Amount</span> <span class="op">=</span>
+<span class="k">SUM</span> ( <span class="t">FactWorkOrder</span><span class="col">[QuotedAmount]</span> )
+
+<span class="col">Variance</span> <span class="op">=</span>
+<span class="col">[Quoted Amount]</span> <span class="op">-</span> <span class="col">[Actual Cost]</span></code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Labor Cost</div><div class="linex-v"><code>SUMX</code> and not <code>SUM</code> because the value being summed is a product of two columns and does not exist as a stored column. <code>SUM</code> only accepts a single column reference, so it cannot express this at all.</div></div>
+    <div class="linex-row"><div class="linex-k">Parts Cost</div><div class="linex-v">Same shape, different fact. Note there is no <code>ACREG</code> on <code>FactParts</code>, so slicing parts by aircraft routes through <code>FactWorkOrder</code>. Solve that routing with a relationship. Adding an aircraft registration column to <code>FactParts</code> would be the same header-to-line error wearing a new costume.</div></div>
+    <div class="linex-row"><div class="linex-k">Actual Cost</div><div class="linex-v">Plain addition of two measures, and not an iterator over a combined table. Each measure resolves at its own grain in the current filter context, and adding two scalars is safe. Building a <code>UNION</code> of labour and parts rows to iterate over would give the same answer at more cost. It would also need reconciling every time either fact changes shape.</div></div>
+    <div class="linex-row"><div class="linex-k">Variance</div><div class="linex-v">Positive means Meridian quoted more than it spent. Negative means the job ran over. Written as a subtraction of measures so it inherits both filter contexts automatically and needs no maintenance when either side changes.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 10.6</span> The five measures on a table visual with FactWorkOrder[WorkOrderID] on rows. Every figure is produced by the measures, none of it is stored.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Work order</th><th scope="col" class="num">Labor Cost</th><th scope="col" class="num">Parts Cost</th><th scope="col" class="num">Actual Cost</th><th scope="col" class="num">Quoted Amount</th><th scope="col" class="num">Variance</th></tr></thead>
+        <tbody>
+          <tr><td class="key">WO-1001</td><td class="num">1,372.50</td><td class="num">1,240.00</td><td class="num">2,612.50</td><td class="num">3,000.00</td><td class="num">387.50</td></tr>
+          <tr><td class="key">WO-1002</td><td class="num">855.00</td><td class="num">2,450.00</td><td class="num">3,305.00</td><td class="num">3,200.00</td><td class="num cell-bad">-105.00</td></tr>
+          <tr><td class="key">WO-1003</td><td class="num">1,199.00</td><td class="num">12,680.00</td><td class="num">13,879.00</td><td class="num">12,500.00</td><td class="num cell-bad">-1,379.00</td></tr>
+          <tr><td class="key">WO-1004</td><td class="num">1,020.00</td><td class="num">0.00</td><td class="num">1,020.00</td><td class="num">4,000.00</td><td class="num">2,980.00</td></tr>
+          <tr><td class="key">WO-1005</td><td class="num">0.00</td><td class="num">1,875.00</td><td class="num">1,875.00</td><td class="num">2,000.00</td><td class="num">125.00</td></tr>
+          <tr><td class="key">WO-1006</td><td class="num">1,440.00</td><td class="num">5,100.00</td><td class="num">6,540.00</td><td class="num">7,500.00</td><td class="num">960.00</td></tr>
+          <tr><td class="key">WO-1007</td><td class="num">440.00</td><td class="num">0.00</td><td class="num">440.00</td><td class="num">900.00</td><td class="num">460.00</td></tr>
+          <tr><td class="key">WO-1008</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">0.00</td><td class="num">5,000.00</td><td class="num">5,000.00</td></tr>
+          <tr class="row-total"><td>Eight work orders</td><td class="num">6,326.50</td><td class="num">23,345.00</td><td class="num">29,671.50</td><td class="num">38,100.00</td><td class="num">8,428.50</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>WO-1008 deserves a look. It shows 5,000 quoted and nothing spent, which is correct: it opened on 10 March and has neither labour nor parts against it yet. Under the calculated column approach that row did not appear at all. WO-1004 shows a favourable variance of 2,980.00 that will shrink, because the order is still open and the remaining cost has not landed. Both rows are business facts, and the measure is honest enough to put them on screen. The fix is a filter on closed work orders. The calculation stays as it is.</p>
+
+  <p>One display detail before you check those figures against your own screen. Where a work order has no rows in a fact, the measure returns a blank. WO-1008 has neither labour nor parts, so <code>Labor Cost</code>, <code>Parts Cost</code> and <code>Actual Cost</code> are all blank on that row. The same is true of the parts columns on WO-1004 and WO-1007. The zeros are written out in the table only so that the arithmetic reads cleanly down each column. The row still appears in the visual because <code>Quoted Amount</code> has a value, and <code>Variance</code> still reads 5,000.00, because subtracting a blank subtracts nothing. If you want the zeros for real, wrap the measure in <code>COALESCE</code>. Adding zero would also work, and <code>COALESCE</code> states the intent in the formula instead of hiding it in an arithmetic side effect.</p>
+
+  <p>Now the inconvenient part of that table. The visual on your screen will carry a ninth row, blank, holding 4,900 of parts cost. That is P-9007 charged to WO-1009, and WO-1009 does not exist in <code>FactWorkOrder</code>. A fact row whose key has no match like that is an orphan, and the engine parks every orphan against the blank member. With that row included, <code>Actual Cost</code> totals 34,571.50 and <code>Variance</code> totals 3,528.50, both derived from the same measures. Both figures are correct. They answer a question that includes an orphan. Decide deliberately whether your page shows it, and tell your users what you chose.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>The measure-first rule has a real cost and you should know what you are buying. <code>Labor Cost</code> iterates <code>FactLabor</code> on every query. On eight rows that is free. On forty million rows it is not. A stored <code>LineCost</code> column computed once at refresh aggregates faster, because the engine scans one compressed column instead of multiplying two. That case is legitimate, precisely because line cost is a property of the labour line that does not change when anyone clicks. Reach for it after you have measured a problem, and compute it in Power Query rather than DAX if the source can produce it.</p>
+  </aside>
+
+  <h3>Deciding, in six questions</h3>
+
+  <p>Work down this list and stop at the first question that answers itself. It resolves nearly every case without argument.</p>
+
+  <ol class="steps">
+    <li>Ask what the value is a property of. A property of a technician, a date or a work order points toward a column on that table. A property of a set of rows points toward a measure.</li>
+    <li>Ask whether the answer should change when the user changes a slicer. If yes, it must be a measure. No calculated column responds to selection.</li>
+    <li>Ask whether the value needs to be aggregated, averaged, ranked or compared across rows. If yes, measure.</li>
+    <li>Ask whether the value lives at a different grain from the table you were about to put it on. If yes, do not put it there at any price. That is the 46,600 error.</li>
+    <li>Ask whether you need it on an axis, in a slicer, as a sort-by key, inside a hierarchy, as a relationship key or in a security filter. Those six require a physical column, and a measure cannot do any of them.</li>
+    <li>If you have reached here you need a column. Ask whether Power Query can compute it, and if it can, compute it there.</li>
+  </ol>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>The real question behind "column or measure" is what the value is a property of. Quoted amount is a property of a work order, so it belongs on <code>FactWorkOrder</code> and stays there. Hours are a property of a labour line. A technician's rank is a property of a comparison, and a comparison only exists once someone has chosen who is in it. That is why rank can never be stored and quoted amount must never be moved. Answer the property question and the DAX object follows.</p>
+  </aside>
+
+  <h3>Ten Meridian tasks, decided</h3>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 10.7</span> Ten requirements from the Meridian model with the verdict and the reason that produced it.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Requirement</th><th scope="col">Verdict</th><th scope="col">Reason</th></tr></thead>
+        <tbody>
+          <tr><td>Total labour hours by station</td><td>Measure</td><td>An aggregation over <code>FactLabor</code> whose answer changes with every filter. MSP 34.5, TUS 22.5, LAS 5.0.</td></tr>
+          <tr><td>Line cost, Hours times HourlyRate</td><td>Either, measure by default</td><td>A property of the labour line, so a column is defensible. Start with <code>SUMX</code> and store it only if the table gets big enough to justify the memory.</td></tr>
+          <tr class="row-bad"><td>Quoted amount shown on a labour page</td><td>Measure on <code>FactWorkOrder</code>, never a column on <code>FactLabor</code></td><td>Header grain against line grain. The column gives 46,600 instead of 38,100.</td></tr>
+          <tr><td>Work order size band for a slicer</td><td>Column, built in Power Query</td><td>A fixed property of the work order that must appear in a slicer, and a measure cannot be put in a slicer.</td></tr>
+          <tr><td>MonthName ordered by calendar order</td><td>Column</td><td>Sort by Column requires two physical columns on the same table, <code>MonthName</code> sorted by <code>MonthNo</code>.</td></tr>
+          <tr><td>Turn time in days per work order</td><td>Column on <code>FactWorkOrder</code></td><td>The elapsed days are a property of the row. Guard it, though. A plain <code>ClosedDate</code> minus <code>OpenedDate</code> does not return blank for WO-1004 and WO-1008, because a blank date coerces to zero in subtraction and you get a large negative number instead. Write <code>IF ( NOT ISBLANK ( FactWorkOrder[ClosedDate] ), DATEDIFF ( FactWorkOrder[OpenedDate], FactWorkOrder[ClosedDate], DAY ) )</code>. <code>DATEDIFF</code> and not subtraction because it returns a whole number of days rather than a date-typed difference you then have to convert. WO-1003 is 22 days.</td></tr>
+          <tr><td>Average turn time across closed work orders</td><td>Measure</td><td>Aggregates the column above. <code>AVERAGE</code> and not <code>AVERAGEX</code>, because the value is already a stored column and needs no row-by-row expression. <code>AVERAGE</code> ignores blanks, so the two open orders drop out and you get 72 over 6, which is 12.0 days. That only holds because the column above was written to return a genuine blank.</td></tr>
+          <tr><td>Station utilisation percentage</td><td>Measure only</td><td>Labour hours and planned hours come from two facts at different grains. <code>DIVIDE</code> and not the slash operator, because <code>DIVIDE</code> returns blank on a zero denominator instead of an error. 62.0 over 176 is 35.2 per cent.</td></tr>
+          <tr><td>Technician rank by hours</td><td>Measure</td><td>A rank is a property of a comparison, and the comparison set is chosen by the user at run time.</td></tr>
+          <tr class="row-good"><td>Trimmed <code>TechnicianID</code> for the relationship</td><td>Column, and specifically a Power Query column</td><td>A relationship needs a physical column. Doing it in Power Query fixes L-505 before the model exists, so TECH-04 shows 10.5 hours instead of 6.0.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h3>When a calculated column is the right answer</h3>
+
+  <p>The planner asks for a slicer that splits work orders into small, medium and large jobs. You have just been burned by the 46,600 bug, so your instinct says measure. You spend an afternoon trying to drop a measure into a slicer and Power BI refuses every time.</p>
+
+  <p>Analysts burned by that bug swing to a rule of "never write a calculated column", and the planner's slicer is where the rule breaks. Six situations require a physical column, and the size band is one of them.</p>
+
+  <ul class="list">
+    <li><strong>Relationship keys.</strong> A relationship binds two physical columns. If the key needs cleaning or concatenating, the cleaned key has to exist as a column.</li>
+    <li><strong>Sort-by columns.</strong> <code>DimDate[MonthName]</code> is text and sorts alphabetically, putting February first. Sort by Column fixes it, and it needs <code>MonthNo</code> present as a column on the same table at the same grain.</li>
+    <li><strong>Static row-level classification.</strong> The work order size band, an <code>IsWeekend</code> flag, an employee type grouping. Each is decided by the row's own values and by nothing the user does.</li>
+    <li><strong>Anything that goes in a slicer.</strong> Slicers read columns. The product enforces that boundary, and the size band the planner asked for is exactly this case.</li>
+    <li><strong>Columns used by a security role.</strong> Row-level security filters are written against columns, so a role that restricts a user to their home station needs that station as a column.</li>
+    <li><strong>Hierarchy levels.</strong> A hierarchy is an ordered list of columns. Station to work order to labour line needs each level physically present.</li>
+  </ul>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>A calculated column is right when the value is a property of the row and does not depend on what anyone selects. Read that twice, because both halves matter. Line cost passes both tests. Turn time passes both. Technician rank fails the second test. Quoted amount on a labour row fails the first, because it is a property of the work order and the labour line only borrows it. If a requirement fails either half, write a measure.</p>
+  </aside>
+
+  <h3>Calculated tables, briefly and honestly</h3>
+
+  <p>The production controller puts his check dates on a chart and the months come out in alphabetical order, February first. He asks for calendar order. Meridian's source system has no calendar table to point at, so you have to build one inside the model.</p>
+
+  <p>A calculated table is the same idea one level up: a DAX expression returning a table, evaluated at refresh and stored in the model. The case where it earns its place in Meridian is <code>DimDate</code>, and the controller's month order is the reason.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">DimDate, calculated table, 90 rows</span></div>
+    <pre><code><span class="col">DimDate</span> <span class="op">=</span>
+<span class="k">ADDCOLUMNS</span> (
+    <span class="k">CALENDAR</span> ( <span class="k">DATE</span> ( <span class="n">2025</span>, <span class="n">1</span>, <span class="n">1</span> ), <span class="k">DATE</span> ( <span class="n">2025</span>, <span class="n">3</span>, <span class="n">31</span> ) ),
+    <span class="s">"Year"</span>,      <span class="k">YEAR</span> ( <span class="col">[Date]</span> ),
+    <span class="s">"MonthNo"</span>,   <span class="k">MONTH</span> ( <span class="col">[Date]</span> ),
+    <span class="s">"MonthName"</span>, <span class="k">FORMAT</span> ( <span class="col">[Date]</span>, <span class="s">"mmmm"</span> ),
+    <span class="s">"MonthKey"</span>,  <span class="k">YEAR</span> ( <span class="col">[Date]</span> ) <span class="op">*</span> <span class="n">100</span> <span class="op">+</span> <span class="k">MONTH</span> ( <span class="col">[Date]</span> ),
+    <span class="s">"MonthStart"</span>,
+        <span class="k">DATE</span> ( <span class="k">YEAR</span> ( <span class="col">[Date]</span> ), <span class="k">MONTH</span> ( <span class="col">[Date]</span> ), <span class="n">1</span> )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">CALENDAR</div><div class="linex-v"><code>CALENDAR</code> and not <code>CALENDARAUTO</code>. <code>CALENDARAUTO</code> inspects every date column in the model and expands to whole years. That would hand you 365 rows covering all of 2025, when Meridian only reports on Q1. Explicit bounds give exactly 90 rows, 31 plus 28 plus 31, and a date table with no stray empty months.</div></div>
+    <div class="linex-row"><div class="linex-k">ADDCOLUMNS</div><div class="linex-v">One expression producing the whole table. The alternative is creating the calendar first and then stacking five separate calculated columns on top of it. One expression means fewer objects in the dependency graph and one place to read the definition. The remaining <code>DimDate</code> columns that Meridian needs, <code>Quarter</code>, <code>DayOfWeek</code> and <code>IsWeekend</code>, follow the same pattern and are left out here only to keep the block readable.</div></div>
+    <div class="linex-row"><div class="linex-k">YEAR, MONTH</div><div class="linex-v">These read the numeric parts straight from the date value. <code>FORMAT</code> could produce them too, but it returns text, and text sorts alphabetically on an axis, which is the problem you are trying to avoid.</div></div>
+    <div class="linex-row"><div class="linex-k">FORMAT</div><div class="linex-v">Used only where text is actually wanted, for the display month name. Because it returns text, <code>MonthName</code> must then be sorted by <code>MonthNo</code>. That is the sort-by case from the list above, and it is the reason <code>MonthNo</code> is in this table at all. It is also what gives the production controller January, February, March in that order, with February back where it belongs.</div></div>
+    <div class="linex-row"><div class="linex-k">MonthStart</div><div class="linex-v"><code>DATE</code> and not <code>STARTOFMONTH</code>. <code>STARTOFMONTH</code> is a time intelligence function that operates on a column of dates within a filter context, and inside <code>ADDCOLUMNS</code> you are in row context working with one scalar date. <code>DATE</code> constructs the value directly. This column is what <code>FactCapacity</code> joins to at month grain.</div></div>
+  </div>
+
+  <p>The honest caveats. A calculated table is recomputed at every refresh and stored like any other table, so it costs memory and refresh time. It cannot be edited in Power Query, so the analyst who inherits your file will look for it in the query editor and not find it. DirectQuery restricts it further. Check the current limitation list before you assume Import behaviour carries over. For a date table in an Import model the trade is usually worth it, because the definition is self-contained and does not depend on a source system having a calendar table. For most other tables, if the source or Power Query can produce it, let them.</p>
+
+  <h3>The third option people forget</h3>
+
+  <p>Back to the planner and the size band. There is a third place to build that column, and for anything that could be a calculated column and does not need to see the rest of the model, the third place is usually the better answer. Power Query is the load step where you shape a table before it enters the model. The size band belongs there.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="40" y="66" width="195" height="190" rx="6" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.6"/><text x="53.0" y="90.0" class="d-t" fill="#9B978C" font-size="11.5">Source system</text><line x1="40" y1="122" x2="235" y2="122" stroke="#9B978C" stroke-width="1"/><text x="53.0" y="144.0" class="d-s">Views, indexes, keys</text><text x="53.0" y="161.0" class="d-s">Anything the DBA will agree to</text><path d="M237,161 L247,161" class="d-line" marker-end="url(#ahg)"/><rect x="250" y="66" width="195" height="190" rx="6" fill="#F5F0DC" stroke="#78641F" stroke-width="1.6"/><text x="263.0" y="90.0" class="d-t" fill="#78641F" font-size="11.5">Power Query</text><text x="263.0" y="105.0" class="d-t" fill="#78641F" font-size="11.5">at refresh time</text><line x1="250" y1="122" x2="445" y2="122" stroke="#78641F" stroke-width="1"/><text x="263.0" y="144.0" class="d-s">Unpivot, append, merge, group</text><text x="263.0" y="161.0" class="d-s">Trim and type keys</text><text x="263.0" y="178.0" class="d-s">Build missing dimensions</text><path d="M447,161 L457,161" class="d-line" marker-end="url(#ahg)"/><rect x="460" y="66" width="195" height="190" rx="6" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="473.0" y="90.0" class="d-t" fill="#1B5A68" font-size="11.5">DAX calculated</text><text x="473.0" y="105.0" class="d-t" fill="#1B5A68" font-size="11.5">columns and tables</text><text x="473.0" y="120.0" class="d-t" fill="#1B5A68" font-size="11.5">at load</text><line x1="460" y1="122" x2="655" y2="122" stroke="#1B5A68" stroke-width="1"/><text x="473.0" y="144.0" class="d-s">Date table</text><text x="473.0" y="161.0" class="d-s">Sort-by columns</text><text x="473.0" y="178.0" class="d-s">Keys that need the model</text><path d="M657,161 L667,161" class="d-line" marker-end="url(#ahg)"/><rect x="670" y="66" width="195" height="190" rx="6" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="683.0" y="90.0" class="d-t" fill="#AE4419" font-size="11.5">DAX measures</text><text x="683.0" y="105.0" class="d-t" fill="#AE4419" font-size="11.5">at query time</text><line x1="670" y1="122" x2="865" y2="122" stroke="#AE4419" stroke-width="1"/><text x="683.0" y="144.0" class="d-s">Anything a slicer can change</text><text x="683.0" y="161.0" class="d-s">Ratios, ranks, time intelligence</text><line x1="40" y1="290" x2="860" y2="290" stroke="#D2CDC0" stroke-width="1"/><path d="M40,290 L860,290" class="d-line" marker-end="url(#ahg)"/><text x="40.0" y="312.0" class="d-lbl" fill="#77746B">computed once, per refresh</text><text x="860.0" y="312.0" class="d-lbl" text-anchor="end" fill="#77746B">computed per visual, per user, per click</text><text x="40.0" y="40.0" class="d-t" fill="#17160F">Push work as far left as you can. Then move it right for one reason only.</text><rect x="40.0" y="330.0" width="820.0" height="56.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="54.0" y="352.0" class="d-t" fill="#2B6140">The dividing line</text><text x="54.0" y="370.0" class="d-s">If the answer depends on what the user selects, it cannot be precomputed. That single test decides most of these arguments before they start.</text></svg></div><figcaption><span class="fig-num">Figure 10.2</span>Four places the work can happen, ordered by when they run.</figcaption></figure>
+
+  <p>Read this left to right. The four bands are the four places a calculation can live: the source system, then Power Query, then DAX calculated columns and tables, then DAX measures. Each band after the first carries the moment it runs, at refresh, at load, at query time. The axis underneath them runs from computed once, per refresh on the left, to computed per visual, per user, per click on the right. That is the cost you trade every time you move one step further along. The rule is printed beneath the bands: push work as far left as you can, then move it right for one reason only. The green card names that reason. If the answer depends on what the user selects, it cannot be precomputed, and no amount of refresh time will make it so.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">FactWorkOrder size band</span></div>
+    <pre><code><span class="k">let</span>
+    Source <span class="op">=</span> WorkOrders,
+    Banded <span class="op">=</span> <span class="k">Table.AddColumn</span> (
+        Source,
+        <span class="s">"SizeBand"</span>,
+        <span class="k">each</span>
+            <span class="k">if</span> [QuotedAmount] <span class="op">&lt;</span> <span class="n">3000</span> <span class="k">then</span> <span class="s">"Small"</span>
+            <span class="k">else if</span> [QuotedAmount] <span class="op">&lt;</span> <span class="n">7500</span> <span class="k">then</span> <span class="s">"Medium"</span>
+            <span class="k">else</span> <span class="s">"Large"</span>,
+        <span class="k">type text</span>
+    )
+<span class="k">in</span>
+    Banded</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Table.AddColumn</div><div class="linex-v">The user interface Conditional Column button writes the same function call, and it omits the final type argument, so the column arrives typed as any. Writing <code>type text</code> by hand gives the engine a known type to encode. On a column destined for a slicer that is worth the extra few characters.</div></div>
+    <div class="linex-row"><div class="linex-k">The bands</div><div class="linex-v">Under 3,000 is Small, 3,000 to 7,499 is Medium, 7,500 and above is Large. Against the eight Meridian quotes that puts WO-1005 at 2,000 and WO-1007 at 900 in Small, WO-1003 at 12,500 and WO-1006 at 7,500 in Large, and the remaining four in Medium. The planner drops <code>SizeBand</code> straight into a slicer and it works, because it arrived in the model as a real column.</div></div>
+  </div>
+
+  <p>Two reasons to prefer this over the DAX equivalent. First, a Power Query column arrives with the table and is encoded in the same pass as every column that came from the source. A calculated column is added after the table has already been loaded, and it usually compresses less well. Second, and this is the reason I would defend hardest, a calculated column becomes a node in the model's dependency graph. Every measure, relationship, hierarchy and other calculated column that touches it now depends on it. Refresh has to evaluate it in the right order, and changing it later can force recalculation you did not plan for. A Power Query column stays outside that graph. It arrives as a plain column and the engine treats it exactly like the columns that came from the source.</p>
+
+  <p>The exception is real and you will hit it. If the expression needs to see another table through a relationship, or needs a measure, Power Query cannot help you. Relationships do not exist yet at that stage of the pipeline. That is when a calculated column is the correct tool, and nobody is compromising. Everything else belongs upstream. <a class="xref" href="#ch-04">Chapter 4</a> covers where each transformation belongs and why moving work upstream keeps paying you back long after the model is built.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>A calculated column is evaluated once per row at refresh and stored. A measure is evaluated once per cell at query time and stores nothing. Every other difference follows from that one.</li>
+      <li>A calculated column cannot respond to a slicer, because it was computed before the report was opened. <code>HoursRank</code> says 4 for TECH-04 whatever is selected. The measure using <code>ALLSELECTED</code> says 1 under a TUS home station slicer.</li>
+      <li>Pulling a header value to line grain with <code>RELATED</code> inflates totals. Quoted amount on <code>FactLabor</code> sums to 46,600 against a true 38,100: 15,500 over-counted because WO-1001 and WO-1003 each have two labour lines, 7,000 lost because WO-1005 and WO-1008 have none.</li>
+      <li>Keep <code>QuotedAmount</code> on <code>FactWorkOrder</code> and aggregate it with a measure. It returns 38,100 in every filter context that reaches that table.</li>
+      <li>The real question is what the value is a property of, and whether that property depends on what anyone selects.</li>
+      <li>Columns are still required for relationship keys, sort-by columns, static row classification, slicer fields, security filters and hierarchy levels. Build them in Power Query unless they need to see the model.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="09.html"><span class="pn-dir">Previous</span><span class="pn-t">Row context and filter context</span></a><a class="pn" href="11.html"><span class="pn-dir">Next</span><span class="pn-t">CALCULATE and every filter modifier you need</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

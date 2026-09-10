@@ -1,0 +1,9 @@
+WorkOrderID,ServiceLine,CheckType,Customer,Bay,PlannedStart,PlannedFinish
+WO-1001,Heavy,C-Check,Cascade Air,MSP-H1,2025-01-06,2025-01-17
+WO-1002,Light,Defect Rectification,Cascade Air,MSP-L2,2025-01-08,2025-01-10
+WO-1003,Heavy,C-Check,Northwind Regional,TUS-H1,2025-01-13,2025-02-07
+WO-1004,Cabin and IFE,Cabin Retrofit,Cascade Air,TUS-H2,2025-02-03,2025-02-21
+WO-1005,Light,Defect Rectification,Northwind Regional,,2025-02-10,2025-02-12
+WO-1006,Heavy,C-Check,,MSP-H1,2025-02-17,2025-03-14
+WO-1007,Line,Defect Rectification,Northwind Regional,LAS-L1,2025-03-03,2025-03-05
+WO-1008,Heavy,A-Check,Cascade Air,MSP-H2,2025-03-10,2025-03-28

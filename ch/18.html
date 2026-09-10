@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Diagnosis: my slicer is not filtering my visual</title>
+</head>
+<body data-ch="18">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">18</span><span class="tb-title">Diagnosis: my slicer is not filtering my visual</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-18">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 6 . Diagnosis and reference</div>
+    <h2 class="chapter-title"><span class="chapter-num">18</span>Diagnosis: my slicer is not filtering my visual</h2>
+    <p class="chapter-lede">After this chapter you can pick up a report somebody else built, find the slicer that refuses to move a visual, and name the cause in under five minutes. Twelve checks in a fixed order get you there.</p>
+  </div>
+
+  <p class="lead">The shift supervisor at MSP walks over with his laptop open. He has clicked MSP on the station slicer, and the labor hours card still reads 62.0, the same number it read before he clicked. His whiteboard says 34.5. He wants to know why the report is lying to him, and he will decide it always was if you cannot tell him quickly.</p>
+
+  <p>Here is what actually happens when he clicks. A slicer contributes a filter to a query. The visual sends that query to the engine and prints whatever comes back. Between his click and the number there are four places that filter can be dropped: the report layer's interaction settings, the model's relationship paths, the measure's own code, and the three filter panes. Each layer is owned by a different part of the file. None of them announces itself when it swallows a filter.</p>
+
+  <dl class="defs">
+    <dt>Slicer</dt><dd>A visual whose only job is to send a filter. Click MSP on a station slicer and every other visual on the page is asked to answer for MSP.</dd>
+    <dt>Measure</dt><dd>A piece of DAX that produces one number for whatever filter arrives. Meridian's <code>[Labor Hours]</code> reads 62.0 with nothing selected and 34.5 with MSP selected.</dd>
+    <dt>Filter context</dt><dd>The set of filters in force when a measure is evaluated. The slicer, the row the visual is drawing, and every filter card in the panes all contribute to it.</dd>
+    <dt>Propagation</dt><dd>The way a filter travels along relationships from one table to another. A filter propagates from the one side of a relationship to the many side, and stops when the road runs the other way.</dd>
+  </dl>
+
+  <p>The ordering below runs cheapest and most likely first. Each check either eliminates a whole layer or points at one line of code. Do not start at check 5 because you enjoy reading DAX. You will read a perfectly correct measure for twenty minutes before discovering that someone set Edit interactions to None in 2023.</p>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Checks in this chapter</div><div class="kv-v">12, in fixed order</div></div>
+    <div class="kv-item"><div class="kv-k">First place to look</div><div class="kv-v">Model view, trace the route</div></div>
+    <div class="kv-item"><div class="kv-k">Most common in inherited reports</div><div class="kv-v">Edit interactions set to None</div></div>
+    <div class="kv-item"><div class="kv-k">Fastest shortcut</div><div class="kv-v">Performance Analyzer query</div></div>
+  </div>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 700" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="40.0" y="30.0" width="420.0" height="62.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="62" cy="50" r="10" fill="#1B5A68"/><text x="62.0" y="53.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">1</text><text x="82.0" y="55.0" class="d-t" font-size="11.5">Is there any relationship path at all</text><text x="82.0" y="70.0" class="d-s">from the slicer table to the visual table?</text><rect x="520.0" y="30.0" width="340.0" height="62.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="534.0" y="54.0" class="d-s">No path exists. Add a shared dimension, or</text><text x="534.0" y="69.0" class="d-s">accept that the question is not well defined.</text><line x1="460" y1="61" x2="520" y2="61" class="d-line-hot" marker-end="url(#ah)"/><text x="490.0" y="54.0" class="d-lbl" text-anchor="middle" fill="#AE4419">yes</text><line x1="250" y1="92" x2="250" y2="122" class="d-line" marker-end="url(#ahg)"/><text x="262.0" y="112.0" class="d-lbl" fill="#77746B">no</text><rect x="40.0" y="126.0" width="420.0" height="62.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="62" cy="146" r="10" fill="#1B5A68"/><text x="62.0" y="149.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">2</text><text x="82.0" y="151.0" class="d-t" font-size="11.5">Is every relationship on that path active?</text><rect x="520.0" y="126.0" width="340.0" height="62.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="534.0" y="150.0" class="d-s">An inactive relationship filters nothing.</text><text x="534.0" y="165.0" class="d-s">Use USERELATIONSHIP, or make it active.</text><line x1="460" y1="157" x2="520" y2="157" class="d-line-hot" marker-end="url(#ah)"/><text x="490.0" y="150.0" class="d-lbl" text-anchor="middle" fill="#AE4419">yes</text><line x1="250" y1="188" x2="250" y2="218" class="d-line" marker-end="url(#ahg)"/><text x="262.0" y="208.0" class="d-lbl" fill="#77746B">no</text><rect x="40.0" y="222.0" width="420.0" height="62.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="62" cy="242" r="10" fill="#1B5A68"/><text x="62.0" y="245.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">3</text><text x="82.0" y="247.0" class="d-t" font-size="11.5">Does every hop run from the one side</text><text x="82.0" y="262.0" class="d-s">to the many side?</text><rect x="520.0" y="222.0" width="340.0" height="62.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="534.0" y="246.0" class="d-s">The first hop that runs the wrong way is</text><text x="534.0" y="261.0" class="d-s">the answer. See chapters 07 and 08.</text><line x1="460" y1="253" x2="520" y2="253" class="d-line-hot" marker-end="url(#ah)"/><text x="490.0" y="246.0" class="d-lbl" text-anchor="middle" fill="#AE4419">yes</text><line x1="250" y1="284" x2="250" y2="314" class="d-line" marker-end="url(#ahg)"/><text x="262.0" y="304.0" class="d-lbl" fill="#77746B">no</text><rect x="40.0" y="318.0" width="420.0" height="62.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="62" cy="338" r="10" fill="#1B5A68"/><text x="62.0" y="341.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">4</text><text x="82.0" y="343.0" class="d-t" font-size="11.5">Is Edit Interactions set to None between</text><text x="82.0" y="358.0" class="d-s">this slicer and this visual?</text><rect x="520.0" y="318.0" width="340.0" height="62.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="534.0" y="342.0" class="d-s">Most common cause in an inherited report,</text><text x="534.0" y="357.0" class="d-s">and it leaves no trace in the model.</text><line x1="460" y1="349" x2="520" y2="349" class="d-line-hot" marker-end="url(#ah)"/><text x="490.0" y="342.0" class="d-lbl" text-anchor="middle" fill="#AE4419">yes</text><line x1="250" y1="380" x2="250" y2="410" class="d-line" marker-end="url(#ahg)"/><text x="262.0" y="400.0" class="d-lbl" fill="#77746B">no</text><rect x="40.0" y="414.0" width="420.0" height="62.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="62" cy="434" r="10" fill="#1B5A68"/><text x="62.0" y="437.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">5</text><text x="82.0" y="439.0" class="d-t" font-size="11.5">Does the measure remove the filter itself?</text><text x="82.0" y="454.0" class="d-s">Look for ALL, REMOVEFILTERS, ALLEXCEPT.</text><rect x="520.0" y="414.0" width="340.0" height="62.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="534.0" y="438.0" class="d-s">The measure is winning on purpose.</text><text x="534.0" y="453.0" class="d-s">Swap ALL for ALLEXCEPT or KEEPFILTERS.</text><line x1="460" y1="445" x2="520" y2="445" class="d-line-hot" marker-end="url(#ah)"/><text x="490.0" y="438.0" class="d-lbl" text-anchor="middle" fill="#AE4419">yes</text><line x1="250" y1="476" x2="250" y2="506" class="d-line" marker-end="url(#ahg)"/><text x="262.0" y="496.0" class="d-lbl" fill="#77746B">no</text><rect x="40.0" y="510.0" width="420.0" height="62.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="62" cy="530" r="10" fill="#1B5A68"/><text x="62.0" y="533.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">6</text><text x="82.0" y="535.0" class="d-t" font-size="11.5">Do the key values actually match?</text><text x="82.0" y="550.0" class="d-s">Check trailing spaces, case and data type.</text><rect x="520.0" y="510.0" width="340.0" height="62.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="534.0" y="534.0" class="d-s">TECH-04 and TECH-04 with a trailing space</text><text x="534.0" y="549.0" class="d-s">look identical and never join.</text><line x1="460" y1="541" x2="520" y2="541" class="d-line-hot" marker-end="url(#ah)"/><text x="490.0" y="534.0" class="d-lbl" text-anchor="middle" fill="#AE4419">yes</text><rect x="40.0" y="612.0" width="820.0" height="58.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="54.0" y="634.0" class="d-t" fill="#17160F">Still filtering nothing after all six?</text><text x="54.0" y="652.0" class="d-s">Open Performance Analyzer, copy the DAX the visual actually sends, and read its filter arguments. The query never lies about what was applied.</text></svg></div><figcaption><span class="fig-num">Figure 18.1</span>The order to check things in when a slicer refuses to filter a visual.</figcaption></figure>
+
+  <p>Read the numbered checks down the left, top to bottom. There are six of them in the figure, the short form of the twelve that follow. Each check has two exits. The yes arrow points right into the green card that names the fix, and the no arrow drops to the next check, so a yes ends the search and a no costs you one more question. The first three checks stay in the model, and one look at Model view answers all three: is there a relationship path at all, is every relationship on that path active, does every hop run from the one side to the many side. Check 4 leaves the model for the report layer. It asks whether Edit interactions has been set to None, which its card calls the most common cause in an inherited report and the one that leaves no trace in the model. Then come the two reading checks. Check 5 reads the measure for <code>ALL</code>, <code>REMOVEFILTERS</code> and <code>ALLEXCEPT</code>, and check 6 reads the key values for trailing spaces, case and data type. The grey card across the bottom is the escape hatch when all six pass: open Performance Analyzer, copy the DAX the visual actually sends, and read its filter arguments. The twelve checks below expand those six. They add the filter panes, the synced slicer and the case where nothing is broken at all.</p>
+
+  <h3>The twelve checks, in order</h3>
+
+  <h4>1. Is there a route from the slicer's table to the visual's table?</h4>
+  <p>Open Model view and trace from the table the slicer field lives on to the table the visual's measure sums. A slicer on <span class="dim-tag">Dimension</span> <code>DimTechnician</code> against a parts cost visual is the case people hit first at Meridian. A route exists there: <code>DimTechnician</code> to <code>FactLabor</code> to <code>FactWorkOrder</code> to <code>FactParts</code>. The filter still dies on the middle hop, which runs from the many side to the one side. Total parts cost sits at 28,245 whichever technician you pick. There is a catch. In a finished star every table is reachable from every other by some route, so a genuine check 1 failure is nearly always a table someone loaded and never related, sitting as its own island on the canvas.</p>
+  <h5 class="micro">One line test</h5>
+  <p>In Model view, click the slicer's table and see whether any unbroken chain of relationship lines reaches the visual's table.</p>
+
+  <h4>2. Is every relationship on that route active?</h4>
+  <p>An inactive relationship draws as a dashed line. It propagates nothing until a measure asks for it by name. Meridian has two by design: <code>DimDate[Date]</code> to <code>FactWorkOrder[PromisedDate]</code> and to <code>FactWorkOrder[ClosedDate]</code>. Only <code>OpenedDate</code> is active. So a date slicer set to January returns a work order count of 3, the ones opened in January. A reader expecting the 2 closed in January reports the slicer as broken. The slicer is answering a different question from the one in the reader's head. The fix is <code>USERELATIONSHIP</code> inside <code>CALCULATE</code> in a second measure. A model holds only one active relationship per pair of tables, so activating the closed date one would deactivate the opened date one for every query in the file.</p>
+  <h5 class="micro">One line test</h5>
+  <p>Look for a dashed line anywhere on the route. That hop is dead for every measure that does not name it.</p>
+
+  <h4>3. Does every hop point the right way?</h4>
+  <p>Walk the route hop by hop and confirm each one leaves the one side and arrives at the many side. The first hop pointing back at you is your answer, and you can stop walking. A slicer on <code>DimPart</code> against a labor hours visual shows it cleanly. <code>DimPart</code> to <code>FactParts</code> is one to many, fine. <code>FactParts</code> to <code>FactWorkOrder</code> is many to one, and single direction filtering does not travel that way, so labor hours sit at 62.0 for brakes, hydraulics, engine parts and avionics alike. A dimension filters its own fact. That is the one move single direction propagation makes. Asking a fact to filter a second fact through a shared header needs bidirectional filtering or a measure written for it, and check 9 covers both.</p>
+  <h5 class="micro">One line test</h5>
+  <p>Put a finger on each arrowhead along the route and say "one to many" out loud at each hop. The first hop where you cannot is the cause.</p>
+
+  <h4>4. Has Edit interactions been set to None between that slicer and that visual?</h4>
+  <p>This is the most common cause in a report someone else built, which is why it comes before any DAX reading. Select the slicer and open the Format ribbon. Click Edit interactions, and every other visual on the page gains a small control showing filter, highlight or none. Someone turned it off years ago for a reason that has since expired. What makes it nasty is that it leaves no trace in the model. Relationships correct, measure correct, field on the right table, visual still showing the unfiltered grand total. No pane lists every interaction override in a report, so you check them one visual at a time or read the report definition as JSON.</p>
+  <h5 class="micro">One line test</h5>
+  <p>Click the slicer, press Edit interactions on the Format ribbon, and read the icon that appears over the stubborn visual.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Interaction settings live in the report layer. The semantic model never sees them, which is why a model audit with Tabular Editor or VertiPaq Analyzer reports the file as clean. Two pages built on the identical model can behave differently with the identical slicer. When someone tells you the model is broken because a slicer does nothing, rebuild the pair on a fresh page. If it works there, the model was never involved.</p>
+  </aside>
+
+  <h4>5. Is the measure removing the filter itself?</h4>
+  <p>Read the measure, then every measure it calls. You are hunting four shapes: <code>ALL</code>, <code>REMOVEFILTERS</code>, <code>ALLEXCEPT</code>, or a <code>CALCULATE</code> whose filter argument names the slicer's column. Any of them beats the slicer. A filter argument inside <code>CALCULATE</code> is applied after the external filter context and overwrites it on that column.</p>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Hours All Stations</span></div>
+        <pre><code><span class="c">// Dropped straight into a card by mistake</span>
+<span class="col">[Labor Hours All Stations]</span> <span class="op">=</span>
+<span class="k">CALCULATE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="k">ALL</span>( <span class="t">DimStation</span> )
+)</code></pre>
+      </div>
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>CALCULATE</code>, together with its table returning twin <code>CALCULATETABLE</code>, is how filter context gets changed at all. So this line is where the slicer gets overruled. Use <code>CALCULATE</code> here, because the result has to be a single value for a card, and <code>CALCULATETABLE</code> returns a table that a card cannot print.</div></div>
+        <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v"><code>ALL(DimStation)</code> clears every filter on the whole station dimension, so the card returns 62.0 for MSP, for TUS, for LAS and for a cleared slicer.</div></div>
+      </div>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Hours Pct of All Stations</span></div>
+        <pre><code><span class="c">// The cleared context belongs in the denominator</span>
+<span class="col">[Labor Hours Pct of All Stations]</span> <span class="op">=</span>
+<span class="k">DIVIDE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="k">CALCULATE</span>(
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">REMOVEFILTERS</span>( <span class="t">DimStation</span> )
+    )
+)</code></pre>
+      </div>
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v">The numerator keeps the slicer, so MSP returns 34.5 and TUS returns 22.5.</div></div>
+        <div class="linex-row"><div class="linex-k">Line 5 to 8</div><div class="linex-v">Only the denominator is cleared, giving 62.0, so MSP reads 55.6 percent from 34.5 divided by 62.0.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>The card reads 62.0 with MSP selected, 62.0 with TUS selected, and 62.0 with nothing selected, while every other visual on the page moves. That is the shift supervisor's card, and check 5 is where it gets its answer. One visual frozen at the grand total among neighbours that respond points straight at the measure, because a broken path would freeze every visual on that table. Point his card at the base measure <code>[Labor Hours]</code> and MSP reads 34.5, which is the number on his whiteboard.</p>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>REMOVEFILTERS</code> and <code>ALL</code> do the same job as a <code>CALCULATE</code> modifier. Use <code>REMOVEFILTERS</code> there, because its name states the intent, so the next reader does not have to work out whether you meant to clear filters or to return a table. <code>ALL</code> is still required where you need the table back, inside an iterator for example, because <code>REMOVEFILTERS</code> cannot be used as a table expression. <code>ALLEXCEPT</code> belongs only where you clear a table and keep named columns, and it is easy to misread at speed: it keeps what you list and clears everything else. Now <code>DIVIDE</code>, with a caveat about why. In this particular measure the denominator is a superset of the numerator, so it can only be blank when the numerator is blank too, and the slash operator would survive. The habit still earns its place. The moment someone narrows that denominator, by wrapping it in a work order filter for instance, a slash returns infinity and the visual prints an error, while <code>DIVIDE</code> returns blank and the row drops out quietly.</p>
+  </div>
+
+  <h5 class="micro">One line test</h5>
+  <p>Read the measure and its dependencies, searching the text for <code>ALL</code>, <code>REMOVEFILTERS</code>, <code>ALLEXCEPT</code> and the slicer's column name.</p>
+
+  <h4>6. Is the visual using a column from a different table than you think?</h4>
+  <p>Two columns can carry the same name, the same values and different behaviour. Drag <code>ACREG</code> from <span class="fact-tag">Fact</span> <code>FactWorkOrder</code> and the slicer offers 5 tails, because only 5 tails ever appear on a work order. Drag it from <span class="derived-tag">Built</span> <code>DimAircraft</code> and it offers 7, because N120CE and N553KD never came in for work. The second case is worse. <code>DimTechnician[HomeStation]</code> reads like a station slicer on the chip and answers a technician question instead. Select MSP there and you filter to technicians 01, 02 and 06, giving 12.0 plus 16.5 plus 0, which is 28.5 hours. Select MSP on <code>DimStation[StationCode]</code> and you get 34.5, the hours worked at that station whoever performed them. Both numbers are correct answers to two different questions.</p>
+  <h5 class="micro">One line test</h5>
+  <p>Hover each field in the visual's field well and read the table name in the tooltip. The column name printed on the chip is what fooled you in the first place.</p>
+
+  <h4>7. Are the rows you expect sitting in the blank member?</h4>
+  <p>When a fact holds a key the dimension does not, Power BI adds a blank row to the dimension and parks those fact rows against it. That added row is the blank member, and <a class="xref" href="#ch-19">Chapter 19</a> is built around it. Meridian ships one deliberately. WO-1006 uses tail N338WA, missing from the stale <code>AircraftRegistry</code> spreadsheet. So before the aircraft dimension is built, the three real types total 50.0 hours and 12.0 hours live in a blank row nobody clicks. Select any aircraft type and WO-1006 never appears, which reads exactly like a broken slicer. What you are looking at is a referential integrity fault wearing a filtering fault's clothes.</p>
+  <h5 class="micro">One line test</h5>
+  <p>Clear the slicer, group the visual by the dimension column, and look for a blank row at the bottom.</p>
+
+  <h4>8. Do the key values actually match?</h4>
+  <p>Trailing spaces, casing and data types break joins while looking perfect on screen. Meridian's L-505 carries the technician id <code>"TECH-04 "</code> with a trailing space. On screen it is indistinguishable from <code>TECH-04</code>. On the join it is a different value. TECH-04 shows 6.0 hours where it should show 10.5, and the missing 4.5 go to the blank row. The grand total stays 62.0, which is why this survives review. Nobody checks a total that ties.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">FactLabor key clean up</span></div>
+    <pre><code><span class="c">// Fix the key before the model loads</span>
+<span class="k">let</span>
+    Source <span class="op">=</span> LaborEntries,
+    Trimmed <span class="op">=</span> <span class="k">Table.TransformColumns</span>(
+        Source,
+        {{<span class="s">"TechnicianID"</span>, <span class="k">Text.Trim</span>, <span class="k">type text</span>}}
+    )
+<span class="k">in</span>
+    Trimmed</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v"><code>Table.TransformColumns</code> repairs the existing key in place, so every downstream relationship sees the fixed value. Add a second, cleaned column instead and the model holds two technician ids, and the relationship keeps using the broken one.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v"><code>Text.Trim</code> removes leading and trailing whitespace only. DAX <code>TRIM</code> also collapses repeated spaces inside the text, which would quietly alter values like part descriptions. The narrower M function is the safer instrument for a key.</div></div>
+  </div>
+
+  <h5 class="micro">One line test</h5>
+  <p>Add <code>LEN</code> of the key column to a table visual and look for the row one character longer than its neighbours. Use <code>LEN</code> here. An equality test tells you the two values differ without telling you why.</p>
+
+  <h4>9. Is the relationship many to many, and are you expecting more than a weak relationship does?</h4>
+  <p>Meridian's certification analysis runs <code>DimCertification</code> to <span class="bridge-tag">Bridge</span> <code>BridgeTechCert</code> to <code>DimTechnician</code>. A certification slicer filters the bridge and stops there, because the hop from bridge to technician dimension arrives at the one side. Nothing reaches <code>FactLabor</code> unless that bridge relationship filters both ways, or the measure uses <code>CROSSFILTER</code>. There is a second trap. A many to many cardinality relationship is a weak relationship. It gets no blank member, so unmatched values are simply dropped. That is the opposite of check 7: here the orphans go invisible, where check 7 left them merely awkward. When propagation does work, the certification rows total 85.0 hours against a true 62.0, because TECH-04 holds three certifications and his hours count under each.</p>
+  <h5 class="micro">One line test</h5>
+  <p>Read the cardinality badge on the relationship. If it says many to many, expect no blank member and no propagation past the bridge without <code>CROSSFILTER</code>. Use <code>CROSSFILTER</code> rather than a permanent bidirectional setting, because it scopes the change to one measure instead of every future query in the file.</p>
+
+  <h4>10. Is a visual, page or report level filter overriding the selection?</h4>
+  <p>Filters combine with AND, so a page filter can make a slicer look inert by leaving it nothing to choose. Put a page filter of <code>DimWOType[WOType]</code> equals AOG on a Meridian page and labor hours drop to 14.0, which is WO-1002 at 9.0 plus WO-1005 at 0 plus WO-1007 at 5.0. Now the station slicer looks broken. MSP returns 9.0, LAS returns 5.0, and TUS returns blank, because both TUS work orders are Scheduled and Mod. The user reports that selecting TUS does nothing. Selecting TUS did everything it could. Check all three sections of the pane with the visual selected, because filter cards are often hidden from the consumer while remaining active.</p>
+  <h5 class="micro">One line test</h5>
+  <p>Select the visual, expand the Filters pane fully, and read every card in all three sections including the hidden ones.</p>
+
+  <h4>11. Is the slicer synced from another page?</h4>
+  <p>Sync slicers separates two settings people assume are one: whether a slicer syncs its selection across pages, and whether it is visible on each of them. A slicer can be synced and invisible at once. A selection made three pages ago is then still applied here, with no control on screen to show it. The symptom is distinctive. The visible slicer reads All, the visual is plainly filtered, and clearing the visible slicer changes nothing.</p>
+  <h5 class="micro">One line test</h5>
+  <p>Open View, then Sync slicers, and read the sync and visible checkboxes for the current page.</p>
+
+  <h4>12. Is the measure a constant, or is the value legitimately identical?</h4>
+  <p>Sometimes nothing is broken. Meridian plans MSP at 30 hours in January, 30 in February and 30 in March, totalling 90. A month slicer over a planned hours card for MSP looks dead, because the answer really is the same three times. The distinguishing move is to put the slicer's own field into the visual as a row. Three rows each showing 30 means the filter arrives and the data really is flat, so there is nothing to fix. Three rows each showing 176, the planned total for every station and every month, means the measure ignores context and you belong at check 5. One row where you expected three means something else has already narrowed the visual to a single month, which sends you back to check 10.</p>
+  <h5 class="micro">One line test</h5>
+  <p>Drag the slicer's field into the visual as a category and see whether the rows split. A card using <code>SELECTEDVALUE</code> on that column does the same job in less space. Prefer it to <code>HASONEVALUE</code> paired with <code>VALUES</code>, because <code>SELECTEDVALUE</code> handles a multi selection with an explicit alternate result where the pair returns an error.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 18.1</span> The twelve checks with the symptom that separates each one from its neighbours.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col" class="num">#</th><th scope="col">Check</th><th scope="col">Distinguishing symptom</th><th scope="col">Fix</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="num">1</td><td>Route exists</td><td>Slicer table sits alone or the chain is broken in Model view</td><td>Create the missing relationship, or route through the shared header table</td></tr>
+          <tr><td class="num">2</td><td>Relationship active</td><td>Dashed line on the route; a date slicer answers by a different date than expected</td><td>A second measure using <code>USERELATIONSHIP</code> inside <code>CALCULATE</code></td></tr>
+          <tr><td class="num">3</td><td>Direction of each hop</td><td>Every visual on the far side of one specific hop is frozen</td><td>Re-route through the dimension, or reconsider the model shape</td></tr>
+          <tr class="row-bad"><td class="num">4</td><td>Edit interactions</td><td>Model traces clean, neighbours respond, this visual shows the grand total exactly</td><td>Set the interaction back to Filter for that slicer and visual pair</td></tr>
+          <tr><td class="num">5</td><td>Measure clears filters</td><td>One measure frozen while other measures on the same visual move</td><td>Move the cleared context into a denominator, or use the base measure</td></tr>
+          <tr><td class="num">6</td><td>Column from another table</td><td>Slicer list is shorter or longer than the dimension; two similar slicers disagree</td><td>Re-point the field at the dimension, 34.5 not 28.5 for MSP</td></tr>
+          <tr><td class="num">7</td><td>Blank or unmatched key</td><td>A blank row appears when the slicer is cleared and vanishes when it is set</td><td>Build the dimension from the union of keys, recover N338WA</td></tr>
+          <tr><td class="num">8</td><td>Key values do not match</td><td>Grand total ties, one member is short, a blank row holds the difference</td><td><code>Text.Trim</code> the key in Power Query, align data types</td></tr>
+          <tr><td class="num">9</td><td>Many to many, weak</td><td>No blank row anywhere, and the filter dies one hop past the bridge</td><td><code>CROSSFILTER</code> in the measure, or a deliberate bidirectional setting</td></tr>
+          <tr><td class="num">10</td><td>Visual, page, report filter</td><td>Some slicer selections return blank rather than a different number</td><td>Remove or widen the offending filter card</td></tr>
+          <tr><td class="num">11</td><td>Synced slicer</td><td>Visible slicer says All while the visual is plainly filtered</td><td>Unsync the page, or make the synced slicer visible</td></tr>
+          <tr class="row-good"><td class="num">12</td><td>Constant or genuinely flat</td><td>Slicer field placed in the visual splits into rows with equal values</td><td>Nothing to fix; MSP really is 30 planned hours every month</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h3>The shortcut: read the query the visual actually sent</h3>
+
+  <p>The planner is standing behind you now. She set the January baseline three weeks ago, somebody has asked her why it moved, and she wants an answer before her one o'clock. You are at check 3 of twelve. Reading the tree is honest work and it is slow, so take the shortcut instead.</p>
+
+  <p>Two tools collapse most of the tree into a single fork. Performance Analyzer captures the DAX query each visual sends when it refreshes. Reading that query tells you whether the slicer's filter was ever put in the envelope. Working that out by inspection takes half an hour. Reading it off the query takes a minute.</p>
+
+  <ol class="steps">
+    <li>Open the View ribbon and turn on Performance Analyzer.</li>
+    <li>Press Start recording, then Refresh visuals.</li>
+    <li>Set the slicer to one value so a second set of rows is captured.</li>
+    <li>Expand the row for the stubborn visual and choose Copy query.</li>
+    <li>Paste it into DAX query view in Power BI Desktop, or into DAX Studio.</li>
+  </ol>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Query copied from Performance Analyzer</span></div>
+    <pre><code><span class="c">// Labor Hours by station, station slicer set to MSP</span>
+<span class="k">DEFINE</span>
+    <span class="k">VAR</span> __DS0FilterTable <span class="op">=</span>
+        <span class="k">TREATAS</span>(
+            {<span class="s">"MSP"</span>},
+            <span class="t">'DimStation'</span><span class="col">[StationCode]</span>
+        )
+
+    <span class="k">VAR</span> __DS0Core <span class="op">=</span>
+        <span class="k">SUMMARIZECOLUMNS</span>(
+            <span class="t">'DimStation'</span><span class="col">[StationCode]</span>,
+            __DS0FilterTable,
+            <span class="s">"Labor_Hours"</span>, <span class="col">[Labor Hours]</span>
+        )
+
+<span class="k">EVALUATE</span>
+    __DS0Core</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">The filter variables</div><div class="linex-v">Every applied slicer and filter card becomes one <code>VAR</code> named something like <code>__DS0FilterTable</code>. Count them and match them against what you think is applied. A missing one is your answer.</div></div>
+    <div class="linex-row"><div class="linex-k">TREATAS</div><div class="linex-v">The generator uses <code>TREATAS</code> rather than a <code>FILTER</code> over the table, because it applies a list of literal values to one column without scanning anything. Slicer selections therefore appear as a readable list of the values you clicked.</div></div>
+    <div class="linex-row"><div class="linex-k">SUMMARIZECOLUMNS</div><div class="linex-v">Group by columns first, filter tables next, then the measures as name and expression pairs. You did not choose this function, the engine did. It picks <code>SUMMARIZECOLUMNS</code> because that function accepts filter tables directly and drops empty combinations on its own, where <code>SUMMARIZE</code> needs a wrapper for both jobs.</div></div>
+    <div class="linex-row"><div class="linex-k">What is absent</div><div class="linex-v">No <code>KEEPFILTERS</code> appears in this query, which is ordinary for one slicer feeding one group by column. Where you do meet it, wrapped around a filter argument, it means the filter intersects with what is already there. Leave it off and the filter replaces what is already there, and replacement is exactly how a measure overrules a slicer.</div></div>
+  </div>
+
+  <p>The fork is this. If the slicer's column appears in no filter variable, the visual never received the filter, and the cause is in the report layer: Edit interactions, a sync setting, or a bookmark that reset the selection. Checks 4 and 11 remain, plus the bookmark, and the other ten checks are eliminated in one read. A page or report level filter cannot be the culprit here, because a filter card that is applied always shows up as its own filter variable. If the column is present and the number still does not move, run the copied query again with that filter variable deleted. Identical numbers either way mean the measure ignores the column, and check 5 is where you are heading.</p>
+
+  <p>So the planner gets her answer. The recording takes one minute, the copied query carries <code>__DS0FilterTable</code> holding MSP, and the filter was sent. Ten checks fall away in one read. Check 5 then catches the <code>ALL(DimStation)</code> sitting in her card, and she walks into her one o'clock with a cause and a fix.</p>
+
+  <p>The honest limit of this tool: the query tells you a filter went missing and stops there. Interactions set to None, a slicer not synced to this page, and a bookmark that reset the selection all produce the same absence. You still check those three by hand. Three is a much better afternoon than twelve.</p>
+
+  <details class="expand" open>
+    <summary>Trace the technician slicer against parts cost by hand</summary>
+    <div class="expand-body">
+      <p>Select TECH-04 in a slicer on <code>DimTechnician[TechnicianID]</code>. The filter lands on the technician dimension and propagates to <code>FactLabor</code>, leaving L-502 and L-505 for 10.5 hours after the trim. That is where propagation stops.</p>
+      <p>To reach <code>FactParts</code> the filter would have to climb from <code>FactLabor</code> to <code>FactWorkOrder</code>, a many to one hop under a single direction relationship, so it does not travel. <code>FactParts</code> is never touched, and the parts card keeps showing 28,245, or 23,345 with the orphan WO-1009 excluded, for every selection.</p>
+      <p>Leave that relationship single direction. Two facts joined header to line with bidirectional filtering produce a second path from <code>DimDate</code> and an ambiguous model. If the business needs parts cost by technician, define it first. Parts issued to work orders a technician touched is defensible, and it belongs in a measure that applies the visible work order ids from <code>FactLabor</code> to <code>FactParts</code>.</p>
+    </div>
+  </details>
+
+  <h3>The second tree: the filter arrives and the number is still wrong</h3>
+
+  <p>The finance manager wants one number for January: what the shop spent on parts. He opens the summary page and the card says 28,245. He opens the page behind it and the matrix by station adds to 23,345. Both pages are yours, both slicers work perfectly, and one of those numbers is going into a board pack this afternoon.</p>
+
+  <p>A complaint like his needs a different tree. When the slicer clearly works and the value is still not the value, four causes cover most of it.</p>
+
+  <h4>Double counting</h4>
+  <p>Ask whether the parts sum to more than the whole. Meridian's certification rows are the clean case. A&amp;P 39.0, Avionics 10.5, NDT 12.0 and Engine Run 23.5 sum to 85.0 against a real total of 62.0, because a technician with three certifications feeds three rows. That is what a bridge does, and the fix is a caption on the visual. The other case is a bug. If someone merged WorkOrders into LaborEntries in Power Query, summing <code>QuotedAmount</code> now runs at labor line grain. WO-1001 has 2 labor rows so its 3,000 counts twice, WO-1003 has 2 rows so its 12,500 counts twice, and the total becomes 6,000 plus 3,200 plus 25,000 plus 4,000 plus 7,500 plus 900, which is 46,600 against the true 38,100. WO-1005 and WO-1008 have no labor rows and vanish from that sum.</p>
+
+  <h4>Blank rows and disappearing money</h4>
+  <p>Ask whether the total drops when you slice. Meridian's parts cost is 28,245 in total and 23,345 once the orphan WO-1009 is excluded, a gap of 4,900. Group parts cost by aircraft type and the 4,900 vanishes without comment. The orphan sits against the blank work order, and the blank work order has no aircraft registration. The four visible type rows are 3,115 plus 2,450 plus 12,680 plus 5,100, which is 23,345. A total that shrinks the moment you add a grouping column is the signature. That is the finance manager's page exactly. His card counts every parts line and reads 28,245. His matrix counts every parts line that can be attributed to a station and reads 23,345. The 4,900 between them is one orphan work order, and <a class="xref" href="#ch-19">Chapter 19</a> takes it apart line by line.</p>
+
+  <h4>Wrong grain</h4>
+  <p>Grain is what one row of a table means. Ask that question of both tables before you blame the measure. <span class="fact-tag">Fact</span> <code>FactCapacity</code> sits at station and month grain and joins <code>DimDate[MonthStart]</code>, so it answers at month level or coarser and returns blank for a day level filter on any date that is not the first of the month. Set a date slicer to 20 January and labor hours still read 8.0, the L-504 line on WO-1003, while planned hours go blank, which blanks utilisation too. Nothing is broken here. The two tables simply do not share a grain.</p>
+
+  <h4>The totals row</h4>
+  <p>Ask whether the total is the sum of the rows. It is always a separate evaluation. Meridian's utilisation reads 75.0 percent for MSP in January, 50.0 for TUS in January, 40.0 for MSP in February, 40.0 for TUS in February, 25.0 for LAS in March and 0 for the two remaining station months, which add to 230 percent. The total row shows 35.2 percent, because it computes 62.0 divided by 176 once at its own filter context. On time performance behaves the same way: 50.0 percent of closed work orders, with WO-1004 and WO-1008 excluded for having no closed date, so the denominator is 6 and not 8. When a total must behave differently from the rows, detect it with <code>ISINSCOPE</code> rather than <code>ISFILTERED</code>. <code>ISINSCOPE</code> tests whether a column is grouping in that cell, while <code>ISFILTERED</code> also returns true for a slicer selection and misfires on every row.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 18.2</span> The wrong number modes, with the Meridian figures that show each one.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Mode</th><th scope="col">Question that identifies it</th><th scope="col" class="num">What you see</th><th scope="col" class="num">What is right</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Bridge double count</th><td>Do the parts exceed the whole?</td><td class="num">85.0</td><td class="num">62.0</td></tr>
+          <tr><th scope="row">Header fan out</th><td>Was a header column flattened to line grain?</td><td class="num">46,600</td><td class="num">38,100</td></tr>
+          <tr><th scope="row">Blank member loss</th><td>Does the total shrink when you add a grouping?</td><td class="num">23,345</td><td class="num">28,245</td></tr>
+          <tr><th scope="row">Grain mismatch</th><td>Does a day level filter blank one measure only?</td><td class="num">(blank)</td><td class="num">176</td></tr>
+          <tr><th scope="row">Totals row</th><td>Is the total the sum of the rows?</td><td class="num">230%</td><td class="num">35.2%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Prove where the filter died before you change anything. One test that separates the report layer from the model layer, either the Edit interactions check or the Performance Analyzer query, beats five speculative edits. Speculative edits are how a working model acquires a bidirectional relationship it never needed. If you are about to switch a relationship to filter both ways during a diagnosis, stop and finish the tree.</p>
+  </aside>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Four places can eat a filter: interactions, relationships, the measure and the filter panes. Diagnose in that order, cheapest first.</li>
+      <li>Edit interactions set to None is the most common cause in an inherited report and leaves no trace in the model, so no model audit tool will find it.</li>
+      <li>Trace hop by hop and stop at the first hop that runs from the many side to the one side. That hop is the answer, and no measure rewrite will fix it.</li>
+      <li>The Performance Analyzer query answers one question fast: was the filter sent at all. If the slicer's column is absent from every filter variable, the model and the measure are innocent.</li>
+      <li>A slicer that appears dead is sometimes correct. MSP is planned at 30 hours in all three months, so the month slicer changes nothing and should not.</li>
+      <li>When the filter arrives and the number is still wrong, ask four questions. Do the parts exceed the whole, does the total shrink when you group, do the two tables share a grain, and is the total a separate evaluation.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="17.html"><span class="pn-dir">Previous</span><span class="pn-t">Making slicers cross-filter each other</span></a><a class="pn" href="19.html"><span class="pn-dir">Next</span><span class="pn-t">Data quality: orphans, blanks and unknown members</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

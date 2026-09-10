@@ -1,0 +1,797 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Data quality: orphans, blanks and unknown members</title>
+</head>
+<body data-ch="19">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">19</span><span class="tb-title">Data quality: orphans, blanks and unknown members</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-19">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 6 . Diagnosis and reference</div>
+    <h2 class="chapter-title"><span class="chapter-num">19</span>Data quality: orphans, blanks and unknown members</h2>
+    <p class="chapter-lede">After this chapter you can look at a blank row in a visual and name which of nine defects produced it. You can prove which fact rows are responsible. Then you choose between three fixes: recover the key, map it to an explicit unknown member, or send it back to the source system.</p>
+  </div>
+
+  <p class="lead">The finance manager wants one number for the quarter: what the shop spent on parts. Your summary card says 28,245. The matrix by station on the page behind it adds to 23,345. He asks which one goes in the pack, and the uncomfortable answer is that both of them are right.</p>
+
+  <p>Every relationship you create in a Power BI model is an assertion about your data: that every value on the many side exists on the one side. Nothing verifies that assertion for you. The engine accepts the relationship, loads the data, and quietly invents a place to put whatever does not fit. The gap between his two numbers is one of those invented places.</p>
+
+  <dl class="defs">
+    <dt>Fact table</dt><dd>A table of events, one row per thing that happened. Meridian has four: <span class="fact-tag">Fact</span> <code>FactWorkOrder</code>, <code>FactLabor</code>, <code>FactParts</code> and <code>FactCapacity</code>.</dd>
+    <dt>Dimension</dt><dd>A table of the things you group and filter by, one row per thing. <span class="dim-tag">Dimension</span> <code>DimAircraft</code> holds one row per aircraft registration.</dd>
+    <dt>Foreign key</dt><dd>The column on the fact that names a row in the dimension. <code>FactWorkOrder[ACREG]</code> is the foreign key to <code>DimAircraft[ACREG]</code>.</dd>
+    <dt>Orphan</dt><dd>A fact row whose foreign key has no matching row in the dimension. WO-1006 is an orphan of <code>DimAircraft</code>.</dd>
+    <dt>Blank member</dt><dd>The row Power BI adds to a dimension to hold the orphans. Its key is blank, it has no attributes, and it prints as an empty cell.</dd>
+  </dl>
+
+  <h3>What the engine does when a key does not match</h3>
+
+  <p>Build the relationship <code>DimAircraft[ACREG]</code> to <code>FactWorkOrder[ACREG]</code> and the engine scans the many side for values that have no partner on the one side. Meridian has one: <code>N338WA</code> on WO-1006, which the customer service desk never added to the fleet spreadsheet. The engine accepts all of it. It adds a single blank row to the one side of that relationship and attributes every unmatched fact row to that blank row. The refresh goes green. No warning appears anywhere a report author would see one.</p>
+
+  <p>That blank row is virtual. The engine keeps it outside the stored table, so <code>COUNTROWS(DimAircraft)</code> still returns 6. It carries no attribute values, so it renders as an empty cell wherever a visual groups by an aircraft attribute. And there is exactly one of it per relationship. That last part is the one that hurts. A hundred distinct broken aircraft registrations would collapse into the same single empty row, indistinguishable from each other and from a genuinely blank key.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 380" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><text x="40.0" y="30.0" class="d-t" fill="#1B5A68">DimAircraft, taken straight from the stale registry</text><rect x="40.0" y="54.0" width="250.0" height="178.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.4"/><text x="52.0" y="72.0" class="d-m" fill="#1B5A68" font-weight="600">ACREG</text><line x1="40" y1="80" x2="290" y2="80" stroke="#1B5A68" stroke-width="1"/><text x="52.0" y="97.0" class="d-m">N771QR</text><text x="52.0" y="121.0" class="d-m">N448LM</text><text x="52.0" y="145.0" class="d-m">N902TT</text><text x="52.0" y="169.0" class="d-m">N615RB</text><text x="52.0" y="193.0" class="d-m">N120CE</text><text x="52.0" y="217.0" class="d-m">N553KD</text><rect x="40" y="238" width="250" height="30" rx="4" fill="#FBEDEA" stroke="#98281E" stroke-width="1.5" stroke-dasharray="5 3.5"/><text x="52.0" y="258.0" class="d-m" fill="#98281E" font-weight="600">(blank)</text><text x="118.0" y="258.0" class="d-s" fill="#98281E">added by Power BI, not by you</text><text x="500.0" y="30.0" class="d-t" fill="#AE4419">FactWorkOrder</text><rect x="500.0" y="54.0" width="300.0" height="226.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.4"/><text x="512.0" y="72.0" class="d-m" fill="#AE4419" font-weight="600">WorkOrderID</text><text x="650.0" y="72.0" class="d-m" fill="#AE4419" font-weight="600">ACREG</text><line x1="500" y1="80" x2="800" y2="80" stroke="#AE4419" stroke-width="1"/><text x="512.0" y="97.0" class="d-m" fill="#17160F">WO-1001</text><text x="650.0" y="97.0" class="d-m" fill="#17160F">N771QR</text><text x="512.0" y="121.0" class="d-m" fill="#17160F">WO-1002</text><text x="650.0" y="121.0" class="d-m" fill="#17160F">N448LM</text><text x="512.0" y="145.0" class="d-m" fill="#17160F">WO-1003</text><text x="650.0" y="145.0" class="d-m" fill="#17160F">N902TT</text><text x="512.0" y="169.0" class="d-m" fill="#17160F">WO-1004</text><text x="650.0" y="169.0" class="d-m" fill="#17160F">N771QR</text><text x="512.0" y="193.0" class="d-m" fill="#17160F">WO-1005</text><text x="650.0" y="193.0" class="d-m" fill="#17160F">N615RB</text><rect x="502" y="201" width="296" height="22" fill="#FBEDEA"/><text x="512.0" y="217.0" class="d-m" fill="#98281E">WO-1006</text><text x="650.0" y="217.0" class="d-m" fill="#98281E">N338WA</text><text x="512.0" y="241.0" class="d-m" fill="#17160F">WO-1007</text><text x="650.0" y="241.0" class="d-m" fill="#17160F">N902TT</text><text x="512.0" y="265.0" class="d-m" fill="#17160F">WO-1008</text><text x="650.0" y="265.0" class="d-m" fill="#17160F">N771QR</text><line x1="290.0" y1="140.0" x2="500.0" y2="140.0" class="d-line"/><text x="305.0" y="152.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="485.0" y="152.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><path d="M500,212 C440,212 360,253 290,253" stroke="#98281E" stroke-width="1.8" fill="none" stroke-dasharray="5 3.5" marker-end="url(#ahb)"/><text x="316.0" y="244.0" class="d-s" fill="#98281E">N338WA matches nothing,</text><text x="316.0" y="258.0" class="d-s" fill="#98281E">so its 12.0 hours land here</text><rect x="40.0" y="322.0" width="830.0" height="46.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="54.0" y="342.0" class="d-t" fill="#17160F">The blank row is not an error message. It is a silent bucket.</text><text x="54.0" y="358.0" class="d-s">Nothing in the report says the number is missing an aircraft. The only clue is a row with no label, which most readers skip.</text></svg></div><figcaption><span class="fig-num">Figure 19.1</span>An orphan foreign key, and the blank row Power BI adds to hold it.</figcaption></figure>
+
+  <p>Look at which side of the picture gains a row. On the left, <code>DimAircraft</code> holds the six aircraft registrations the stale registry actually delivered. The seventh box underneath them, drawn with a dashed red outline and labelled <code>(blank)</code>, is annotated <em>added by Power BI, not by you</em>, because that is exactly what it is. Follow the dashed red curve back to its other end and it starts on <code>N338WA</code>, the single work order row tinted red on the right, whose 12.0 hours have nowhere else to land. The blank member appears on the <em>one</em> side, the dimension. The bad key itself lives on the fact, one hop away. That is why the defect surfaces as a category with no name instead of a fact row you can click into. Nothing is lost arithmetically. Across this one relationship the rows still sum to the grand total, blank member included, because the unmatched fact row is attributed to the blank member and kept. What the engine loses is the ability to describe it, which is the point the grey card at the foot of the figure makes when it calls the blank row a silent bucket.</p>
+
+  <h3>Defect 1. The orphan foreign key</h3>
+
+  <p>The planner wants labor hours by aircraft type for the quarter review. You build the matrix in about a minute. It comes back with four rows, and the fourth row has no name on it at all. That row holds 12.0 hours, and she wants to know whose airframe they went on.</p>
+
+  <p>WO-1006 is a scheduled visit on tail <code>N338WA</code>, 12.0 labor hours from TECH-01 and one <code>ENG-8802</code> engine part at 5,100. The tail is real. The registry is stale. Put aircraft type on the rows of a matrix and the visit moves into a row with no label, and it stays inside the total.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 19.1</span> Labor hours and parts cost by aircraft type, with the registry left as it arrived. The parts total is 4,900 larger than the rows above it.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Aircraft type</th><th scope="col" class="num">Labor hours</th><th scope="col" class="num">Parts cost</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">A320-200</th><td class="num">23.5</td><td class="num">3,115</td></tr>
+          <tr><th scope="row">B737-800</th><td class="num">9.0</td><td class="num">2,450</td></tr>
+          <tr><th scope="row">E175</th><td class="num">17.5</td><td class="num">12,680</td></tr>
+          <tr class="row-bad"><th scope="row">(blank) <span class="muted">N338WA absent from AircraftRegistry</span></th><td class="num">12.0</td><td class="num">5,100</td></tr>
+          <tr class="row-total"><th scope="row">Sum of the four visible rows</th><td class="num">62.0</td><td class="num">23,345</td></tr>
+          <tr class="row-bad"><th scope="row">On no row at all <span class="muted">P-9007, WO-1009 absent from WorkOrders</span></th><td class="num">0</td><td class="num cell-bad">4,900</td></tr>
+          <tr class="row-total"><th scope="row">Total the visual prints</th><td class="num">62.0</td><td class="num">28,245</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Two defects, two relationships, and only one of them is given a row to sit in. The 12.0 hours and the 5,100 failed the <code>DimAircraft</code> join, so they land on the blank member, which is at least a row a reader can point at. The 4,900 failed a different join, header to line, and it is the next section. That parts line has no work order. With no work order it has no aircraft registration, so it has no aircraft type, and the matrix has nowhere to put it. It appears in the total and in none of the rows. When a visual's total is larger than the sum of the rows printed above it, this is the first thing to test. The difference, here 4,900, is usually the whole of your evidence.</p>
+
+  <h4>Detection, method one: a left anti join in Power Query</h4>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">Orphan aircraft registrations</span></div>
+    <pre><code><span class="k">let</span>
+    Source <span class="op">=</span> <span class="t">WorkOrders</span>,
+    Unmatched <span class="op">=</span> <span class="k">Table.NestedJoin</span>(
+        Source, {<span class="s">"ACREG"</span>},
+        <span class="t">AircraftRegistry</span>, {<span class="s">"ACREG"</span>},
+        <span class="s">"RegistryHit"</span>, <span class="k">JoinKind.LeftAnti</span>
+    ),
+    Cleaned <span class="op">=</span> <span class="k">Table.RemoveColumns</span>(Unmatched, {<span class="s">"RegistryHit"</span>})
+<span class="k">in</span>
+    Cleaned</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>Table.NestedJoin</code> with <code>JoinKind.LeftAnti</code> rather than a normal left outer merge followed by a filter on nulls. The anti join returns only the left rows with no partner, so the answer is the row count, and it never materialises the matched side. The outer-merge-then-filter version builds the full joined table first and then throws most of it away.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 8</div><div class="linex-v">The anti join still adds the nested column, always empty, so drop it. Leaving it in the query costs nothing at refresh but confuses the next person who opens it.</div></div>
+    <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">One row, WO-1006. Point a card at the row count of this query and you have a permanent check. Zero is healthy.</div></div>
+  </div>
+
+  <h4>Detection, method two: a measure in the model</h4>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Orphan Aircraft Rows</span></div>
+    <pre><code>Orphan Aircraft Rows <span class="op">=</span>
+<span class="k">COUNTROWS</span> (
+    <span class="k">FILTER</span> (
+        <span class="t">FactWorkOrder</span>,
+        <span class="k">ISBLANK</span> ( <span class="k">RELATED</span> ( <span class="t">DimAircraft</span><span class="col">[ACREG]</span> ) )
+    )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">COUNTROWS</div><div class="linex-v"><code>COUNTROWS</code> counts rows of a table, blank keys included. <code>COUNT</code> on a column skips blanks, and blank keys are precisely what you are trying to count, so it would report zero on the worst data you own.</div></div>
+    <div class="linex-row"><div class="linex-k">FILTER</div><div class="linex-v"><code>FILTER</code> supplies a row context, and this test needs one, because <code>RELATED</code> only means something while the engine is standing on a specific fact row. A boolean predicate inside <code>CALCULATE</code> is evaluated with no row context, so it cannot do this job at all.</div></div>
+    <div class="linex-row"><div class="linex-k">RELATED</div><div class="linex-v"><code>RELATED</code> walks the relationship that already exists, which is the cheapest route to the dimension. <code>LOOKUPVALUE</code> ignores relationships and performs its own match per row: the same answer at higher cost, and different behaviour if the key is ever duplicated.</div></div>
+    <div class="linex-row"><div class="linex-k">ISBLANK</div><div class="linex-v"><code>ISBLANK</code> tests for blank and stops there. Write <code>= BLANK()</code> and DAX treats an empty string as equal to blank, so the test would also flag a key that exists but is empty. Those are two different defects with two different owners, and you want them counted separately.</div></div>
+    <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">1 on the raw Meridian model. The fact row lands on the virtual blank member, <code>RELATED</code> finds no attribute to return, and the row is counted.</div></div>
+  </div>
+
+  <p>There is a shorter trick. Run it on the raw model, where the aircraft dimension is still the registry as it arrived, 6 rows. <code>COUNTROWS(VALUES(DimAircraft[ACREG]))</code> returns 7 while <code>COUNTROWS(DISTINCT(DimAircraft[ACREG]))</code> returns 6, because <code>VALUES</code> includes the virtual blank row of an invalid relationship and <code>DISTINCT</code> leaves it out. The difference is 1 whenever any orphan exists. The limitation is that it is always 1, however many orphans there are, so it tells you the model is broken without telling you how badly.</p>
+
+  <h4>The fix</h4>
+
+  <p>Build <code>DimAircraft</code> from the union of the registry and the distinct aircraft registrations actually used on work orders, exactly as in <a class="xref" href="#ch-03">Chapter 3</a>. That takes the dimension to 7 rows and gives <code>N338WA</code> a home. The 12.0 hours and the 5,100 move out of the blank row into a labelled row that says the type is unknown. The number keeps its value. What changes is its address.</p>
+
+  <p>So the planner gets her fourth row back with a name on it. It reads Unknown type, it still holds 12.0 hours, and she can walk to customer service and ask which airframe <code>N338WA</code> is. Somebody can answer that question in a minute. Nobody can answer a blank row.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>A blank row in a visual is the model reporting a failed assertion in the only vocabulary it has. Read it the way you would read a null in a foreign key column in a database. It is an incident with an owner, and somebody has to go and chase it.</p>
+  </aside>
+
+  <h3>Defect 2. The orphan header key</h3>
+
+  <p>P-9007 issues two <code>HYD-4471</code> units at 2,450 each against WO-1009. There is no WO-1009 in <code>WorkOrders</code>. The stores clerk typed a work order number that the shop floor system never created, or created and voided. The parts left the store either way, and the cost is real.</p>
+
+  <p>This orphan behaves differently from the first one, because the broken relationship is fact to fact, header to line. <span class="fact-tag">Fact</span> <code>FactWorkOrder</code> is the one side. It gains the blank row. So the 4,900 has no work order. With no work order it has no station, no aircraft, no work order type and no opened date. It falls out of every breakdown you can build.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 19.2</span> Parts cost by station against the unfiltered parts total. Station values come from the work order header.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Station</th><th scope="col" class="num">Parts cost</th><th scope="col">Source lines</th></tr></thead>
+        <tbody>
+          <tr><td class="key">MSP</td><td class="num">8,790</td><td class="muted">P-9001, P-9002, P-9006</td></tr>
+          <tr><td class="key">TUS</td><td class="num">12,680</td><td class="muted">P-9003, P-9004</td></tr>
+          <tr><td class="key">UNASSIGNED</td><td class="num">1,875</td><td class="muted">P-9005</td></tr>
+          <tr><td class="key">LAS</td><td class="num">0</td><td class="muted">none</td></tr>
+          <tr><td class="key">PHX</td><td class="num">0</td><td class="muted">none</td></tr>
+          <tr class="row-total"><th scope="row">Matrix total</th><td class="num">23,345</td><td class="muted">6 of 7 lines</td></tr>
+          <tr class="row-bad"><th scope="row">Card: Total Parts Cost</th><td class="num cell-bad">28,245</td><td class="muted">7 of 7 lines</td></tr>
+          <tr class="row-bad"><th scope="row">Difference</th><td class="num cell-bad">4,900</td><td class="muted">P-9007, WO-1009</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>MSP at 8,790 is arithmetic on the source lines: 1,240 plus 2,450 plus 5,100. The rest of the column comes straight from the answer key. Read this table for the shape of the failure. Which station carries which number matters far less than the two rows at the bottom.</p>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>Two visuals on the same page, fed by the same measure, disagreeing by 4,900. The card says 28,245. The matrix by station adds to 23,345. Both are correct, and neither is a bug. The matrix shows every parts line that can be attributed to a station. The card shows every parts line. The gap between those two statements is a data quality defect that neither visual has any way to declare. A finance reviewer will assume the matrix is broken and stop trusting the page.</p>
+  </div>
+
+  <p>That answers the finance manager, and he will not enjoy it. Both of his numbers are correct, so neither one can be fixed. What he actually needs is the third number, 4,900, and the sentence that goes with it: two hydraulic units left the store against a work order that no system in the shop can find.</p>
+
+  <details class="expand" open>
+    <summary>Trace the 4,900 gap by hand, line by line</summary>
+    <div class="expand-body">
+      <p>Seven lines in <code>FactParts</code>. Six carry a <code>WorkOrderID</code> that exists in <code>FactWorkOrder</code>, so each inherits a station through its header.</p>
+      <ul class="list">
+        <li>P-9001, WO-1001, 4 times 310 equals 1,240, station MSP.</li>
+        <li>P-9002, WO-1002, 1 times 2,450 equals 2,450, station MSP.</li>
+        <li>P-9003, WO-1003, 2 times 5,100 equals 10,200, station TUS.</li>
+        <li>P-9004, WO-1003, 8 times 310 equals 2,480, station TUS.</li>
+        <li>P-9005, WO-1005, 1 times 1,875 equals 1,875, station blank, mapped to UNASSIGNED.</li>
+        <li>P-9006, WO-1006, 1 times 5,100 equals 5,100, station MSP.</li>
+        <li>P-9007, WO-1009, 2 times 2,450 equals 4,900, no header, so no station at all.</li>
+      </ul>
+      <p>Six attributable lines sum to 23,345. Add P-9007 and you get 28,245. Both visuals compute the same measure over different row sets, and the only thing deciding which row set you get is whether the visual groups by an attribute on the far side of a broken join.</p>
+    </div>
+  </details>
+
+  <p>Detection is the same anti join as before, with <code>PartsIssued</code> on the left and <code>WorkOrders</code> on the right, keyed on <code>WorkOrderID</code>. The fix has three options. Two of them tell the reader the truth, and the middle one buys a tidy report by hiding the problem. You can chase WO-1009 in the shop floor system and find out whether it was voided, mistyped, or belongs to a different period. You can create an inferred header row for WO-1009 with a quoted amount of zero and an unknown station, which makes the matrix add up. Or you can leave it visible and labelled. Meridian ships with this one deliberately unfixed so the unknown member lesson has something to catch.</p>
+
+  <p>The inferred header carries a price. Total quoted amount is 38,100 and total actual cost is 29,671.50, which is 6,326.50 of labor plus the 23,345 of attributable parts. Add an inferred WO-1009 with quoted zero and total actual cost becomes 6,326.50 plus 28,245, which is 34,571.50, while quoted stays at 38,100. Your quote to actual variance moves by 4,900, because you invented a work order that was quoted at nothing. Fixing the join broke the margin report. That is the trade, and you should make it consciously.</p>
+
+  <h3>Defect 3. The blank foreign key</h3>
+
+  <p>WO-1005 has no <code>StationCode</code>. The field is empty. It is an AOG job that someone opened before deciding where the aircraft would be recovered to, and nobody went back to fill the field in.</p>
+
+  <p>A blank on the many side behaves exactly like an unmatched key. It is attributed to the blank member on the one side. In a labor hours by station visual the effect is invisible, because WO-1005 has no labor rows. In a parts cost by station visual its 1,875 sits in an empty row beside MSP and TUS, and readers take that row for a station whose name did not print.</p>
+
+  <h4>Detection: count the blanks before you map them</h4>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">Blank station codes</span></div>
+    <pre><code><span class="k">let</span>
+    Source <span class="op">=</span> <span class="t">WorkOrders</span>,
+    Blanks <span class="op">=</span> <span class="k">Table.SelectRows</span>(
+        Source,
+        <span class="k">each</span> <span class="col">[StationCode]</span> <span class="op">=</span> <span class="k">null</span>
+             <span class="k">or</span> <span class="k">Text.Trim</span>(<span class="col">[StationCode]</span>) <span class="op">=</span> <span class="s">""</span>
+    ),
+    Count <span class="op">=</span> <span class="k">Table.RowCount</span>(Blanks)
+<span class="k">in</span>
+    Count</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>Table.SelectRows</code> counts the rows yourself, over the whole table, which is the answer. The Empty percentage on the column quality bar is the faster look, and it samples the first 1,000 rows unless you switch it to the whole data set, so a single bad row in a large table rounds to zero percent and the bar tells you the column is fine. Treat the bar as a prompt and this query as the answer.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 5 and 6</div><div class="linex-v">Both tests, for the same reason the mapping step below uses both. A CSV export delivers null and an Excel export delivers an empty string, and a column that arrived from two sources over two quarters holds both. <code>Text.Trim</code> catches the third form, a cell holding nothing but spaces, which passes a null test and an empty string test and still joins to nothing.</div></div>
+    <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">1 on the Meridian work orders, WO-1005. Point a card at it and zero is the healthy reading. The DAX equivalent is <code>Blank Station Keys</code>, later in this chapter, which reads 1 on the raw work orders and 0 once the mapping runs, because the key is then the string <code>UNASSIGNED</code>.</div></div>
+    <div class="linex-row"><div class="linex-k">Scope</div><div class="linex-v">Run the same three lines over <code>FactLabor[TechnicianID]</code>, <code>FactParts[WorkOrderID]</code> and every other relationship column before you build the model. Running them after a reader queries a number is running them late. Blank keys are the one defect class you can enumerate completely in advance, because the test does not depend on the other side of the join.</div></div>
+  </div>
+
+  <h4>The fix</h4>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">Map blank station to an explicit member</span></div>
+    <pre><code><span class="k">let</span>
+    Source <span class="op">=</span> <span class="t">WorkOrders</span>,
+    Mapped <span class="op">=</span> <span class="k">Table.TransformColumns</span>(
+        Source,
+        {{<span class="s">"StationCode"</span>, <span class="k">each</span>
+            <span class="k">if</span> _ <span class="op">=</span> <span class="k">null</span> <span class="k">or</span> <span class="k">Text.Trim</span>(_) <span class="op">=</span> <span class="s">""</span>
+            <span class="k">then</span> <span class="s">"UNASSIGNED"</span>
+            <span class="k">else</span> <span class="k">Text.Upper</span>(<span class="k">Text.Trim</span>(_)), <span class="k">type text</span>}}
+    )
+<span class="k">in</span>
+    Mapped</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>Table.TransformColumns</code> takes a function, so one step catches null, empty string and whitespace-only in a single pass. Replace Values from the ribbon generates a step that matches one literal, which means three steps and three chances to forget one.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v">Both tests, because a blank cell in a CSV export arrives as null and a blank cell in an Excel export often arrives as an empty string. The two look the same in the preview pane and behave differently in a join.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 8</div><div class="linex-v">The normalisation is applied to the good values as well as the bad ones. Cleaning only the failures leaves you with a column that is half normalised, which is how you get a defect that appears one month and not the next.</div></div>
+    <div class="linex-row"><div class="linex-k">Pairing</div><div class="linex-v">Add a matching <code>UNASSIGNED | Unassigned | n/a</code> row to <span class="derived-tag">Built</span> <code>DimStation</code>, taking it to 5 rows. A mapped fact key with no dimension member is still an orphan.</div></div>
+  </div>
+
+  <p>An explicit <code>UNASSIGNED</code> member beats a blank for one reason. A blank is indistinguishable from a join failure, so as long as the row is blank you cannot tell whether the station is genuinely unknown or whether your model is broken.</p>
+
+  <h3>Defect 4. Two keys that print the same and join differently</h3>
+
+  <p>L-505 records 4.5 hours from <code>"TECH-04 "</code>. The trailing space is invisible in the query editor preview, in a table visual, in a tooltip and in the filter pane. Drop <code>TechnicianID</code> into a table visual and you get two rows that both read <code>TECH-04</code>. They are two different values. One joins to D. Sandoval, the other joins to nothing.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 19.3</span> The same displayed value, inspected with Text.Length. Hours from the answer key, before and after the trim.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Source</th><th scope="col">Displayed</th><th scope="col" class="num">Length</th><th scope="col">Character codes</th><th scope="col" class="num">Hours</th></tr></thead>
+        <tbody>
+          <tr class="row-good"><td class="key">L-502</td><td class="key">TECH-04</td><td class="num">7</td><td class="muted">84.69.67.72.45.48.52</td><td class="num">6.0</td></tr>
+          <tr class="row-bad"><td class="key">L-505</td><td class="key">TECH-04</td><td class="num cell-bad">8</td><td class="muted">84.69.67.72.45.48.52.<strong>32</strong></td><td class="num">4.5</td></tr>
+          <tr class="row-total"><th scope="row">After the trim, TECH-04</th><td></td><td class="num">7</td><td class="muted">both rows join</td><td class="num">10.5</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">Make the invisible visible</span></div>
+    <pre><code><span class="k">let</span>
+    Source <span class="op">=</span> <span class="t">LaborEntries</span>,
+    Lengths <span class="op">=</span> <span class="k">Table.AddColumn</span>(Source, <span class="s">"KeyLength"</span>,
+        <span class="k">each</span> <span class="k">Text.Length</span>(<span class="col">[TechnicianID]</span>), <span class="k">Int64.Type</span>),
+    Codes <span class="op">=</span> <span class="k">Table.AddColumn</span>(Lengths, <span class="s">"CharCodes"</span>,
+        <span class="k">each</span> <span class="k">Text.Combine</span>(
+            <span class="k">List.Transform</span>(
+                <span class="k">Text.ToList</span>(<span class="col">[TechnicianID]</span>),
+                <span class="k">each</span> <span class="k">Text.From</span>(<span class="k">Character.ToNumber</span>(_))
+            ), <span class="s">"."</span>), <span class="k">type text</span>)
+<span class="k">in</span>
+    Codes</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">KeyLength</div><div class="linex-v">Use <code>Text.Length</code> for the test. A trim-and-compare test tells you the value changed, and it stays silent on any character that trim leaves in place, and those are the ones that cost you a week.</div></div>
+    <div class="linex-row"><div class="linex-k">CharCodes</div><div class="linex-v">The definitive test. Character 32 is an ordinary space. Character 160 is a non breaking space, which is what you get when a key is copied out of a web page or lifted from a PDF, and <code>Text.Trim</code> will not always remove it, because its remit is the standard whitespace set. If you see 160 in this column, replace it explicitly.</div></div>
+    <div class="linex-row"><div class="linex-k">In DAX</div><div class="linex-v">The same test is a calculated column, <code>LEN(FactLabor[TechnicianID])</code>. Use <code>LEN</code> for detection. DAX <code>TRIM</code> removes character 32 only, so a trim-based test would silently hide the case you most need to see. Delete the column once you have the answer.</div></div>
+  </div>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">Normalise the key, both sides</span></div>
+    <pre><code><span class="k">let</span>
+    Source <span class="op">=</span> <span class="t">LaborEntries</span>,
+    Normalised <span class="op">=</span> <span class="k">Table.TransformColumns</span>(
+        Source,
+        {{<span class="s">"TechnicianID"</span>, <span class="k">each</span>
+            <span class="k">Text.Upper</span>(
+                <span class="k">Text.Trim</span>(
+                    <span class="k">Text.Replace</span>(_, <span class="k">Character.FromNumber</span>(<span class="n">160</span>), <span class="s">" "</span>)
+                )
+            ), <span class="k">type text</span>}}
+    )
+<span class="k">in</span>
+    Normalised</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Order</div><div class="linex-v">Replace the non breaking space first, then trim, then case. Trimming first leaves a character 160 sitting at the end of the string where trim cannot see it.</div></div>
+    <div class="linex-row"><div class="linex-k">Text.Upper</div><div class="linex-v">Applied on both the fact and the dimension, always as a pair. Normalising one side and leaving the other converts a matching key into a non matching one.</div></div>
+    <div class="linex-row"><div class="linex-k">Effect</div><div class="linex-v">L-505 joins, TECH-04 goes from 6.0 hours to 10.5, and the 4.5 hours leave the blank row. Total labor hours stays at 62.0 throughout, which is why nobody noticed.</div></div>
+  </div>
+
+  <h3>Defect 5. Case variation, which the two engines disagree about</h3>
+
+  <p>No row in the Meridian extract carries a case problem today. This one arrives the afternoon somebody tidies a key by hand, or the day a second source starts feeding the same column, and the two tools you use to build the model take opposite views of what happened.</p>
+
+  <p>Power Query is case sensitive. <code>TECH-04</code> and <code>tech-04</code> are two values to a merge, to Remove Duplicates, and to Table.Group. The DAX engine, as it is used to resolve relationships and to group in a visual, is case insensitive under the default collation. It treats those two strings as one key.</p>
+
+  <p>The two behaviours point in opposite directions, and both directions bite.</p>
+
+  <ul class="list">
+    <li>A key that fails a Power Query merge can still match in the model. You spend an afternoon fixing a merge that produced nulls, load the result, and the relationship works fine, which makes you doubt your own diagnosis.</li>
+    <li>A dimension that Power Query considers clean can be rejected by the model. Run Remove Duplicates on a <code>DimTechnician</code> containing both <code>TECH-04</code> and <code>tech-04</code> and Power Query keeps both, because to it they are distinct. Then the model refuses to build the relationship, because to it they are one duplicated key.</li>
+  </ul>
+
+  <p>The fix is to make the difference stop mattering. Normalise case explicitly in Power Query, on both the fact and the dimension, so that neither behaviour is load bearing.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Changing a text key to a numeric type because the profile pane says it is all digits. A technician id of <code>04</code> becomes 4, a part sequence of <code>0812</code> becomes 812, and the join to a dimension that kept the text form fails on every row with a leading zero. Meridian happens to escape this because every key carries a letter prefix, which forces text detection. That is luck. Nobody designed it. The moment someone strips the <code>TECH-</code> prefix to make a chart look tidier, the defect arrives, and Power Query's automatic Changed Type step will do it without asking.</p>
+  </aside>
+
+  <h3>Defect 6. Duplicate keys on the one side</h3>
+
+  <p>The refresh failed overnight and the Monday manpower report is empty. The production controller has asked about it twice already. This is the friendliest defect in the chapter, because the refresh history hands you a table name, a column name and the offending value.</p>
+
+  <p>This one stops you dead before a blank row is ever drawn. Build <code>DimAircraft</code> by appending <code>AircraftRegistry</code> to the distinct aircraft registrations from <code>WorkOrders</code>, forget the deduplication step, and you have 11 rows for 7 aircraft, because the four tails present in both sources appear twice.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 19.4</span> Group By on the appended dimension before deduplication. Rows over 1 are the ones that block the relationship.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">ACREG</th><th scope="col" class="num">Rows</th><th scope="col">Present in</th></tr></thead>
+        <tbody>
+          <tr class="row-bad"><td class="key">N771QR</td><td class="num cell-bad">2</td><td class="muted">registry and work orders</td></tr>
+          <tr class="row-bad"><td class="key">N448LM</td><td class="num cell-bad">2</td><td class="muted">registry and work orders</td></tr>
+          <tr class="row-bad"><td class="key">N902TT</td><td class="num cell-bad">2</td><td class="muted">registry and work orders</td></tr>
+          <tr class="row-bad"><td class="key">N615RB</td><td class="num cell-bad">2</td><td class="muted">registry and work orders</td></tr>
+          <tr><td class="key">N120CE</td><td class="num">1</td><td class="muted">registry only</td></tr>
+          <tr><td class="key">N553KD</td><td class="num">1</td><td class="muted">registry only</td></tr>
+          <tr><td class="key">N338WA</td><td class="num">1</td><td class="muted">work orders only</td></tr>
+          <tr class="row-total"><th scope="row">Total</th><td class="num">11</td><td class="muted">should be 7</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>At design time, the relationship dialog refuses with a message along the lines of "You can't create a relationship between these two columns because one of the columns must have unique values". At refresh time, a relationship that was valid and has since gone bad fails the whole refresh with a message naming the offending value: "Column 'ACREG' in Table 'DimAircraft' contains a duplicate value 'N771QR' and this is not allowed for columns on the one side of a many-to-one relationship". The exact wording drifts between versions. The second form is more useful because it names the value, and it is the one you will meet in production at seven in the morning.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">Find the offending keys</span></div>
+    <pre><code><span class="k">let</span>
+    Source <span class="op">=</span> <span class="t">DimAircraft</span>,
+    Counted <span class="op">=</span> <span class="k">Table.Group</span>(
+        Source, {<span class="s">"ACREG"</span>},
+        {{<span class="s">"Rows"</span>, <span class="k">each</span> <span class="k">Table.RowCount</span>(_), <span class="k">Int64.Type</span>}}
+    ),
+    Offenders <span class="op">=</span> <span class="k">Table.SelectRows</span>(Counted, <span class="k">each</span> <span class="col">[Rows]</span> <span class="op">&gt;</span> <span class="n">1</span>)
+<span class="k">in</span>
+    Offenders</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Table.Group</div><div class="linex-v">Rather than Remove Duplicates. Remove Duplicates makes the problem go away without telling you which key was duplicated or how many times, and on a real dimension the duplicate is usually the symptom of something upstream that you want to know about.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 7</div><div class="linex-v">An empty result is the healthy state. Keep this query in the file, disable its load, and check it whenever a refresh fails on a relationship.</div></div>
+    <div class="linex-row"><div class="linex-k">Caution</div><div class="linex-v">Because this runs in Power Query it is case sensitive, so it will report a clean dimension that the model still rejects. Normalise case before you group, or you are testing a different question from the one the engine asks.</div></div>
+  </div>
+
+  <p>So the production controller gets a straight answer inside five minutes. Four aircraft registrations appear twice in the appended dimension, the deduplication step went missing when somebody reordered the query, and the refresh will run as soon as it goes back in. He can tell the shift that the manpower report will be there by eight.</p>
+
+  <h3>Unknown members, done properly</h3>
+
+  <p>Defects 1, 2 and 3 all end at the same fix, so this section builds that fix properly once and the numbered list picks up again afterwards.</p>
+
+  <p>An unknown member is a real row in the dimension, with a key you control and descriptive text that states what it means. It exists so that unmatched facts land somewhere labelled instead of nowhere. There are two ways to build one, and swapping one for the other changes what you can find out afterwards.</p>
+
+  <dl class="defs">
+    <dt>Mapped unknown</dt><dd>The dimension gets a hard coded row with a fixed key, <code>UNASSIGNED</code> or <code>-1</code>. Power Query rewrites the fact key to that value wherever it is blank or unmatched. The original value, if any, is discarded.</dd>
+    <dt>Recovered key, sometimes called an inferred member</dt><dd>The dimension gets one row per unmatched key, carrying the actual key value with unknown attributes filled in. The fact is untouched. Every distinct broken key stays distinguishable.</dd>
+  </dl>
+
+  <h4>Variant one: the mapped unknown</h4>
+
+  <p>Two halves, and both are compulsory. The dimension gets a row you wrote by hand, with a key you chose and text that states what the row means. The fact gets a step that redirects any key that is blank or absent from the dimension onto that chosen key. Ship only the first half and nothing lands on your new row. Ship only the second half and you have converted an orphan into a different orphan.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">Unknown member, dimension side and fact side</span></div>
+    <pre><code><span class="c">// Query 1. DimStation gains the row.</span>
+<span class="k">let</span>
+    Known <span class="op">=</span> <span class="t">StationsAppended</span>,
+    Unknown <span class="op">=</span> <span class="k">#table</span>(
+        <span class="k">type table</span> [
+            StationCode <span class="op">=</span> <span class="k">text</span>,
+            StationName <span class="op">=</span> <span class="k">text</span>,
+            StationRole <span class="op">=</span> <span class="k">text</span>
+        ],
+        {{<span class="s">"UNASSIGNED"</span>, <span class="s">"Unassigned"</span>,
+          <span class="s">"No station recorded on the work order"</span>}}
+    ),
+    Combined <span class="op">=</span> <span class="k">Table.Combine</span>({Known, Unknown})
+<span class="k">in</span>
+    Combined
+
+<span class="c">// Query 2. FactWorkOrder is redirected onto it.</span>
+<span class="k">let</span>
+    Source <span class="op">=</span> <span class="t">WorkOrders</span>,
+    Valid <span class="op">=</span> <span class="k">List.Buffer</span>(<span class="t">StationsAppended</span><span class="col">[StationCode]</span>),
+    Mapped <span class="op">=</span> <span class="k">Table.AddColumn</span>(Source, <span class="s">"StationKey"</span>,
+        <span class="k">each if</span> <span class="col">[StationCode]</span> <span class="op">=</span> <span class="k">null</span>
+                <span class="k">or not</span> <span class="k">List.Contains</span>(Valid, <span class="col">[StationCode]</span>)
+             <span class="k">then</span> <span class="s">"UNASSIGNED"</span>
+             <span class="k">else</span> <span class="col">[StationCode]</span>, <span class="k">type text</span>),
+    Dropped <span class="op">=</span> <span class="k">Table.RemoveColumns</span>(Mapped, {<span class="s">"StationCode"</span>}),
+    Renamed <span class="op">=</span> <span class="k">Table.RenameColumns</span>(Dropped,
+        {{<span class="s">"StationKey"</span>, <span class="s">"StationCode"</span>}})
+<span class="k">in</span>
+    Renamed</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">#table</div><div class="linex-v">Rather than Enter Data from the ribbon. Enter Data writes the row into the query as a compressed base64 string, which nobody can read, review or diff, and which pins the column types at whatever they were the day you typed it. A <code>#table</code> literal is plain text in the query, so the next person can see the member exists and change its wording without re-entering the data.</div></div>
+    <div class="linex-row"><div class="linex-k">The key you choose</div><div class="linex-v">A word for text keys, <code>-1</code> for numeric surrogate keys, because real surrogates are positive. Avoid 0 and avoid an empty string. Both occur naturally in source systems, and the day one arrives for real you will have two meanings sharing one key with no way to separate them.</div></div>
+    <div class="linex-row"><div class="linex-k">List.Buffer</div><div class="linex-v">Buffer the list of valid codes once, before the <code>each</code> starts running. Reference <code>StationsAppended[StationCode]</code> inside the <code>each</code> and the column is re-evaluated per fact row, so the cost becomes rows times members. On eight work orders that is invisible. On two million rows it is the difference between a refresh and a cancelled refresh.</div></div>
+    <div class="linex-row"><div class="linex-k">Both tests</div><div class="linex-v"><code>List.Contains</code> catches the unmatched key and the null test catches the missing one, because they are different defects that happen to deserve the same destination here. If you want them separated later, send them to two members.</div></div>
+    <div class="linex-row"><div class="linex-k">New column, then drop, then rename</div><div class="linex-v">The redirect writes <code>StationKey</code>, the next step removes the original <code>StationCode</code>, and the last step renames <code>StationKey</code> back to <code>StationCode</code>. While you are developing you can see both side by side. The rename matters because the relationship to <code>DimStation</code> and the <code>Blank Station Keys</code> measure later in this chapter both name that column, and a column rename inside Power Query breaks every one of them silently. For Meridian nothing is lost by dropping the original, because the value being replaced is blank.</div></div>
+    <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v"><span class="derived-tag">Built</span> <code>DimStation</code> goes from 4 rows to 5. WO-1005 groups under Unassigned. Labor hours by station stays where it was, because WO-1005 has no labor rows, and parts cost by station moves 1,875 out of the blank row and into a labelled one.</div></div>
+  </div>
+
+  <h4>Variant two: the recovered key</h4>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">DimAircraft with the recovered key</span></div>
+    <pre><code><span class="k">let</span>
+    Registry <span class="op">=</span> <span class="t">AircraftRegistry</span>,
+    Tails <span class="op">=</span> <span class="k">Table.Distinct</span>(
+        <span class="k">Table.SelectColumns</span>(<span class="t">WorkOrders</span>, {<span class="s">"ACREG"</span>})),
+    Missing <span class="op">=</span> <span class="k">Table.NestedJoin</span>(
+        Tails, {<span class="s">"ACREG"</span>}, Registry, {<span class="s">"ACREG"</span>},
+        <span class="s">"Hit"</span>, <span class="k">JoinKind.LeftAnti</span>),
+    Keys <span class="op">=</span> <span class="k">Table.SelectColumns</span>(Missing, {<span class="s">"ACREG"</span>}),
+    A <span class="op">=</span> <span class="k">Table.AddColumn</span>(Keys, <span class="s">"AircraftType"</span>,
+        <span class="k">each</span> <span class="s">"Unknown type"</span>, <span class="k">type text</span>),
+    B <span class="op">=</span> <span class="k">Table.AddColumn</span>(A, <span class="s">"Operator"</span>,
+        <span class="k">each</span> <span class="s">"Unknown operator"</span>, <span class="k">type text</span>),
+    C <span class="op">=</span> <span class="k">Table.AddColumn</span>(B, <span class="s">"EngineType"</span>,
+        <span class="k">each</span> <span class="s">"Unknown engine"</span>, <span class="k">type text</span>),
+    D <span class="op">=</span> <span class="k">Table.AddColumn</span>(C, <span class="s">"YearBuilt"</span>,
+        <span class="k">each</span> <span class="k">null</span>, <span class="k">Int64.Type</span>),
+    Combined <span class="op">=</span> <span class="k">Table.Combine</span>({Registry, D})
+<span class="k">in</span>
+    Combined</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 5 to 7</div><div class="linex-v">The anti join does all the work here. It produces exactly the keys the registry is missing, which for Meridian is <code>N338WA</code> and nothing else. Next quarter it might be three tails, and the query needs no change.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 9 to 16</div><div class="linex-v">Literal text in the descriptive columns. A null here would put the row straight back into a blank cell in every visual and you would have gained nothing.</div></div>
+    <div class="linex-row"><div class="linex-k">YearBuilt</div><div class="linex-v">Left null on purpose, because it is numeric and the text "Unknown" cannot go in a numeric column without changing the type and breaking any measure that averages it. Not every attribute can carry an unknown label, and pretending otherwise is how you get a fleet whose average age is wrong.</div></div>
+    <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">7 rows. The relationship becomes valid, the virtual blank member disappears, and WO-1006 groups under "Unknown type" where a human can see it and act.</div></div>
+  </div>
+
+  <p>Which variant to use is decided by one question: is the key itself information? For Meridian's aircraft it is. <code>N338WA</code> is a real aircraft registration, it identifies a specific airframe, and someone in customer service can look it up and tell you who operates it. Recover it. Mapping it to a generic unknown would throw away the one piece of evidence that lets somebody resolve the defect.</p>
+
+  <p>For Meridian's station on WO-1005 the answer is the opposite. There is no value to recover. The field was never filled in, so there is nothing to look up, and every future blank belongs in the same bucket as this one. Map it to <code>UNASSIGNED</code>. The general rule: recover when a broken key is a real identifier you failed to resolve, map when the key is genuinely absent.</p>
+
+  <h3>Defect 7. Type mismatches on the relationship columns</h3>
+
+  <p>Two columns can hold what looks like the same value and still refuse to join, because the model compares stored values and not printed ones.</p>
+
+  <ul class="list">
+    <li><strong>Text against number.</strong> A <code>MonthKey</code> of <code>202501</code> stored as whole number in <code>DimDate</code> and as text in <code>FactCapacity</code>. Power BI will refuse to create the relationship at all. This is the benign case, because it fails loudly at design time.</li>
+    <li><strong>Date against date and time.</strong> This is the one that hurts. If the timesheet export delivers <code>WorkDate</code> with a time component and <code>DimDate[Date]</code> holds midnight values, the relationship is accepted, because both columns are date based. Then every labor row whose time is not exactly midnight matches nothing. Total labor hours still reads 62.0. Labor hours by month reads zero. Totals agreeing while breakdowns collapse is the signature of this defect.</li>
+    <li><strong>Locale on the type conversion.</strong> Meridian's dates arrive ISO formatted, so <code>2025-01-06</code> is unambiguous. Change the export to <code>06/01/2025</code> and the Changed Type step will read it as 6 January or 1 June depending on the locale of the machine that authored the step, which is not necessarily the locale of the service that refreshes it. Set the locale explicitly in <code>Table.TransformColumnTypes</code>. The default is whatever the authoring machine happened to be set to.</li>
+  </ul>
+
+  <p>The habit that prevents all three: set the type on every key column deliberately, in a named step near the end of the query, and never rely on the automatic Changed Type that Power Query adds when you first connect. That step is generated from a sample of the first rows and it will change its mind when the data changes.</p>
+
+  <h3>Defect 8. Attributes that change under you</h3>
+
+  <p><code>DimAircraft</code> says N615RB is operated by Northwind Regional. Suppose it transfers to Cascade Air in April. The customer service desk updates the fleet spreadsheet, you refresh, and Q1 rewrites itself. Parts cost for Northwind Regional falls from 14,555, which is 12,680 on N902TT plus 1,875 on N615RB, to 12,680. Cascade Air rises from 3,690, which is 1,240 plus 2,450, to 5,565. Nobody touched a fact row. A number you reported in April is a different number in May.</p>
+
+  <p>That is a type 1 slowly changing dimension. The attribute is overwritten and history is restated. It is the default behaviour of every dimension you build by reloading the source, and it is sometimes correct, when you want current attributes applied to all history. A type 2 dimension adds a new row per version, with a surrogate key and validity dates, and the fact stores the surrogate that was current when the work order opened.</p>
+
+  <p>The cost is real. Type 2 means <code>ACREG</code> can no longer be the relationship key, because it is no longer unique. Every fact load has to resolve the correct version by date before it lands, which Power Query does badly and slowly. For a shop this size the honest answer is usually to stay on type 1 and document that operator describes the aircraft today, and that Q1 restates whenever an aircraft changes hands.</p>
+
+  <h3>Defect 9. The key your own mapping table has not heard of</h3>
+
+  <p>The production controller wants to know which crews delivered the quarter. You build him a bar chart of labor hours by service line, routed through the technician who booked each hour. Four bars carry a name. The fifth bar carries 10.0 hours and no name at all. He points at it and asks what that one is, and you do not have an answer for him yet.</p>
+
+  <p>Three terms before the mechanism, because this defect lives in the space between them. A <strong>service line</strong> is one of the four ways Meridian groups its work: Heavy, Light, Line, and Cabin and IFE. A <strong>crew code</strong> is the roster system's identifier for a crew, such as <code>CRW-AF1</code> for Airframe Heavy. <span class="derived-tag">Built</span> <code>CrewCodeMap</code> is the six row table that turns a crew code into a service line, and no system in the shop produces it. You typed it.</p>
+
+  <p>Labor hours reach a service line in three hops. <code>FactLabor</code> carries a technician id. <code>CrewAssignment</code> says which crew that technician belongs to. <code>CrewCodeMap</code> says which service line that crew works for. Two of those hops run on tables a real system maintains and refreshes. The third runs on yours.</p>
+
+  <p>TECH-07 booked 10.0 hours to WO-1004 in February. The roster system has TECH-07 on crew <code>CRW-XX9</code>, and the roster system is right. <code>CRW-XX9</code> is a live crew code that the resource scheduler opened and never thought to mention to you. <code>CrewCodeMap</code> holds <code>CRW-AF1</code>, <code>CRW-AV1</code>, <code>CRW-CAB</code>, <code>CRW-LN1</code>, <code>CRW-LT1</code> and <code>CRW-LT2</code>. The seventh code is missing from it, the lookup returns nothing, and 10.0 of the quarter's 62.0 hours land in a service line with no name.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 19.5</span> Labor hours by service line taken through the crew route, after the TECH-04 trim from defect 4. The total is right and one row in five has no name.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Service line</th><th scope="col" class="num">Labor hours</th><th scope="col">Technicians behind the row</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Heavy</th><td class="num">28.5</td><td class="muted">TECH-01 12.0, TECH-02 16.5, TECH-03 nothing booked</td></tr>
+          <tr><th scope="row">Cabin and IFE</th><td class="num">10.5</td><td class="muted">TECH-04, 6.0 plus the 4.5 the trim recovered</td></tr>
+          <tr><th scope="row">Line</th><td class="num">13.0</td><td class="muted">TECH-05, 8.0 plus 5.0</td></tr>
+          <tr><th scope="row">Light</th><td class="num">0.0</td><td class="muted">TECH-06 on crew CRW-LT1, booked nothing in Q1</td></tr>
+          <tr class="row-bad"><th scope="row">(blank) <span class="muted">CRW-XX9 absent from CrewCodeMap</span></th><td class="num cell-bad">10.0</td><td class="muted">TECH-07, all of it on WO-1004</td></tr>
+          <tr class="row-total"><th scope="row">Total</th><td class="num">62.0</td><td class="muted">ties to the work order route exactly</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Read the last two rows together, because they fail in opposite directions. Light shows 0.0 hours under a name, and that is a true statement about the shop. L. Petrov is on crew <code>CRW-LT1</code>, the crew is mapped, and he booked nothing in Q1. The blank row shows 10.0 hours under no name, and that is a statement about your model. Nothing on the chart separates the two, and the controller has no way to tell a quiet crew from a hole in your mapping.</p>
+
+  <h4>Why this class is worse than an ordinary orphan</h4>
+
+  <p><code>N338WA</code> in defect 1 is somebody else's problem as well as yours. The customer service desk owns the fleet spreadsheet, the tail is missing from it, and an email can end with the registry gaining a row. <code>CRW-XX9</code> has no route out like that. Four things make it a harder class to live with.</p>
+
+  <ul class="list">
+    <li><strong>No upstream system will ever fix it.</strong> The roster system issued <code>CRW-XX9</code> correctly and holds no opinion about service lines. It has never heard of <code>CrewCodeMap</code> and it never will. The crew code is valid in every system that stores it, and the only place it fails is a table that exists inside your report file.</li>
+    <li><strong>Nothing raises an error.</strong> The refresh is green. No relationship is invalid, no key is duplicated, no type is wrong. A left outer merge that finds no match returns null, which in Power Query is an ordinary answer to an ordinary question, and null is what arrives on the report as a blank bar.</li>
+    <li><strong>The total still reconciles.</strong> The crew route adds to 62.0 with the blank row included, and so does the work order route. Any reconciliation you built to catch this passes, because the defect moves hours between rows and never loses one.</li>
+    <li><strong>You are the only person who can notice.</strong> Every other defect in this chapter has a second pair of eyes somewhere: a stores clerk, a planner, a refresh log, a failed relationship dialog. This one has you. And it grows, because every crew code the scheduler opens from now on lands in the same unnamed bar until somebody tells you it exists.</li>
+  </ul>
+
+  <h4>Detection: count the codes, then price them</h4>
+
+  <p>Two numbers, and you need both. The count says whether the map is complete. The hours say whether the gap matters. One unmapped code covering a technician who books nothing is a note for the backlog. One covering 10.0 hours a quarter is a hole in the manpower report.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Unmapped Crew Codes</span></div>
+    <pre><code>Unmapped Crew Codes <span class="op">=</span>
+<span class="k">COALESCE</span> (
+    <span class="k">COUNTROWS</span> (
+        <span class="k">EXCEPT</span> (
+            <span class="k">DISTINCT</span> ( <span class="t">CrewAssignment</span><span class="col">[CrewCode]</span> ),
+            <span class="k">DISTINCT</span> ( <span class="t">CrewCodeMap</span><span class="col">[CrewCode]</span> )
+        )
+    ),
+    <span class="n">0</span>
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">EXCEPT</div><div class="linex-v">The same choice, and the same reason, as <code>Parts Rows With No Header</code> later in this chapter. <code>EXCEPT</code> returns the rows of the first table that are absent from the second in one set operation, and it keeps the lineage of the first table. The alternative, <code>FILTER</code> over <code>CrewAssignment</code> with <code>NOT CONTAINS</code>, performs a lookup for every candidate row and gives you a table with no lineage to reuse.</div></div>
+    <div class="linex-row"><div class="linex-k">DISTINCT</div><div class="linex-v"><code>DISTINCT</code> here, for the reason set out in the why box further down. If you ever relate <code>CrewCodeMap</code> to <code>CrewAssignment</code>, <code>VALUES</code> on the mapped side starts returning the virtual blank member, that blank joins the set of valid codes, and the check quietly certifies the defect as clean. A measure whose job is finding broken keys must never call the function that hides them.</div></div>
+    <div class="linex-row"><div class="linex-k">COALESCE</div><div class="linex-v"><code>COUNTROWS</code> over an empty table returns blank, so a healthy model would show an empty card and look like a measure somebody broke. <code>COALESCE</code> states the fallback once. The <code>IF ( ISBLANK ( ... ) , 0, ... )</code> form writes the whole expression twice to say the same thing.</div></div>
+    <div class="linex-row"><div class="linex-k">Reading</div><div class="linex-v">1 on Meridian, and the code behind it is <code>CRW-XX9</code>. Swap <code>COUNTROWS</code> for <code>CONCATENATEX</code> over the same <code>EXCEPT</code> and the card prints the code itself, which is the difference between knowing something is wrong and knowing who to ask.</div></div>
+  </div>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Hours On Unmapped Crews</span></div>
+    <pre><code>Hours On Unmapped Crews <span class="op">=</span>
+<span class="k">VAR</span> MissingCodes <span class="op">=</span>
+    <span class="k">EXCEPT</span> (
+        <span class="k">DISTINCT</span> ( <span class="t">CrewAssignment</span><span class="col">[CrewCode]</span> ),
+        <span class="k">DISTINCT</span> ( <span class="t">CrewCodeMap</span><span class="col">[CrewCode]</span> )
+    )
+<span class="k">VAR</span> MissingTechs <span class="op">=</span>
+    <span class="k">CALCULATETABLE</span> (
+        <span class="k">DISTINCT</span> ( <span class="t">CrewAssignment</span><span class="col">[TechnicianID]</span> ),
+        MissingCodes
+    )
+<span class="k">RETURN</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ),
+        <span class="k">TREATAS</span> ( MissingTechs, <span class="t">FactLabor</span><span class="col">[TechnicianID]</span> )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">CALCULATETABLE</div><div class="linex-v"><code>MissingCodes</code> carries lineage on <code>CrewAssignment[CrewCode]</code>, so handing it to <code>CALCULATETABLE</code> filters <code>CrewAssignment</code> directly, with no relationship involved, before <code>DISTINCT</code> is evaluated. <code>FILTER</code> would iterate the assignment table and test each row against the list.</div></div>
+    <div class="linex-row"><div class="linex-k">TREATAS</div><div class="linex-v">There is no relationship from <code>CrewAssignment</code> to <code>FactLabor</code>, and you should not create one. <code>TREATAS</code> stamps the lineage of <code>FactLabor[TechnicianID]</code> onto the list of technicians for the life of this one calculation and leaves the model alone.</div></div>
+    <div class="linex-row"><div class="linex-k">SUM</div><div class="linex-v">The measure adds one stored column with no per row expression to evaluate, so <code>SUM</code> is resolved entirely by the storage engine. <code>SUMX</code> would open a row context that nothing in this measure needs.</div></div>
+    <div class="linex-row"><div class="linex-k">Reading</div><div class="linex-v">10.0 on Meridian, which is L-506 and nothing else.</div></div>
+    <div class="linex-row"><div class="linex-k">Limitation</div><div class="linex-v">This counts hours booked by technicians on an unmapped crew. It matches the blank row on the report only while the technician key itself is clean. Leave the trailing space on <code>"TECH-04 "</code> from defect 4 in place and 4.5 more hours sit in the blank bar that this measure will never see, because that row fails one hop earlier.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p>Use <code>TREATAS</code> here and leave the model alone. A new relationship from <code>CrewAssignment</code> to <code>FactLabor</code> looks tidier and would let the measure use a plain <code>CALCULATE</code>. It also creates a second filter path from the technician to the labor rows, one through <code>DimTechnician</code> and one through <code>CrewAssignment</code>, which is the ambiguity the model already avoids on <code>DimStation</code> to <code>DimTechnician[HomeStation]</code>. Adding a permanent relationship to serve one diagnostic measure is the wrong trade. <code>TREATAS</code> buys the same filter for the duration of one evaluation and disappears afterwards.</p>
+  </div>
+
+  <p>Run the same set difference with the two sides swapped and you get the opposite finding, crew codes you have mapped that nobody is rostered to, which today returns <code>CRW-LT2</code>. That one is tidiness and not correctness, so review it once a quarter instead of watching it daily.</p>
+
+  <h4>The fix: an explicit Unmapped member</h4>
+
+  <p>You cannot invent the service line for <code>CRW-XX9</code>, and guessing it would be worse than leaving it. What you can do is stop the gap being invisible. Give the missing case a name, write that name into the model at refresh, and the chart shows a bar labelled Unmapped where it used to show a bar labelled nothing.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">Crew to service line, with the gap given a name</span></div>
+    <pre><code><span class="k">let</span>
+    Source <span class="op">=</span> <span class="t">CrewAssignment</span>,
+    Merged <span class="op">=</span> <span class="k">Table.NestedJoin</span>(
+        Source, {<span class="s">"CrewCode"</span>},
+        <span class="t">CrewCodeMap</span>, {<span class="s">"CrewCode"</span>},
+        <span class="s">"MapRows"</span>, <span class="k">JoinKind.LeftOuter</span>
+    ),
+    Expanded <span class="op">=</span> <span class="k">Table.ExpandTableColumn</span>(
+        Merged, <span class="s">"MapRows"</span>,
+        {<span class="s">"ServiceLine"</span>}, {<span class="s">"ServiceLine"</span>}
+    ),
+    Named <span class="op">=</span> <span class="k">Table.TransformColumns</span>(
+        Expanded,
+        {{<span class="s">"ServiceLine"</span>, <span class="k">each</span>
+            <span class="k">if</span> _ <span class="op">=</span> <span class="k">null</span> <span class="k">then</span> <span class="s">"Unmapped"</span>
+            <span class="k">else</span> _, <span class="k">type text</span>}}
+    )
+<span class="k">in</span>
+    Named</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">JoinKind.LeftOuter</div><div class="linex-v">This step has to carry all seven technicians forward with a service line attached, so it keeps everything and labels the failure. <code>JoinKind.LeftAnti</code>, the kind used for detection higher up this chapter, answers "which codes are missing" and throws away the six that matched.</div></div>
+    <div class="linex-row"><div class="linex-k">Table.ExpandTableColumn</div><div class="linex-v">Expand the nested column at refresh instead of leaving it and reaching into it from DAX. A plain text column is something a slicer, a legend, a matrix row header and a report level filter can all use. A nested table column is none of those things.</div></div>
+    <div class="linex-row"><div class="linex-k">The literal Unmapped</div><div class="linex-v">A word a reader can see. A null and an empty string both render as the same blank cell you are trying to leave behind. <code>Unmapped</code> is a value a reader can see on an axis, click on, filter to, and complain about, and complaints are how this defect gets closed.</div></div>
+    <div class="linex-row"><div class="linex-k">Both halves</div><div class="linex-v">The query runs over <code>CrewAssignment</code>, which holds one row per technician, so its output merges straight onto <span class="dim-tag">Dimension</span> <code>DimTechnician</code> and the service line becomes a plain text attribute there. Nothing else is needed. If you instead relate that column to <span class="derived-tag">Built</span> <code>DimServiceLine</code>, that dimension needs a matching <code>Unmapped</code> row of its own, exactly like the <code>UNASSIGNED</code> pairing in the unknown member section. A mapped fact key with no dimension member is still an orphan.</div></div>
+    <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">The seventh technician carries the text <code>Unmapped</code>. The chart gains a labelled bar holding 10.0 hours, the crew route still totals 62.0, and the work order route is untouched. The number keeps its value. What changes is its address.</div></div>
+  </div>
+
+  <p>Now go back to the production controller. The fifth bar says Unmapped, it still holds 10.0 hours, and you can tell him what it means: those hours were booked by a technician on crew <code>CRW-XX9</code>, a crew the roster system opened and your service line map has never been told about. That is a sentence he can act on. He knows the resource scheduler, and one message closes it.</p>
+
+  <p>A bar labelled Unmapped on a page a customer sees is embarrassing, and the embarrassment is the point. A blank bar gets scrolled past. A bar with that word on it gets asked about, and the question travels to the one person who can answer it. Until somebody does, the report is at least telling the truth about how much it knows.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Reading a green refresh as evidence that the mappings are complete. A refresh succeeds when every query returns a table, and a left outer merge that matched nothing returns a table full of nulls. Delete all six rows from <code>CrewCodeMap</code> and Meridian still refreshes green, the crew route still totals 62.0, and every named service line reports zero while the blank reports the whole quarter. The only thing standing between you and that report is a check you wrote yourself.</p>
+  </aside>
+
+  <p>Keep <code>Unmapped Crew Codes</code> and <code>Hours On Unmapped Crews</code> next to the measure set in the following section, on the same hidden diagnostics page, and leave them out of the <code>Model Health Issues</code> total. A count of codes and a count of orphan fact rows are different units, and adding them produces a number that rises for two unrelated reasons. Two cards side by side, reading 1 and 10.0 today, and 0 and 0.0 on a day when somebody has been paying attention.</p>
+
+  <h3>A data quality measure set you can paste into any model</h3>
+
+  <p>You have found five live defects by hand in this chapter: <code>N338WA</code>, WO-1009, the blank station on WO-1005, the trailing space on <code>"TECH-04 "</code> and <code>CRW-XX9</code>. Next quarter there will be a sixth, and the planner who spotted the last one will be looking at a different report when it lands. Hand checking runs out of road quickly. Six measures put the checks on a page and give you a number to watch.</p>
+
+  <p>You have already written the first of them, <code>Orphan Aircraft Rows</code>, earlier in this chapter. Three more follow, then the two that roll all four into a card. Rename the tables and columns and they work anywhere. Put them on a hidden diagnostics page. The page the customer sees has no use for them.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Blank Key Rows</span></div>
+    <pre><code>Blank Station Keys <span class="op">=</span>
+<span class="k">CALCULATE</span> (
+    <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> ),
+    <span class="k">ISBLANK</span> ( <span class="t">FactWorkOrder</span><span class="col">[StationCode]</span> )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">CALCULATE</div><div class="linex-v">The predicate form, because the test touches one column and needs no row context. It is shorter and cheaper than a bare <code>COUNTROWS</code> wrapped in <code>FILTER</code>. <code>CALCULATE</code> is the only function that can evaluate an aggregate under an added filter.</div></div>
+    <div class="linex-row"><div class="linex-k">Expansion</div><div class="linex-v">The predicate is expanded internally into a filter over <code>ALL(FactWorkOrder[StationCode])</code>, which means the measure ignores any station slicer on the page. That is what you want on a diagnostics page. Wrap the predicate in <code>KEEPFILTERS</code> if you want it to respect the slicer instead.</div></div>
+    <div class="linex-row"><div class="linex-k">Limitation</div><div class="linex-v"><code>ISBLANK</code> is deliberately narrow and will not see an empty string, which is exactly what an Excel or CSV source often delivers. If your source can produce both, use the predicate <code>FactWorkOrder[StationCode] = ""</code>, which is true for a blank and for an empty string, and accept that you have then lost the ability to tell the two apart in DAX. The clean separation only exists in Power Query, which is an argument for doing the test there.</div></div>
+    <div class="linex-row"><div class="linex-k">Reading</div><div class="linex-v">1 on the raw Meridian work orders, WO-1005. 0 after the Power Query mapping, because the key is then the string <code>UNASSIGNED</code> and is no longer blank.</div></div>
+  </div>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Duplicate Key Count</span></div>
+    <pre><code>Duplicate Aircraft Keys <span class="op">=</span>
+<span class="k">VAR</span> KeyRows <span class="op">=</span>
+    <span class="k">ADDCOLUMNS</span> (
+        <span class="k">DISTINCT</span> ( <span class="t">DimAircraft</span><span class="col">[ACREG]</span> ),
+        <span class="s">"@Rows"</span>, <span class="k">CALCULATE</span> ( <span class="k">COUNTROWS</span> ( <span class="t">DimAircraft</span> ) )
+    )
+<span class="k">RETURN</span>
+    <span class="k">COUNTROWS</span> ( <span class="k">FILTER</span> ( KeyRows, <span class="col">[@Rows]</span> <span class="op">&gt;</span> <span class="n">1</span> ) )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">ADDCOLUMNS</div><div class="linex-v">Over a key list rather than <code>SUMMARIZE</code> with an added column. <code>SUMMARIZE</code> applies a context transition to its extension columns in a way that is difficult to predict and that the published guidance advises against. <code>ADDCOLUMNS</code> with an explicit <code>CALCULATE</code> makes the transition visible in the code.</div></div>
+    <div class="linex-row"><div class="linex-k">DISTINCT</div><div class="linex-v"><code>DISTINCT</code> and never <code>VALUES</code>, for the reason set out in the why box further down this section. Any key list inside a measure that hunts broken keys has to exclude the virtual blank member, or the measure starts reporting on the thing it was written to expose.</div></div>
+    <div class="linex-row"><div class="linex-k">CALCULATE</div><div class="linex-v">Wrapping <code>COUNTROWS</code> is what performs the context transition. It turns the current key into a filter, so the count applies to that one key.</div></div>
+    <div class="linex-row"><div class="linex-k">Alternative</div><div class="linex-v"><code>COUNTROWS(DimAircraft) - DISTINCTCOUNT(DimAircraft[ACREG])</code> is faster and shorter, and it returns the number of excess rows where this measure returns the number of offending keys. On the un-deduplicated append that reads 4, and so does this measure, by coincidence. Do not rely on the coincidence.</div></div>
+  </div>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Fact Rows Not Matching a Dimension</span></div>
+    <pre><code>Parts Rows With No Header <span class="op">=</span>
+<span class="k">VAR</span> PartKeys <span class="op">=</span> <span class="k">DISTINCT</span> ( <span class="t">FactParts</span><span class="col">[WorkOrderID]</span> )
+<span class="k">VAR</span> HeaderKeys <span class="op">=</span> <span class="k">DISTINCT</span> ( <span class="t">FactWorkOrder</span><span class="col">[WorkOrderID]</span> )
+<span class="k">VAR</span> Missing <span class="op">=</span> <span class="k">EXCEPT</span> ( PartKeys, HeaderKeys )
+<span class="k">RETURN</span>
+    <span class="k">CALCULATE</span> ( <span class="k">COUNTROWS</span> ( <span class="t">FactParts</span> ), Missing )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">EXCEPT</div><div class="linex-v">Rather than <code>FILTER</code> with <code>NOT CONTAINS</code>. <code>EXCEPT</code> is a set operation the engine resolves in one pass and it preserves the data lineage of its first argument, which is what lets the result be used directly as a <code>CALCULATE</code> filter on line 6. The <code>CONTAINS</code> version performs a lookup per candidate key and has no lineage to reuse.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v">Because <code>Missing</code> carries lineage on <code>FactParts[WorkOrderID]</code>, passing it as a filter needs no <code>TREATAS</code>. Adding one here would be harmless and redundant.</div></div>
+    <div class="linex-row"><div class="linex-k">Independence</div><div class="linex-v">This measure works without the relationship, so it still returns a number when the relationship was never created or is inactive, which is exactly when you most need one.</div></div>
+    <div class="linex-row"><div class="linex-k">Reading</div><div class="linex-v">1 on Meridian, P-9007. Change <code>COUNTROWS</code> to <code>SUMX(FactParts, FactParts[Qty] * FactParts[UnitCost])</code> and it reads 4,900, which is the money at stake.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p>Use <code>DISTINCT</code> in that measure, even though <code>DISTINCT</code> and <code>VALUES</code> are usually interchangeable. <code>VALUES</code> returns the virtual blank row that the engine adds to the one side of an invalid relationship, and <code>DISTINCT</code> leaves it out. <code>FactWorkOrder</code> is the one side of the header to line relationships, so it already carries a blank member because of P-9007. Use <code>VALUES</code> for <code>HeaderKeys</code> and the blank row joins the set of valid headers, which is the defect quietly certifying itself as clean. When you are writing a measure whose whole job is to find broken keys, never use the function that hides them.</p>
+  </div>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Model Health</span></div>
+    <pre><code>Model Health Issues <span class="op">=</span>
+<span class="k">COALESCE</span> (
+    <span class="col">[Orphan Aircraft Rows]</span>
+        <span class="op">+</span> <span class="col">[Blank Station Keys]</span>
+        <span class="op">+</span> <span class="col">[Duplicate Aircraft Keys]</span>
+        <span class="op">+</span> <span class="col">[Parts Rows With No Header]</span>,
+    <span class="n">0</span>
+)
+
+Model Health <span class="op">=</span>
+<span class="k">VAR</span> Issues <span class="op">=</span> <span class="col">[Model Health Issues]</span>
+<span class="k">RETURN</span>
+    <span class="k">SWITCH</span> (
+        <span class="k">TRUE</span> (),
+        Issues <span class="op">=</span> <span class="n">0</span>, <span class="s">"Keys clean"</span>,
+        Issues <span class="op">&lt;=</span> <span class="n">5</span>, Issues <span class="op">&amp;</span> <span class="s">" rows to review"</span>,
+        Issues <span class="op">&amp;</span> <span class="s">" rows failing key checks"</span>
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">COALESCE</div><div class="linex-v">All four inputs are a <code>COUNTROWS</code> over a table that is empty on a healthy model, and <code>COUNTROWS</code> over an empty table returns blank. Blank plus blank stays blank in DAX, so the sum on a fully clean model would return blank and the card would print nothing at all on the one day you wanted to see a zero. <code>COALESCE</code> wraps the whole sum once and turns that case into <code>0</code>. Wrapping each of the four separately would say the same thing four times.</div></div>
+    <div class="linex-row"><div class="linex-k">Two measures</div><div class="linex-v">A numeric one and a text one. The numeric measure is what conditional formatting rules, alerts and any future aggregation can consume. The text measure is only for a card a human reads. Ship the text version alone and you cannot set a data alert on model health, which is usually the thing you actually wanted.</div></div>
+    <div class="linex-row"><div class="linex-k">SWITCH</div><div class="linex-v">With <code>TRUE()</code> as the expression, rather than nested <code>IF</code>. The semantics are identical, conditions are tested in order until one holds, but the branches sit at one indent level instead of three, and adding a fifth check later does not require rebalancing brackets.</div></div>
+    <div class="linex-row"><div class="linex-k">Reading</div><div class="linex-v">On the raw Meridian sources: 1 plus 1 plus 0 plus 1 equals 3. After building <code>DimAircraft</code> from the union and mapping the blank station: 0 plus 0 plus 0 plus 1 equals 1, the WO-1009 orphan that Meridian keeps on purpose.</div></div>
+  </div>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Orphan aircraft rows</div><div class="kv-v">1 raw, 0 fixed</div></div>
+    <div class="kv-item"><div class="kv-k">Blank station keys</div><div class="kv-v">1 raw, 0 fixed</div></div>
+    <div class="kv-item"><div class="kv-k">Duplicate dimension keys</div><div class="kv-v">0 fixed, 4 if the append is not deduplicated</div></div>
+    <div class="kv-item"><div class="kv-k">Parts rows with no header</div><div class="kv-v">1, worth 4,900</div></div>
+  </div>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>Three of these measures scan a fact table with no filter applied, and one of them does it inside a <code>FILTER</code> that cannot be pushed into the storage engine cleanly. On Meridian's 8 and 7 row facts that is free. On a 40 million row parts table it is a query that runs every time someone opens the page. Either move the checks into Power Query so they are evaluated once at refresh and loaded as a small results table, or keep them on a page that is hidden and only opened deliberately. A diagnostics page that slows down the report is a diagnostics page that gets deleted.</p>
+  </aside>
+
+  <h3>Where each defect should be fixed</h3>
+
+  <p>You now have a fix for all nine defects. The remaining question is where each fix lives, and it matters more than it sounds. The trim on TECH-04 can go in three different places, and only one of them stops the same trailing space arriving again next month.</p>
+
+  <p>Three layers are available: the source system, Power Query, and the model. The general rule is that you fix as far upstream as you can influence, because a defect fixed in a report is a defect that will reappear. The trailing space on TECH-04 came from a timesheet screen with no input validation. Trim it in Power Query and it is gone from your model, and still there next month, and still there in the payroll extract that a different team is about to build.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 19.6</span> The nine defect classes, where they belong, and what it costs to fix them one layer too late.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Defect</th><th scope="col">Meridian instance</th><th scope="col">Fix here</th><th scope="col">Cost of fixing downstream</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Orphan foreign key</th><td class="muted">N338WA on WO-1006</td><td>Source, then Power Query as cover</td><td class="muted">A row labelled unknown forever, and nobody chasing the registry</td></tr>
+          <tr><th scope="row">Orphan header key</th><td class="muted">WO-1009 on P-9007</td><td>Source only</td><td class="muted">An inferred header distorts quote to actual variance by 4,900</td></tr>
+          <tr><th scope="row">Blank foreign key</th><td class="muted">WO-1005 station</td><td>Source for new rows, Power Query for history</td><td class="muted">Cheap. This one is genuinely fine to handle in Power Query</td></tr>
+          <tr><th scope="row">Whitespace in a key</th><td class="muted">TECH-04 on L-505</td><td>Source input validation</td><td class="muted">Every consumer of the same export repeats your trim step</td></tr>
+          <tr><th scope="row">Case variation in a key</th><td class="muted">any technician id</td><td>Power Query, both sides</td><td class="muted">Cannot be fixed in the model at all, the model cannot see it</td></tr>
+          <tr><th scope="row">Duplicate key on the one side</th><td class="muted">un-deduplicated DimAircraft</td><td>Power Query</td><td class="muted">Refresh fails outright, so it cannot reach the model</td></tr>
+          <tr><th scope="row">Type mismatch</th><td class="muted">MonthKey, WorkDate</td><td>Power Query, explicit steps</td><td class="muted">Silent zero in every date breakdown while totals stay right</td></tr>
+          <tr><th scope="row">Changing attribute</th><td class="muted">operator on N615RB</td><td>Source warehouse, if one exists</td><td class="muted">History restates on refresh, and you will not be told</td></tr>
+          <tr><th scope="row">Unmapped key in a hand built map</th><td class="muted">CRW-XX9 on TECH-07</td><td>Your own mapping table, because nothing upstream owns it</td><td class="muted">There is no downstream. Ignore it and the unnamed row grows with every new crew code</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Two rows in that table are worth arguing about. Case normalisation belongs in Power Query and nowhere else, because the model treats case-different values as equal and therefore cannot report the discrepancy back to you. And the orphan header key belongs in the source alone, because there is no correct value for you to invent.</p>
+
+  <p>The bottom row breaks the rule this section opens with. You cannot push an unmapped crew code further upstream, because upstream of <code>CrewCodeMap</code> there is only you. Where the rule still bites is the input to your table. Ask the resource scheduler to tell you when a crew code is opened, and the defect moves one layer up to somebody who sees it before you do.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Hiding a data quality problem and resolving one look identical in the report and are opposites in the business. Mapping WO-1009's parts to an unknown work order makes the station matrix add to 28,245 and the page stops looking broken. The 4,900 of hydraulics that left the store against a work order nobody can find is still unaccounted for, and now it has a label that implies somebody accounted for it. Resolution means the defect count falls because the underlying record was corrected or written off. Concealment means the defect count falls because you changed where the number is displayed. The test is simple: after your change, can anyone still find out how many rows failed, and who owns them? If the answer is no, you removed the evidence and left the model exactly where it was.</p>
+  </aside>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>An unmatched key on the many side adds one virtual blank row to the one side and every unmatched fact row is attributed to it. Grand totals stay correct, breakdowns do not, and there is only ever one blank row no matter how many distinct keys are broken.</li>
+      <li>Two visuals disagreeing by a fixed amount, 23,345 against 28,245, is the standard signature of an orphan key. The visual that groups by an attribute behind the broken join loses those rows. The visual with no such grouping keeps them.</li>
+      <li>A blank member is indistinguishable from a join failure, so map genuine absences to an explicit member such as <code>UNASSIGNED</code> and recover real identifiers such as <code>N338WA</code> into the dimension with unknown attributes.</li>
+      <li>Keys that look identical are tested with <code>Text.Length</code> or <code>LEN</code>, never by eye. 7 and 8 on the same displayed <code>TECH-04</code> is the whole diagnosis, and 4.5 hours is the whole cost.</li>
+      <li>Power Query is case sensitive, the model's relationships are not. Do not rely on either. Normalise case explicitly on both sides of every key.</li>
+      <li>Duplicate keys on the one side stop the relationship being created and fail the refresh once it exists. Find them with Group By and a count over 1, and normalise case before you group.</li>
+      <li>A foreign key can be valid in every system that holds it and still fail, when the table it has to join to is one you maintain by hand. <code>CRW-XX9</code> is a real crew code that <code>CrewCodeMap</code> is missing, and the 10.0 hours behind it sit in an unnamed service line with no error raised anywhere. Nothing upstream will fix it, so write the unmapped check yourself and label the gap <code>Unmapped</code> so it shows on the page.</li>
+      <li>Fix as far upstream as your influence reaches. A defect fixed in a report reappears at the next refresh, in the next report, and in the next team's extract.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="18.html"><span class="pn-dir">Previous</span><span class="pn-t">Diagnosis: my slicer is not filtering my visual</span></a><a class="pn" href="20.html"><span class="pn-dir">Next</span><span class="pn-t">Anti-patterns and how to recognise them</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Facts, dimensions and the grain test</title>
+</head>
+<body data-ch="01">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">01</span><span class="tb-title">Facts, dimensions and the grain test</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-01">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 1 . Reading the data</div>
+    <h2 class="chapter-title"><span class="chapter-num">01</span>Facts, dimensions and the grain test</h2>
+    <p class="chapter-lede">After this chapter you can look at any table in the Meridian export, say in one sentence what a single row of it means, classify it as a fact or a dimension, and name which of the three fact patterns it follows. You will also be able to test that claim against the rows instead of trusting your reading of the column names.</p>
+  </div>
+
+  <p class="lead">The production controller wants to know how many work orders Meridian closed in February. You drop a count of work orders onto a card, filter the page to February, and it reads 3. He shakes his head and says 2, and he is looking at his own whiteboard while he says it. You are both right. The reason is sitting in three columns of one table, and it takes this whole chapter to say properly.</p>
+
+  <p>Almost every decision you make later in this model (relationship direction, measure design, refresh strategy) inherits from two judgements you make in the first ten minutes. What is each table? What does one row of it mean? Get either wrong and the model still loads. It still refreshes. It just answers questions incorrectly, quietly, in a way that survives review because the totals look plausible.</p>
+
+  <p>Meridian Aero Services hands you six tables covering Q1 2025. WorkOrders has 8 rows, LaborEntries 8, PartsIssued 7, Technicians 6, AircraftRegistry 6, ShopCapacity 7. That is 8 plus 8 plus 7 plus 6 plus 6 plus 7, which is 42 rows in total. Small enough to check by hand, which is the only reason this chapter can prove its claims. On a real extract you will not have that luxury, and that is why the tests below matter.</p>
+
+  <h3>What a fact table actually is</h3>
+
+  <p>The shift supervisor asks what the shop is charging out per hour. <code>LaborEntries[HourlyRate]</code> is sitting right there in the extract, so you drop it on a card. The card reads 808. He asks whether that is dollars, and you have to tell him you do not know what it is. Hold on to 808. It comes back at the end of this section.</p>
+
+  <p>A fact table records measurements of events. Something happened at a point in time, somebody wrote down how much of it happened, and that record is one row. A fact table earns the name from that one property: the row is a measurement. The name on the table and the system it came out of tell you nothing.</p>
+
+  <p>Four consequences follow, and all four are diagnostic. Fact tables grow as time passes, because time keeps producing events. They are narrow and deep: mostly foreign keys pointing outward, plus a small set of numeric columns. A foreign key is a column holding the identifier of a row in another table, and <code>LaborEntries[WorkOrderID]</code> is one, because it names a row over in WorkOrders. Their text is thin, since the description lives in the dimensions those keys point to. And their numeric columns fall into three additivity classes that you must be able to tell apart.</p>
+
+  <p>Additive columns can be summed across every dimension in the model. <code>LaborEntries[Hours]</code> is additive. 62.0 hours in Q1 is a real number whether you slice it by station, by technician, by month or not at all. <code>PartsIssued[Qty]</code> is additive too. So are the four trade columns of ShopCapacity, once they are unpivoted into a single <code>FactCapacity[PlannedHours]</code>. Semi-additive columns can be summed across some dimensions but not across time, and the classic case is a balance. Meridian has no genuinely semi-additive column, and saying so is more useful than inventing one. It means nobody on this model needs the closing balance pattern yet. That pattern wraps <code>LASTDATE</code> around the measure instead of leaving it as a plain <code>SUM</code>, because the right answer for a quarter is the value standing on the last day, not the three month end balances added together. Non-additive columns cannot be summed at all.</p>
+
+  <p><code>LaborEntries[HourlyRate]</code> is the non-additive one, and the card that read 808 is worth taking apart. The eight rates are 95, 110, 95, 88, 110, 102, 120 and 88. Add them: 95 plus 110 is 205, plus 95 is 300, plus 88 is 388, plus 110 is 498, plus 102 is 600, plus 120 is 720, plus 88 is 808. The number 808 will render happily in a card visual. It means nothing at all. The blended rate the shift supervisor was asking for is total labor cost divided by total hours. That is 6,326.50 divided by 62.0, which is 102.04 dollars per hour. Hand him 102.04 and take the 808 card off the page. A ratio of two sums, never a sum of ratios.</p>
+
+  <h3>What a dimension actually is</h3>
+
+  <p>A dimension is the vocabulary you slice by. One row per real world thing: one aircraft, one technician, one station, one part number, one calendar date. Where a fact answers "how much", a dimension answers "which one".</p>
+
+  <p>Dimensions have the opposite shape to facts. They are wide and shallow, heavy on descriptive text, and their row count is bounded by the real world. Time passing adds nothing to them. AircraftRegistry has 6 rows, and it grows only when Meridian's customers acquire airframes. A quarter passing on its own would never take it to 600. Technicians has 6 rows and changes when somebody is hired, leaves, moves station or earns a certification. That is what "slowly changing" means, and it is why the phrase slowly changing dimension exists while nobody has ever said slowly changing fact.</p>
+
+  <p>One heuristic catches most misclassification. Every label that appears on the axis of a chart, in a slicer, or in the rows of a matrix should come from a dimension. If you find yourself putting a text column from a fact table on an axis, either that column is a degenerate dimension (covered later in this chapter, and legitimate) or you have a dimension trapped inside a fact and it needs to come out. Technicians shows the trapped case in miniature. At row level it is a clean dimension, one row per person. But <code>Technicians[Certifications]</code> holds "A&amp;P; NDT" in a single cell. The row is one technician. That one column is at a finer grain than its own row, which is why it eventually becomes a bridge table with 10 rows.</p>
+
+  <h3>A three question test you can apply to anything</h3>
+
+  <p>Column names lie. Table names lie more. Ask the rows three questions instead.</p>
+
+  <ol class="list">
+    <li>Does a row record something that <em>happened</em> at a point in time, or something that simply <em>is</em>? Events are facts. States of being are dimensions.</li>
+    <li>Would you ever put a sum over a numeric column in it, or only a distinct count? Sums point to facts. Counting how many distinct members exist points to a dimension.</li>
+    <li>If you double the time period covered, does the row count grow? Six months of Meridian data means roughly twice the labor rows. It means the same six technicians.</li>
+  </ol>
+
+  <p>Three yes answers for facts, three no answers for dimensions, and the interesting tables are the ones that split. Question two is the one people skip, so make it concrete in DAX before you trust your instinct. A measure is a DAX formula a visual evaluates, and it returns one value for whatever that visual is currently filtered to.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Additivity probe</span></div>
+    <pre><code><span class="c">// question 2, written out: what does each table let you do?</span>
+Planned Hours <span class="op">=</span> <span class="k">SUM</span> ( <span class="t">FactCapacity</span><span class="col">[PlannedHours]</span> )
+
+Stations Planned <span class="op">=</span> <span class="k">DISTINCTCOUNT</span> ( <span class="t">FactCapacity</span><span class="col">[StationCode]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>SUM</code> and not <code>SUMX</code>. The value is already stored in a column, so there is nothing to evaluate row by row. <code>SUMX</code> would build an iterator over the table to read a column it could have read directly. Across all stations and months this returns 176 planned hours.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v"><code>DISTINCTCOUNT</code> and not <code>COUNTA</code>. <code>COUNTA</code> counts non-blank values, so it would return 28, the row count of FactCapacity once ShopCapacity has been unpivoted (7 source rows times 4 trade columns), not the 4 stations that actually appear (MSP, TUS, LAS, PHX). The fact that the second measure is the only sensible one for <code>StationCode</code>, while the first is sensible for <code>PlannedHours</code>, tells you the table holds both a key and a measurement. That is a fact table.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 1.1</span> The three question test applied to all six Meridian source tables.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Table</th>
+            <th scope="col">Q1 happened or is</th>
+            <th scope="col">Q2 sum or distinct count</th>
+            <th scope="col">Q3 grows with time</th>
+            <th scope="col">Verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row" class="key">WorkOrders</th><td>Happened</td><td>Sum QuotedAmount</td><td>Yes</td><td><span class="fact-tag">Fact</span></td></tr>
+          <tr><th scope="row" class="key">LaborEntries</th><td>Happened</td><td>Sum Hours</td><td>Yes</td><td><span class="fact-tag">Fact</span></td></tr>
+          <tr><th scope="row" class="key">PartsIssued</th><td>Happened</td><td>Sum Qty times UnitCost</td><td>Yes</td><td><span class="fact-tag">Fact</span></td></tr>
+          <tr><th scope="row" class="key">ShopCapacity</th><td>Is planned, per period</td><td>Sum PlannedHours</td><td>Yes</td><td><span class="fact-tag">Fact</span></td></tr>
+          <tr><th scope="row" class="key">Technicians</th><td>Is</td><td>Distinct count only</td><td>No</td><td><span class="dim-tag">Dimension</span></td></tr>
+          <tr><th scope="row" class="key">AircraftRegistry</th><td>Is</td><td>Distinct count only</td><td>No</td><td><span class="dim-tag">Dimension</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>ShopCapacity looks exactly like a lookup table and gets modelled as one. It is wide (four trade columns), it has only 7 rows, the leftmost column is a station code, and it came out of a planning workbook, not a transaction system. Every surface signal says dimension. Apply the test and it collapses. <code>ShopCapacity[Airframe]</code> and its three siblings are hours. Sum them across stations and months and you get 176, a number the shop actually uses. Feed the table another month of planning and it gains rows. It is a fact table whose columns were laid out for a human to read. Model it as a dimension and you cannot compare planned hours against the 62.0 actual labor hours. The denominator of your utilisation measure ends up on the wrong side of the model.</p>
+  </aside>
+
+  <h3>Grain is a sentence, and you write it first</h3>
+
+  <p>The shift supervisor is reading a labor listing over your shoulder and stops you. TECH-02 appears twice, he says, so the timesheet has double counted the man. He is wrong, and you need one sentence to show him why. That sentence is the grain of the table, and writing it comes before everything else in this chapter.</p>
+
+  <p>The grain of a table is the business meaning of one row, stated as a sentence in plain language. It is a sentence, with a subject and enough qualifiers that a shop supervisor would recognise it as true. A list of key columns is a different thing, and it will not settle an argument on the shop floor.</p>
+
+  <p>One row of LaborEntries is one technician booking time to one work order on one day. Hand that sentence to the supervisor and the argument is over. TECH-02 sits on L-501 and on L-503, which are two different work orders on two different days, so both rows are real and neither is a duplicate. That sentence is the whole contract. It tells you that hours can be summed, that the same technician can appear many times, that a work order can accumulate hours across days, and that if you ever see two rows with the same technician, work order and date, something upstream has broken or your sentence was wrong. It also tells you what the table cannot answer: it holds no start and end clock times, so you cannot ask when in the day the work happened.</p>
+
+  <dl class="defs">
+    <dt>Grain</dt><dd>The business meaning of one row, stated as a sentence, before any keys are named.</dd>
+    <dt>Candidate key</dt><dd>The smallest set of columns whose combination is unique across every row, used to check a grain claim against the data.</dd>
+    <dt>Grain mismatch</dt><dd>Two tables in the same model whose rows describe periods or events of different sizes, so a relationship between them can only be built at the coarser of the two.</dd>
+  </dl>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 1.2</span> The grain sentence for each of the six source tables. Write these before writing a measure.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Table</th><th scope="col">One row is</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row" class="key">WorkOrders</th><td>one work order raised for one aircraft at one station, carrying its own lifecycle dates.</td></tr>
+          <tr><th scope="row" class="key">LaborEntries</th><td>one technician booking time to one work order on one day.</td></tr>
+          <tr><th scope="row" class="key">PartsIssued</th><td>one issue line: one part number issued from stores to one work order on one date.</td></tr>
+          <tr><th scope="row" class="key">Technicians</th><td>one technician on the HR roster.</td></tr>
+          <tr><th scope="row" class="key">AircraftRegistry</th><td>one airframe, identified by aircraft registration.</td></tr>
+          <tr><th scope="row" class="key">ShopCapacity</th><td>the planned available hours for one station in one calendar month, laid out four trades wide.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Read the ShopCapacity sentence again, because it is the only one that needed a clause about layout. Its row grain is station plus month, but its <em>value</em> grain is station plus month plus trade, since each of the four numbers on a row means something different. Those two grains disagree, and unpivoting is the operation that reconciles them: 7 source rows times 4 trade columns gives 28 rows in <span class="derived-tag">Built</span> FactCapacity, each holding exactly one measurement. A table whose row grain and value grain disagree is always a table that needs reshaping.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Write the grain sentence for every table before you draw a single relationship or write a single measure. If you cannot finish the sentence without using the word "and" to join two different things, the table has more than one grain in it and needs to be split. If you can finish it but nobody in operations recognises it, you have described the export format, and the business process is still unwritten.</p>
+  </aside>
+
+  <h3>Verifying a grain instead of assuming it</h3>
+
+  <p>A grain sentence is a claim. Claims get tested. The test is the candidate key check. Identify the columns your sentence says make a row unique. Count the distinct combinations of those columns. Compare that count to the row count. Equal counts mean the data does not contradict your sentence. Unequal counts mean one of two things: your sentence is wrong, or your source is duplicating rows. You need to know which before anything else happens.</p>
+
+  <p>You can run this in Power Query with Group By on the candidate columns and a row count aggregation, then filter for counts above one. That is the right home for it during load, because a failure should stop the refresh. During modelling it is faster to keep a diagnostic measure on hand.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Grain Violations</span></div>
+    <pre><code><span class="c">// returns 0 when the claimed grain holds in the loaded data</span>
+Labor Grain Violations <span class="op">=</span>
+<span class="k">VAR</span> RowsInTable <span class="op">=</span> <span class="k">COUNTROWS</span> ( <span class="t">FactLabor</span> )
+<span class="k">VAR</span> DistinctKeys <span class="op">=</span>
+    <span class="k">COUNTROWS</span> (
+        <span class="k">SUMMARIZE</span> (
+            <span class="t">FactLabor</span>,
+            <span class="t">FactLabor</span><span class="col">[WorkOrderID]</span>,
+            <span class="t">FactLabor</span><span class="col">[TechnicianID]</span>,
+            <span class="t">FactLabor</span><span class="col">[WorkDate]</span>
+        )
+    )
+<span class="k">RETURN</span>
+    RowsInTable <span class="op">-</span> DistinctKeys</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>COUNTROWS</code> and not <code>COUNT</code>. <code>COUNT</code> takes a column and skips blanks, so a table with blank values in the counted column would report fewer rows than it has and the check would silently pass. <code>COUNTROWS</code> counts rows regardless of their contents, which is the only correct denominator for a duplicate test.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 4 to 12</div><div class="linex-v">Group the table down to its distinct key combinations and count what survives. <code>SUMMARIZE</code> is used here purely as a grouping function with no added columns, which is the one job it does without controversy.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 13 to 14</div><div class="linex-v">The difference is the number of rows the grain sentence cannot account for. Put it on a card. For FactLabor it reads 0, because there are 8 rows and 8 distinct combinations of work order, technician and date.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>DISTINCT</code> is the obvious first reach, and it is the wrong one here: given a column reference it returns the distinct values of a single column, and a composite key needs three columns grouped together, not three separate distinct lists. <code>SUMMARIZECOLUMNS</code> is the modern grouping function and is genuinely better in a query window. Inside a measure it raises an error under certain modified filter contexts. That makes it unreliable for a diagnostic you want to drop into any visual on any page. <code>GROUPBY</code> would also work and exists for the case where you need to iterate the groups with a nested expression, which this check does not. <code>SUMMARIZE</code> earns its place by being the plainest grouping available in a measure. Note the boundary of the claim: this measure tests the data currently loaded, under the current filter context. It says nothing about the source system.</p>
+  </div>
+
+  <details class="expand" open>
+    <summary>Trace this by hand, row by row, and see why the composite is necessary</summary>
+    <div class="expand-body">
+      <p>Take each candidate key in turn and count distinct combinations across the 8 rows of LaborEntries. Single columns fail immediately. <code>WorkOrderID</code> gives 6 distinct values across 8 rows, because L-501 and L-502 both book to WO-1001 (on 2025-01-07 and 2025-01-09) and L-504 and L-505 both book to WO-1003 (on 2025-01-20 and 2025-01-22). The remaining four rows sit on four separate orders: WO-1002, WO-1004, WO-1006 and WO-1007. <code>WorkDate</code> gives 7 distinct values, because L-502 and L-503 both fall on 2025-01-09 while working different orders. <code>TechnicianID</code> gives 5 distinct values after trimming, because TECH-02 appears on L-501 and L-503, TECH-04 on L-502 and L-505, and TECH-05 on L-504 and L-508.</p>
+      <figure class="tbl">
+        <figcaption><span class="tbl-num">Table 1.3</span> Candidate key test on the 8 rows of LaborEntries. Distinct combinations counted by hand.</figcaption>
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr><th scope="col">Candidate key</th><th scope="col" class="num">Distinct</th><th scope="col" class="num">Rows</th><th scope="col">Result</th></tr>
+            </thead>
+            <tbody>
+              <tr class="row-bad"><td class="key">WorkOrderID</td><td class="num">6</td><td class="num">8</td><td>Fails. WO-1001 and WO-1003 each appear twice.</td></tr>
+              <tr class="row-bad"><td class="key">TechnicianID (trimmed)</td><td class="num">5</td><td class="num">8</td><td>Fails. TECH-02, TECH-04 and TECH-05 each appear twice.</td></tr>
+              <tr class="row-bad"><td class="key">WorkDate</td><td class="num">7</td><td class="num">8</td><td>Fails. 2025-01-09 appears twice.</td></tr>
+              <tr><td class="key">WorkOrderID + TechnicianID</td><td class="num">8</td><td class="num">8</td><td class="muted">Passes on this sample only.</td></tr>
+              <tr><td class="key">WorkOrderID + WorkDate</td><td class="num">8</td><td class="num">8</td><td class="muted">Passes on this sample only.</td></tr>
+              <tr><td class="key">TechnicianID + WorkDate</td><td class="num">8</td><td class="num">8</td><td class="muted">Passes on this sample only.</td></tr>
+              <tr class="row-good"><td class="key">All three</td><td class="num">8</td><td class="num">8</td><td>Passes, and matches the stated grain.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+      <p>Those overlaps are what kill every single column key. L-501 and L-502 share WO-1001 on two different dates, so the work order alone cannot identify a row. L-502 and L-503 share the date 2025-01-09 across two different orders, so the date alone cannot either. L-501 and L-503 share TECH-02 on two different days, so the technician alone cannot. One column is never enough here, which leaves the combinations.</p>
+      <p>Look at what the middle three rows are telling you. All three pairs are unique across this quarter, so the data alone would let you adopt any of them and feel verified. Adopt <code>WorkOrderID</code> plus <code>TechnicianID</code> and you have written a rule saying a technician may book to a work order once and once only. That rule is false. WO-1003 ran for 22 days, and nothing stops TECH-05 from booking to it on Monday and again on Wednesday. The sample happens not to contain that case. The business process does.</p>
+      <p>One detail worth carrying forward. L-505 stores its technician as "TECH-04 " with a trailing space, so before trimming the untrimmed column has 6 distinct values instead of 5. The trim changes the distinct count of that column but does not change the composite, because L-505 is the only labor row on WO-1003 dated 2025-01-22. A cleaning step that alters a key can break a grain. Re-run the check after cleaning, not before.</p>
+    </div>
+  </details>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Table</div><div class="kv-v">LaborEntries</div></div>
+    <div class="kv-item"><div class="kv-k">Rows</div><div class="kv-v">8</div></div>
+    <div class="kv-item"><div class="kv-k">Grain</div><div class="kv-v">Technician, work order, day</div></div>
+    <div class="kv-item"><div class="kv-k">Additive</div><div class="kv-v">Hours only</div></div>
+  </div>
+
+  <p>Now the part nobody enjoys, and it is worth stating without softening. The candidate key test can disprove a grain. It can never prove one. Uniqueness in the rows you happen to hold is evidence, not proof, and on a three month extract of 8 rows it is weak evidence. The grain sentence comes from the business process, from asking a supervisor whether a technician can book twice to the same order on the same day and what it would mean if they did. The test only confirms that today's data does not contradict what you were told. A grain you have not tested is a guess. A grain you have tested on a sample is a better guess.</p>
+
+  <h3>Running the same test on the other five tables</h3>
+
+  <p>Table 1.2 holds six grain sentences, which is six claims, and every one of them has to be checked. LaborEntries got the long treatment above because its grain is the only composite one in the extract, and the other five still need the same test run against their own rows. Doing that by opening six queries and clicking Group By six times is how the check stops happening by the third sprint, so write it once as a function and call it.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">fnGrainCheck</span></div>
+    <pre><code><span class="c">// fnGrainCheck( LaborEntries,</span>
+<span class="c">//   {"WorkOrderID","TechnicianID","WorkDate"} )</span>
+<span class="c">// returns [ Rows = 8, DistinctKeys = 8, Violations = 0 ]</span>
+<span class="k">let</span>
+    fnGrainCheck <span class="op">=</span>
+        ( Source <span class="k">as table</span>, KeyColumns <span class="k">as list</span> ) <span class="k">as record</span> <span class="op">=&gt;</span>
+        <span class="k">let</span>
+            RowsIn <span class="op">=</span> <span class="k">Table.RowCount</span>( Source ),
+            KeysIn <span class="op">=</span> <span class="k">Table.RowCount</span>(
+                <span class="k">Table.Distinct</span>(
+                    <span class="k">Table.SelectColumns</span>( Source, KeyColumns ) ) ),
+            Report <span class="op">=</span> [
+                Rows         <span class="op">=</span> RowsIn,
+                DistinctKeys <span class="op">=</span> KeysIn,
+                Violations   <span class="op">=</span> RowsIn <span class="op">-</span> KeysIn ]
+        <span class="k">in</span>
+            Report
+<span class="k">in</span>
+    fnGrainCheck</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 5 to 6</div><div class="linex-v">A function taking the table and the key column names, so you write the check once. The check has to be re-run after every cleaning step that touches a key, and six copies of a query are six things that drift apart the first time somebody improves one of them.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 10 to 12</div><div class="linex-v"><code>Table.SelectColumns</code> first and then <code>Table.Distinct</code>, and not the two argument form <code>Table.Distinct( Source, KeyColumns )</code>. Both return the same count. Readability separates them. Projecting first makes the step you read on screen the claim you made: these columns, and nothing else, are what the grain sentence names.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 16</div><div class="linex-v">A difference, not a true or false. Zero is the pass. A non-zero number tells you how much duplication you are looking at, which is the difference between one row that arrived twice and a join upstream that fanned every row out.</div></div>
+    <div class="linex-row"><div class="linex-k">Report</div><div class="linex-v">A record and not a table, because three numbers render in the query preview without another click. To test every table at once, call it six times inside <code>Table.FromRecords</code> and load the result as a small check table.</div></div>
+    <div class="linex-row"><div class="linex-k">What it does not do</div><div class="linex-v">It reports, it does not stop anything. Replace <code>Report</code> with <code>if RowsIn &lt;&gt; KeysIn then error "grain violated" else Report</code> and the refresh fails instead. Do that for a dimension key, where a duplicate makes every measure over that path wrong. Think harder before doing it on a fact, because a failed refresh at 6am means the report shows yesterday, and yesterday is sometimes worse than a flagged duplicate.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 1.4</span> The candidate key test run across all six source tables, using the key each grain sentence in Table 1.2 implies. Counted by hand from the rows in Chapter 0.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Table</th>
+            <th scope="col">Key the sentence implies</th>
+            <th scope="col" class="num">Distinct</th>
+            <th scope="col" class="num">Rows</th>
+            <th scope="col" class="num">Violations</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-good"><th scope="row" class="key">WorkOrders</th><td>WorkOrderID</td><td class="num">8</td><td class="num">8</td><td class="num">0</td></tr>
+          <tr class="row-good"><th scope="row" class="key">LaborEntries</th><td>WorkOrderID + TechnicianID + WorkDate</td><td class="num">8</td><td class="num">8</td><td class="num">0</td></tr>
+          <tr class="row-good"><th scope="row" class="key">PartsIssued</th><td>WorkOrderID + PartNumber + IssueDate</td><td class="num">7</td><td class="num">7</td><td class="num">0</td></tr>
+          <tr class="row-good"><th scope="row" class="key">Technicians</th><td>TechnicianID</td><td class="num">6</td><td class="num">6</td><td class="num">0</td></tr>
+          <tr class="row-good"><th scope="row" class="key">AircraftRegistry</th><td>ACREG</td><td class="num">6</td><td class="num">6</td><td class="num">0</td></tr>
+          <tr class="row-good"><th scope="row" class="key">ShopCapacity</th><td>StationCode + Month</td><td class="num">7</td><td class="num">7</td><td class="num">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Six passes. Now read that result correctly, because a column of zeroes is the easiest thing in this document to over-trust. Three of those six tables carry a key the source system generated for its own purposes, <code>WorkOrderID</code>, <code>IssueID</code> and <code>LaborID</code>, and a generated identifier passes a uniqueness test by construction. The pass tells you one thing only: the export delivered each row once. The question the grain sentence answers, what one row of the table actually means, sits outside the reach of that test altogether.</p>
+
+  <p>The four tables where the test does real work are the ones whose keys describe the business itself, not the shape of the export. PartsIssued at work order plus part number plus date says a part can be issued to the same job on more than one day. P-9003 and P-9004 prove it: ENG-8802 on 2025-01-21 and BRK-2210 on 2025-01-24, both against WO-1003. ShopCapacity at station plus month says planning publishes one figure per station per month, and the 7 rows are 7 distinct station months, MSP three times, TUS twice, LAS once, PHX once.</p>
+
+  <p>Then there is the other direction, which is the part that catches people. Several columns in this extract pass the uniqueness test and are not keys at all.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 1.5</span> Columns that are unique across the Q1 rows and would still be a mistake to adopt as the key.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Table</th>
+            <th scope="col">Column</th>
+            <th scope="col" class="num">Distinct</th>
+            <th scope="col" class="num">Rows</th>
+            <th scope="col">Why it is not the key</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-bad"><td class="key">WorkOrders</td><td>OpenedDate</td><td class="num">8</td><td class="num">8</td><td>Two jobs opened on one day is an ordinary Tuesday. Q1 happens to contain none.</td></tr>
+          <tr class="row-bad"><td class="key">PartsIssued</td><td>IssueDate</td><td class="num">7</td><td class="num">7</td><td>Stores issued on seven separate days by chance. Two issue lines on one day is the normal case.</td></tr>
+          <tr class="row-bad"><td class="key">Technicians</td><td>TechnicianName</td><td class="num">6</td><td class="num">6</td><td>Names collide and names change. An identifier that HR can rewrite is not stable.</td></tr>
+          <tr class="row-bad"><td class="key">Technicians</td><td>Certifications</td><td class="num">6</td><td class="num">6</td><td>Six distinct strings today. Two technicians holding the same set would collapse it, and the column is finer grained than the row it sits on.</td></tr>
+          <tr class="row-bad"><td class="key">AircraftRegistry</td><td>YearBuilt</td><td class="num">6</td><td class="num">6</td><td>2007, 2009, 2011, 2013, 2016 and 2018. Two airframes built in one year ends it.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Five columns, five clean passes, five wrong answers. <code>PartsIssued[IssueDate]</code> is the one to sit with: 7 distinct dates across 7 rows, a perfect score, and adopting it would encode a rule saying stores may issue parts on at most one line per day. Nobody in stores has ever agreed to that. The test cannot see the difference between a key and a coincidence, because both look like a matching pair of counts.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Running the check on the identifier column and calling the grain verified. <code>LaborID</code> is distinct across all 8 rows, so <code>fnGrainCheck( LaborEntries, {"LaborID"} )</code> returns zero violations and you have learned nothing. <code>LaborID</code> is a surrogate key, an identifier the source system invented for its own bookkeeping, and a surrogate key is unique because it was minted to be unique. The check earns its keep only when you feed it the columns your sentence names. If your sentence says one technician, one work order, one day, then those three columns go into the call, and the surrogate stays out of it.</p>
+  </aside>
+
+  <p>One more property of ShopCapacity is worth pinning down before Part 2, because it is the case where a passing test and a correct sentence still leave you with work to do. The row grain is station plus month and it passes at 7 out of 7. The value grain is station plus month plus trade, because the four numbers on a row mean four different things. After the unpivot, <span class="derived-tag">Built</span> FactCapacity holds 7 times 4, which is 28 rows, and its candidate key is <code>StationCode</code> plus <code>MonthKey</code> plus <code>Trade</code>: 28 distinct combinations across 28 rows. Re-run the check after any reshape, because reshaping a table is the act of changing its grain, and the number that was verified belonged to the old shape.</p>
+
+  <p>The same three numbers apply to the dimensions you are about to build, and there the test stops being diagnostic and becomes structural. A duplicate key on the one side of a relationship is not a warning, it is a refusal: the engine will not create the relationship at all. <a class="xref" href="#ch-03">Chapter 3</a> runs this check over every table built for the Meridian model, and adds the second half of it, whether the dimension covers every key the facts actually use.</p>
+
+  <h3>The three kinds of fact table</h3>
+
+  <p>This is the classification that pays for itself. Facts come in three patterns, and the pattern determines how the table refreshes, which dates it needs, and what kinds of measure make sense on it. Meridian has all three, which is unusual for a dataset this size.</p>
+
+  <h4>Transaction facts: LaborEntries and PartsIssued</h4>
+
+  <p>One row per event, written once and then left alone. A timesheet booking happened on 2025-01-07 and that fact will never change. A part left stores on 2025-01-24 and that is settled. Transaction facts carry exactly one date and they are insert-only. That makes them cheap to refresh a slice at a time, because yesterday's rows never change. Their measures are the straightforward additive ones, 62.0 total hours and 28,245 in total parts cost.</p>
+
+  <p>The tell is the single date column. <code>LaborEntries[WorkDate]</code> and <code>PartsIssued[IssueDate]</code> each answer one question: when did this happen. There is no ambiguity about which date the row belongs to, which is why these two tables get a plain active relationship to the date table and nothing more complicated.</p>
+
+  <h4>Periodic snapshot: ShopCapacity</h4>
+
+  <p>A row exists because the calendar turned, not because anything happened. MSP has a row for January, February and March whether or not a single hour was worked. The measurement is taken at a regular interval, and it describes a period of time. No single event lies behind it.</p>
+
+  <p>Snapshots have a property transaction facts do not: rows can exist with nothing behind them. PHX appears in ShopCapacity for March with 8 plus 4 plus 3 plus 1, that is 16 planned hours, and PHX appears nowhere else in the entire dataset. No work orders, no technicians, no labor. Its utilisation is 0 percent of 16 hours, which is a legitimate answer. The snapshot is what makes that answer possible, because a transaction fact would simply have no row and PHX would vanish from the report.</p>
+
+  <p>Meridian's snapshot is also incomplete, and the distinction matters. LAS has no January or February rows and TUS has no March row. A missing row means planning published no figure at all, which is a different thing from planning zero hours. For TUS in March there is no denominator, so utilisation is undefined rather than 100 percent or zero. Any measure that divides labor hours by planned hours needs to return blank there, and not an infinity or a misleading figure. An incomplete periodic snapshot is a data quality problem that masquerades as a modelling problem. Fix it upstream if you can, and if you cannot, handle the blank denominator explicitly and tell the report consumer what a blank means.</p>
+
+  <h4>Accumulating snapshot: WorkOrders</h4>
+
+  <p>One row per thing that moves through a pipeline, with a column for each milestone, and the row is updated in place as the thing progresses. WorkOrders has <code>OpenedDate</code>, <code>PromisedDate</code> and <code>ClosedDate</code> side by side on the same row. WO-1004 opened on 2025-02-03 with a promise of 2025-02-21 and a blank close. WO-1008 opened on 2025-03-10 with a promise of 2025-03-28 and a blank close. Both rows will be rewritten, not added to, when those work orders eventually close. Six of the eight are closed, two are open.</p>
+
+  <p>Two consequences, and they are the reason this classification matters more than the other two.</p>
+
+  <p>The first is refresh. An accumulating snapshot cannot be incrementally appended, because the rows you already loaded are the rows that change. Power BI's incremental refresh partitions a table on a date range and, by default, leaves older partitions untouched. Partition WorkOrders on <code>OpenedDate</code> and WO-1004 lands permanently in the February partition. Close it in April and the February partition is never revisited, so your model will carry an open work order that closed months ago and your on time percentage will be wrong in a direction nobody notices. There are two escape hatches. One is a full reload of the table every cycle. The other is incremental refresh with the detect data changes option, pointed at a last-modified timestamp that the source system must actually maintain. At 8 rows you reload the table and think no more about it. At 4 million rows this is a real design conversation, and the cost is real: you either pay for the full reload every cycle or you depend on a source column you do not control.</p>
+
+  <p>The second consequence is that three date columns on one row force a role-playing date dimension. You cannot answer "how many work orders in February" until somebody says which February: opened, promised or closed. Those are three different questions with three different answers.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 360" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="40.0" y="120.0" width="178.0" height="86.5" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="51.0" y="137.0" class="d-t" fill="#1B5A68">DimDate</text><line x1="40.0" y1="146.0" x2="218.0" y2="146.0" stroke="#1B5A68" stroke-width="1"/><text x="51.0" y="158.0" class="d-m" font-weight="600" fill="#1B5A68">Date</text><text x="51.0" y="173.5" class="d-m">MonthName</text><text x="51.0" y="189.0" class="d-m">Quarter</text><rect x="470.0" y="74.0" width="210.0" height="117.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="481.0" y="91.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="470.0" y1="100.0" x2="680.0" y2="100.0" stroke="#AE4419" stroke-width="1"/><text x="481.0" y="112.0" class="d-m" font-weight="600" fill="#AE4419">WorkOrderID</text><text x="481.0" y="127.5" class="d-m">OpenedDate</text><text x="481.0" y="143.0" class="d-m">PromisedDate</text><text x="481.0" y="158.5" class="d-m">ClosedDate</text><text x="481.0" y="174.0" class="d-m">QuotedAmount</text><line x1="218.0" y1="150.0" x2="470.0" y2="122.0" class="d-line-hot" marker-end="url(#ah)"/><text x="300.0" y="128.0" class="d-lbl" fill="#AE4419">active</text><line x1="218.0" y1="176.0" x2="470.0" y2="152.0" class="d-line-off"/><text x="300.0" y="164.0" class="d-lbl" fill="#77746B">inactive</text><line x1="218.0" y1="200.0" x2="470.0" y2="182.0" class="d-line-off"/><text x="300.0" y="200.0" class="d-lbl" fill="#77746B">inactive</text><text x="690.0" y="122.0" class="d-m" fill="#AE4419" font-weight="600">OpenedDate</text><text x="690.0" y="152.0" class="d-m" fill="#77746B">PromisedDate</text><text x="690.0" y="182.0" class="d-m" fill="#77746B">ClosedDate</text><rect x="40.0" y="236.0" width="400.0" height="106.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="54.0" y="258.0" class="d-t" fill="#17160F">One date table, three roles</text><text x="54.0" y="278.0" class="d-m">Work Orders Opened  = COUNTROWS ( FactWorkOrder )</text><text x="54.0" y="296.0" class="d-m">Work Orders Closed  = CALCULATE ( [Opened],</text><text x="54.0" y="312.0" class="d-m">        USERELATIONSHIP ( DimDate[Date],</text><text x="54.0" y="328.0" class="d-m">                          FactWorkOrder[ClosedDate] ) )</text><rect x="470.0" y="236.0" width="400.0" height="106.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="484.0" y="258.0" class="d-t" fill="#2B6140">Why it matters</text><text x="484.0" y="278.0" class="d-m">January by opened date:  3 work orders</text><text x="484.0" y="296.0" class="d-m">January by closed date:   2 work orders</text><text x="484.0" y="316.0" class="d-s">Same slicer, same table, different question.</text><text x="484.0" y="334.0" class="d-s" font-style="italic">One date table keeps the slicer honest.</text></svg></div><figcaption><span class="fig-num">Figure 1.1</span>One date table, three relationships to the same fact, only one of them active.</figcaption></figure>
+
+  <p>Look at how many date tables there are in that picture. One. The three lines running from it into the same fact table are the three milestone columns, and the picture prints their names beside the fact box: <code>OpenedDate</code>, <code>PromisedDate</code>, <code>ClosedDate</code>. Only the top line is solid, and it is the one labelled active, so that is the line the engine follows by default. The two beneath it are dashed and labelled inactive. They exist, and nothing travels down them until a measure asks for one by name. That is what the <code>USERELATIONSHIP</code> in the measure card underneath is doing. The other card counts the same January twice on the strength of that switch, 3 work orders by opened date against 2 by closed date. That is the shape an accumulating snapshot always produces, and it is the reason a beginner's instinct, three copies of the calendar, is the wrong answer.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 1.6</span> The same eight work orders counted by month under each of the three date roles.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Date role</th><th scope="col" class="num">Jan</th><th scope="col" class="num">Feb</th><th scope="col" class="num">Mar</th><th scope="col" class="num">Total</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">By OpenedDate</th><td class="num">3</td><td class="num">3</td><td class="num">2</td><td class="num">8</td></tr>
+          <tr><th scope="row">By PromisedDate</th><td class="num">2</td><td class="num">3</td><td class="num">3</td><td class="num">8</td></tr>
+          <tr><th scope="row">By ClosedDate</th><td class="num">2</td><td class="num">2</td><td class="num">2</td><td class="num">6</td></tr>
+          <tr class="row-total"><td>Work orders in the table</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">8</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Read the February column and the argument from the first page of this chapter settles itself. Three work orders opened in February. Two closed. Your card was counting openings, the production controller was counting closures at his whiteboard, and the model has to be able to answer both questions from the same eight rows.</p>
+
+  <p>The closed row totals 2 plus 2 plus 2, which is 6 and not 8. That is the correct answer: WO-1004 and WO-1008 have no close date to be counted under. Somebody will eventually put two of these visuals on the same page and ask why the totals disagree. The answer is that they are measuring different milestones of the same eight objects, and the model is what makes it possible to ask both questions from one date table. How that is wired, one active relationship plus two inactive ones, comes later in the course.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>Accumulating snapshots are usually the smallest fact table in a model and the most expensive to refresh per row, because the whole table is rewritten each cycle. That trade is fine while the table is small. Watch the ratio, not the row count. If your accumulating snapshot approaches the size of your transaction facts, the pipeline it describes probably has more milestones than it needs, or you are carrying closed work orders that could be archived out of the hot table.</p>
+  </aside>
+
+  <h3>Degenerate dimensions: keys that stay on the fact</h3>
+
+  <p>A degenerate dimension is a dimension key that lives on the fact table and has no attributes of its own to hang anywhere else. <code>LaborEntries[LaborID]</code> is the purest example in Meridian. It identifies the row, there is no descriptive information attached to it anywhere in the business, and building a DimLaborID table would produce a dimension with exactly as many rows as the fact and exactly one useful column. <code>PartsIssued[IssueID]</code> is the same shape.</p>
+
+  <p><code>WorkOrderID</code> would be a degenerate dimension too, in a version of Meridian where WorkOrders did not exist. Imagine only the timesheet extract had landed. You could still group hours by work order, still see 13.5 hours on WO-1001 and 12.5 on WO-1003, still filter to one order. The identifier carries meaning on its own and belongs on the fact. What you could not do is ask which aircraft, which station or which work order type, because none of that is in the timesheet.</p>
+
+  <p>That is exactly the promotion rule. A degenerate dimension should be promoted when it acquires attributes. The moment somebody hands you WorkOrders, <code>WorkOrderID</code> has an aircraft registration, a station, a type, a quoted amount and three dates attached to it. Those attributes have to live in a table of their own. Store them on every labor row and every parts row and you are maintaining the same fact in several places at once. Keep the degenerate keys that never acquire attributes. Promote the ones that do. And keep <code>LaborID</code> on the fact for audit traceability, even though it will never appear in a visual. You accept a cost when you do that. A unique text column is the worst case for compression in the storage engine, because there is no repetition for the engine to exploit. At 8 rows that costs nothing measurable. At 40 million it can be the largest column in your model.</p>
+
+  <h3>Header and line: one table doing two jobs</h3>
+
+  <p>The finance manager asks what Meridian spent on parts for the E175 fleet in Q1. It is a fair question and you cannot answer it. Open PartsIssued and every row carries a part number, a quantity, a unit cost and a work order, with no aircraft registration anywhere on it. The answer is 12,680 dollars, and this section is about how the filter gets there.</p>
+
+  <p>WorkOrders is simultaneously a <span class="fact-tag">Fact</span> at its own grain and the header <span class="dim-tag">Dimension</span> for two other facts. Both statements are true at the same time and the model depends on both.</p>
+
+  <p>As a fact it has 8 rows and an additive <code>QuotedAmount</code> summing to 38,100. It also carries measures that only make sense at work order grain: average turn time of 12.0 days across the 6 closed orders, and on time performance of 50.0 percent. As a header, it supplies context that LaborEntries and PartsIssued do not carry. PartsIssued has no aircraft registration column at all. So the filter has to travel from DimAircraft into WorkOrders and only then down into PartsIssued, and that path is what turns the finance manager's blank visual into 12,680 for the E175 fleet.</p>
+
+  <p>The relationship from <code>WorkOrders[WorkOrderID]</code> to <code>LaborEntries[WorkOrderID]</code> is one to many, single direction, filtering from the header side to the line side. Mechanically it is an ordinary relationship. It is called a header to line relationship, or a fact to fact relationship, and it is legitimate for one specific reason: the header side has a genuinely unique key. Eight work orders, eight distinct <code>WorkOrderID</code> values. If that were not true the relationship could not be created at all, and the fix would be to go back and find the real header grain.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 380" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><text x="30.0" y="24.0" class="d-t" fill="#AE4419">Header grain</text><text x="430.0" y="24.0" class="d-t" fill="#AE4419">Line grain</text><rect x="30.0" y="44.0" width="250.0" height="116.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.4"/><text x="42.0" y="62.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="30" y1="70" x2="280" y2="70" stroke="#AE4419" stroke-width="1"/><text x="42.0" y="90.0" class="d-m">WO-1001</text><text x="268.0" y="90.0" class="d-m" text-anchor="end">3,000</text><text x="42.0" y="120.0" class="d-m">WO-1002</text><text x="268.0" y="120.0" class="d-m" text-anchor="end">3,200</text><text x="42.0" y="150.0" class="d-m">WO-1003</text><text x="268.0" y="150.0" class="d-m" text-anchor="end">12,500</text><rect x="430.0" y="44.0" width="300.0" height="176.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.4"/><text x="442.0" y="62.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="430" y1="70" x2="730" y2="70" stroke="#AE4419" stroke-width="1"/><text x="442.0" y="90.0" class="d-m">L-501</text><text x="540.0" y="90.0" class="d-m" fill="#77746B">WO-1001</text><text x="718.0" y="90.0" class="d-m" text-anchor="end">7.5</text><path d="M280,85.0 C350,85.0 370,85.0 430,85.0" class="d-line-hot" fill="none"/><text x="442.0" y="120.0" class="d-m">L-502</text><text x="540.0" y="120.0" class="d-m" fill="#77746B">WO-1001</text><text x="718.0" y="120.0" class="d-m" text-anchor="end">6.0</text><path d="M280,85.0 C350,85.0 370,115.0 430,115.0" class="d-line-hot" fill="none"/><text x="442.0" y="150.0" class="d-m">L-503</text><text x="540.0" y="150.0" class="d-m" fill="#77746B">WO-1002</text><text x="718.0" y="150.0" class="d-m" text-anchor="end">9.0</text><path d="M280,115.0 C350,115.0 370,145.0 430,145.0" class="d-line-hot" fill="none"/><text x="442.0" y="180.0" class="d-m">L-504</text><text x="540.0" y="180.0" class="d-m" fill="#77746B">WO-1003</text><text x="718.0" y="180.0" class="d-m" text-anchor="end">8.0</text><path d="M280,145.0 C350,145.0 370,175.0 430,175.0" class="d-line-hot" fill="none"/><text x="442.0" y="210.0" class="d-m">L-505</text><text x="540.0" y="210.0" class="d-m" fill="#77746B">WO-1003</text><text x="718.0" y="210.0" class="d-m" text-anchor="end">4.5</text><path d="M280,145.0 C350,145.0 370,205.0 430,205.0" class="d-line-hot" fill="none"/><text x="300.0" y="218.0" class="d-lbl" fill="#77746B">one header row</text><text x="300.0" y="232.0" class="d-lbl" fill="#77746B">fans out to many</text><text x="300.0" y="246.0" class="d-lbl" fill="#77746B">line rows</text><rect x="30.0" y="250.0" width="360.0" height="108.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="44.0" y="272.0" class="d-t" fill="#98281E">Pull QuotedAmount down to line grain</text><text x="44.0" y="292.0" class="d-m">3,000 + 3,000 + 3,200 + 12,500 + 12,500</text><text x="44.0" y="310.0" class="d-s">WO-1001 and WO-1003 counted twice.</text><text x="44.0" y="328.0" class="d-s">Work orders with no labor line vanish entirely.</text><text x="44.0" y="348.0" class="d-s" font-style="italic">Two independent errors in one column.</text><rect x="430.0" y="250.0" width="440.0" height="108.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="444.0" y="272.0" class="d-t" fill="#2B6140">Keep each measure at its own grain</text><text x="444.0" y="292.0" class="d-m">Quoted Amount  =  SUM ( FactWorkOrder[QuotedAmount] )   38,100</text><text x="444.0" y="310.0" class="d-m">Labor Cost     =  SUMX ( FactLabor, ... )                6,326.50</text><text x="444.0" y="328.0" class="d-s">The model joins them at the visual, not in a column.</text><text x="444.0" y="348.0" class="d-s" font-style="italic">If a measure needs DISTINCT to stop double counting, it is on the wrong table.</text></svg></div><figcaption><span class="fig-num">Figure 1.2</span>Header grain fans out to line grain, and header values duplicate when they follow.</figcaption></figure>
+
+  <p>Follow one work order across the two grains in that picture, which shows the first three work orders and the five labor rows that hang off them. WO-1001 is a single row on the header side carrying one quoted amount of 3,000. The curved lines fan it out into two rows on the line side, 7.5 hours and 6.0 hours, and WO-1003 fans out the same way into 8.0 and 4.5. Every header attribute repeats down the fan. That is exactly why the red card, which pulls <code>QuotedAmount</code> down to line grain, lands on 3,000 plus 3,000 plus 3,200 plus 12,500 plus 12,500. WO-1001 and WO-1003 are each counted twice. The same card names the second error, and it runs the other way. A work order with no labor line has nothing to fan out into, so WO-1005 and WO-1008 drop out of the flattened sum entirely. The green card keeps each measure on the table that owns it, 38,100 of quoted amount from the header and 6,326.50 of labor cost from the lines. Count the rows on the header side, not the rows arriving at the line side. Parts behave the same way, though this picture does not draw them: <code>PartsIssued</code> fans off the same header, and P-9003 and P-9004 both hang off WO-1003.</p>
+
+  <p>This is the single thing analysts most often get wrong when they have read one book on star schemas. A star schema is the layout where one fact table sits in the middle and the dimensions surround it, each joined straight to the fact. The rule they remember is that facts connect only to dimensions, so they do one of two things. The first is to flatten. They copy aircraft registration, station and work order type down onto every labor row and every parts row in Power Query, and now WO-1005's blank station has to be fixed in three places instead of one. The second is to build a separate DimWorkOrder holding the same 8 rows as the fact. Then they have to decide which of the two identical tables owns <code>QuotedAmount</code>, and that question has no good answer. A single table serving as both fact and header is the correct model here. The goal is a correct number, and textbook purity buys you nothing on its own.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>The header to line relationship filters in one direction only. Put technicians on the rows of a matrix with a measure summing <code>WorkOrders[QuotedAmount]</code>, and every row shows 38,100. TECH-03 and TECH-06 booked no hours at all and they show 38,100 too. DimTechnician filters LaborEntries, but LaborEntries does not filter WorkOrders, so the quoted amount is never restricted. Most people meet this and reach for bidirectional cross filtering. Do not. The visual is telling you something true: a quoted amount belongs to a work order, and there is no defensible way to split 3,000 dollars of quote between the two technicians who worked WO-1001. If you need cost per technician, sum labor cost, which is measured at that grain. Knowing which measures are meaningful at which grain is most of this job.</p>
+  </aside>
+
+  <h3>Factless fact tables</h3>
+
+  <p>A factless fact table records that an event or a relationship happened, with no numeric measure on the row at all. The classic case is a scheduled event. Meridian's six source tables stop short of one, so be clear about the status of what follows. This is a shape you would add to the Meridian model yourself, and the example below is built to show you the pattern.</p>
+
+  <p>Suppose maintenance planning gives you a list of inspections due: one row per airframe per inspection code per due date, covering the 7 aircraft registrations that end up in DimAircraft. The row itself is the fact, and counting rows is the whole measure. You count it, using <code>COUNTROWS</code> and not <code>COUNT</code> of a column, for the reason given earlier: there is no numeric column to count, and a text column would be counted only where it is non-blank.</p>
+
+  <p>Factless facts earn their place in two ways. They let you count scheduled events, for example how many inspections fall due in March across the Northwind Regional fleet. More usefully, they let you ask negative questions, which no other table shape supports well: which aircraft have an inspection due this month and no work order opened against them. That question needs a table of what should happen, so it can be compared against the table of what did happen. Without the factless table there is nothing for the absence to show up against.</p>
+
+  <h3>The classification, all six tables</h3>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 1.7</span> Full classification of the Meridian sources. Grain sentences abbreviated from Table 1.2.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Table</th>
+            <th scope="col">Class</th>
+            <th scope="col">Type</th>
+            <th scope="col">One row is</th>
+            <th scope="col" class="num">Rows</th>
+            <th scope="col">Grows with time</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row" class="key">WorkOrders</th>
+            <td><span class="fact-tag">Fact</span></td>
+            <td>Accumulating snapshot</td>
+            <td>one work order for one aircraft at one station</td>
+            <td class="num">8</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <th scope="row" class="key">LaborEntries</th>
+            <td><span class="fact-tag">Fact</span></td>
+            <td>Transaction</td>
+            <td>one technician booking time to one work order on one day</td>
+            <td class="num">8</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <th scope="row" class="key">PartsIssued</th>
+            <td><span class="fact-tag">Fact</span></td>
+            <td>Transaction</td>
+            <td>one part number issued to one work order on one date</td>
+            <td class="num">7</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <th scope="row" class="key">ShopCapacity</th>
+            <td><span class="fact-tag">Fact</span></td>
+            <td>Periodic snapshot</td>
+            <td>planned hours for one station in one month, four trades wide</td>
+            <td class="num">7</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <th scope="row" class="key">Technicians</th>
+            <td><span class="dim-tag">Dimension</span></td>
+            <td>Slowly changing</td>
+            <td>one technician on the roster</td>
+            <td class="num">6</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <th scope="row" class="key">AircraftRegistry</th>
+            <td><span class="dim-tag">Dimension</span></td>
+            <td>Slowly changing</td>
+            <td>one airframe, identified by aircraft registration</td>
+            <td class="num">6</td>
+            <td>No</td>
+          </tr>
+          <tr class="row-total"><td>Six source tables</td><td></td><td></td><td></td><td class="num">42</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Four facts and two dimensions. That is the opposite of the ratio most people expect from a star schema diagram, and it is why the finished Meridian model will need built dimensions. Two source dimensions cannot supply the vocabulary for four facts. Stations, work order types, parts and dates all have to be constructed from the facts themselves, which is the subject of the next part of this course.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>A fact records a measurement of an event, grows as time passes, and holds mostly keys and numbers. A dimension holds one row per real world thing and grows only when the world does.</li>
+      <li>Three questions settle almost every case: did it happen or does it simply exist, would you ever sum a number in it, and does the row count grow when the period doubles.</li>
+      <li>The grain is a sentence about one row, written before any relationship or measure. One row of LaborEntries is one technician booking time to one work order on one day.</li>
+      <li>Test the grain with a candidate key check, comparing distinct key combinations to the row count. The test can disprove a grain but never prove one, so the sentence still has to come from the business.</li>
+      <li>Run that check on all six tables, not the interesting one. All six pass at the key their sentence implies, and five other columns pass by coincidence, including <code>PartsIssued[IssueDate]</code> at 7 distinct across 7 rows. Feeding the check a surrogate key such as <code>LaborID</code> proves nothing at all.</li>
+      <li>LaborEntries and PartsIssued are transaction facts, ShopCapacity is a periodic snapshot, WorkOrders is an accumulating snapshot. The last one must be fully reloaded, never appended to, and its three dates are what force a role-playing date dimension.</li>
+      <li>Degenerate dimensions like <code>LaborID</code> stay on the fact. Promote a key only when it acquires attributes, as <code>WorkOrderID</code> has.</li>
+      <li>WorkOrders is a fact at its own grain and the header dimension for two other facts at the same time. That dual role is normal and correct because the header key is unique. Forcing it into a textbook star costs you either duplicated data or two tables that both claim to own <code>QuotedAmount</code>.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="00.html"><span class="pn-dir">Previous</span><span class="pn-t">The shop, the six tables, and how to read this document</span></a><a class="pn" href="02.html"><span class="pn-dir">Next</span><span class="pn-t">Why the star schema is the right shape</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

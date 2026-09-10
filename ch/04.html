@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Power Query or DAX: deciding where work belongs</title>
+</head>
+<body data-ch="04">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">04</span><span class="tb-title">Power Query or DAX: deciding where work belongs</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-04">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 2 . Shaping the data</div>
+    <h2 class="chapter-title"><span class="chapter-num">04</span>Power Query or DAX: deciding where work belongs</h2>
+    <p class="chapter-lede">After this chapter you will be able to take any transformation request, place it in one of four layers, and say out loud what that choice costs at refresh time and at query time. You will also be able to check whether your Power Query steps are still being pushed back to the source, and fix the ones that are not.</p>
+  </div>
+
+  <p class="lead">The production controller stops at your desk at nine in the morning. He wants the work order board grouped by how long each job took: under a week, one to two weeks, over two weeks. You already have turn days working. You wrote it last week as a measure, which is a DAX formula Power BI works out fresh every time a visual asks for it. Now you try to put those turn time buckets on the axis of a chart, and Power BI will not let you. Nothing is broken. The calculation is sitting in the wrong layer.</p>
+
+  <p>You asked when to use DAX and when to use Power Query in the cases where both would work. That is most cases. Either tool will strip the trailing space from <code>TECH-04 </code> in row L-505, derive the category Brakes out of the <code>BRK-2210</code> prefix, and work out that WO-1003 took 22 days to turn. Both tools give you the same number. What separates them is when the work runs, how many times it runs, and how much of the world the work can see while it runs.</p>
+
+  <h3>Four places the work can happen</h3>
+
+  <p>Every transformation in a Power BI solution lands in one of four layers. They run in a fixed order. Each layer can see things the layer before it could not. Knowing the order is most of the skill. Once you can say where a piece of logic runs, you can say what it costs.</p>
+
+  <h4>1. The source system, before Power BI is involved</h4>
+
+  <p>A view in the shop floor database, a computed column in the timesheet system, a corrected data type agreed with the vendor. Work here is done once, by an engine designed for set based work. The result is then available to every report that reads that table, including reports nobody has built yet. If someone else builds a report on the same timesheet table next quarter, they inherit your fix for free. This is the cheapest layer to run and the most expensive layer to get access to. At Meridian it is mostly closed: the WorkOrders extract arrives as a file, the fleet list is a spreadsheet kept by the customer service desk, and ShopCapacity is a planning workbook that a scheduler edits by hand. You cannot push a computed column into a workbook. That is a real limit and it is worth naming early. Half the advice in this chapter only becomes usable the day someone gives you a connection to the system behind the export.</p>
+
+  <h4>2. Power Query, at refresh</h4>
+
+  <p>M runs when the semantic model refreshes. A refresh is the scheduled or manual reload that pulls current data out of the source and rebuilds the model from it. Whatever M produces is handed to the storage engine, encoded, sorted and compressed. From that moment it is indistinguishable from a column that came straight out of the source. Power Query is where reshaping belongs: unpivoting, splitting, appending, trimming, deriving row level attributes, building small dimensions. The cost is paid once per refresh and never again.</p>
+
+  <h4>3. DAX calculated columns and calculated tables, at model load</h4>
+
+  <p>These are evaluated after the imported data has landed, in the pass usually called process recalc. They can see the whole model, including relationships, which M cannot: <code>RELATED</code> works in a calculated column and has no equivalent in Power Query without a merge. The result is materialised and stored in the model, so it costs memory and it costs refresh time, every refresh.</p>
+
+  <h4>4. DAX measures, at query time</h4>
+
+  <p>Nothing is stored. The expression is evaluated when a visual asks for a value, inside whatever filter context the report has produced at that instant. Filter context is the set of filters in force at that moment: the slicers the user clicked, the row and column headings of the visual, and anything else narrowing the data. A slicer is the button, list or date range on a report page that a user clicks to filter it. This is the only layer that can see what the user selected. It is also the only layer that runs again every time anyone touches anything.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="40" y="66" width="195" height="190" rx="6" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.6"/><text x="53.0" y="90.0" class="d-t" fill="#9B978C" font-size="11.5">Source system</text><line x1="40" y1="122" x2="235" y2="122" stroke="#9B978C" stroke-width="1"/><text x="53.0" y="144.0" class="d-s">Views, indexes, keys</text><text x="53.0" y="161.0" class="d-s">Anything the DBA will agree to</text><path d="M237,161 L247,161" class="d-line" marker-end="url(#ahg)"/><rect x="250" y="66" width="195" height="190" rx="6" fill="#F5F0DC" stroke="#78641F" stroke-width="1.6"/><text x="263.0" y="90.0" class="d-t" fill="#78641F" font-size="11.5">Power Query</text><text x="263.0" y="105.0" class="d-t" fill="#78641F" font-size="11.5">at refresh time</text><line x1="250" y1="122" x2="445" y2="122" stroke="#78641F" stroke-width="1"/><text x="263.0" y="144.0" class="d-s">Unpivot, append, merge, group</text><text x="263.0" y="161.0" class="d-s">Trim and type keys</text><text x="263.0" y="178.0" class="d-s">Build missing dimensions</text><path d="M447,161 L457,161" class="d-line" marker-end="url(#ahg)"/><rect x="460" y="66" width="195" height="190" rx="6" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="473.0" y="90.0" class="d-t" fill="#1B5A68" font-size="11.5">DAX calculated</text><text x="473.0" y="105.0" class="d-t" fill="#1B5A68" font-size="11.5">columns and tables</text><text x="473.0" y="120.0" class="d-t" fill="#1B5A68" font-size="11.5">at load</text><line x1="460" y1="122" x2="655" y2="122" stroke="#1B5A68" stroke-width="1"/><text x="473.0" y="144.0" class="d-s">Date table</text><text x="473.0" y="161.0" class="d-s">Sort-by columns</text><text x="473.0" y="178.0" class="d-s">Keys that need the model</text><path d="M657,161 L667,161" class="d-line" marker-end="url(#ahg)"/><rect x="670" y="66" width="195" height="190" rx="6" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="683.0" y="90.0" class="d-t" fill="#AE4419" font-size="11.5">DAX measures</text><text x="683.0" y="105.0" class="d-t" fill="#AE4419" font-size="11.5">at query time</text><line x1="670" y1="122" x2="865" y2="122" stroke="#AE4419" stroke-width="1"/><text x="683.0" y="144.0" class="d-s">Anything a slicer can change</text><text x="683.0" y="161.0" class="d-s">Ratios, ranks, time intelligence</text><line x1="40" y1="290" x2="860" y2="290" stroke="#D2CDC0" stroke-width="1"/><path d="M40,290 L860,290" class="d-line" marker-end="url(#ahg)"/><text x="40.0" y="312.0" class="d-lbl" fill="#77746B">computed once, per refresh</text><text x="860.0" y="312.0" class="d-lbl" text-anchor="end" fill="#77746B">computed per visual, per user, per click</text><text x="40.0" y="40.0" class="d-t" fill="#17160F">Push work as far left as you can. Then move it right for one reason only.</text><rect x="40.0" y="330.0" width="820.0" height="56.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="54.0" y="352.0" class="d-t" fill="#2B6140">The dividing line</text><text x="54.0" y="370.0" class="d-s">If the answer depends on what the user selects, it cannot be precomputed. That single test decides most of these arguments before they start.</text></svg></div><figcaption><span class="fig-num">Figure 4.1</span>Four places the work can happen, ordered by when they run.</figcaption></figure>
+
+  <p>Read that diagram as a timeline running left to right. Each band has already finished by the time the band to its right begins. That is why a measure can use a Power Query column and a Power Query step can never use a measure. The three Power BI bands each name the moment they run: at refresh, at load and at query time. The axis underneath turns those moments into a price. At the left hand end the work is computed once, per refresh. At the right hand end it is computed per visual, per user, per click.</p>
+
+  <p>The picture leaves one thing for you to carry in your head. Each layer can see a different amount of the world. The source knows nothing about your model. Power Query knows about one query and whatever it merges in. A calculated column knows the whole model and knows nothing about the report page. Only the measure layer can see the slicers. Sight and cost run in the same direction, and that is the reason the order is worth memorising. The line above the green card, push work as far left as you can and then move it right for one reason only, is the rule stated below in upstream and downstream terms. The green card itself is that one reason.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 4.1</span> The four layers, in the order they run, and what each one costs.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Layer</th>
+            <th scope="col">When it runs</th>
+            <th scope="col">What is stored</th>
+            <th scope="col">What it can see</th>
+            <th scope="col">Who pays</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Source system</th>
+            <td>Before refresh, on the source engine</td>
+            <td>In the source, not in your model</td>
+            <td>Its own tables</td>
+            <td>Nobody, once it exists</td>
+          </tr>
+          <tr>
+            <th scope="row">Power Query</th>
+            <td>Once per refresh</td>
+            <td>A compressed imported column</td>
+            <td>One query, plus anything merged into it</td>
+            <td>The refresh window</td>
+          </tr>
+          <tr>
+            <th scope="row">Calculated column or table</th>
+            <td>After load, every refresh and every model change</td>
+            <td>A materialised column or table</td>
+            <td>The whole model and its relationships</td>
+            <td>Refresh window and memory</td>
+          </tr>
+          <tr>
+            <th scope="row">Measure</th>
+            <td>Every visual, every interaction</td>
+            <td>Nothing</td>
+            <td>The model plus the current filter context</td>
+            <td>Every user, every click</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h3>The principle, and why it holds</h3>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Push each piece of work as far upstream as it will go, because upstream work is computed once and downstream work is computed again for every visual, every user and every interaction.</p>
+  </aside>
+
+  <p>The arithmetic behind that sentence is dull and decisive. Deriving PartCategory from the prefix of PartNumber in Power Query runs 7 times per refresh, once for each row in PartsIssued, and the answer sits in DimPart as 4 rows afterwards. Deriving the same category inside a measure runs whenever a visual needs it: on the parts page, on every drill through, for the scheduler and the shop manager and the customer service desk, at nine in the morning when all three of them open the report at once. The logic stayed exactly as simple. What changed is the number of times it ran.</p>
+
+  <p>There is a second reason, quieter but more important on large models. A column produced in Power Query is compressed by VertiPaq along with everything else in the table. VertiPaq is the storage engine inside Power BI that keeps imported data column by column, and its compression is what makes the model fast. A value computed at query time is never compressed, because it never exists until the query asks for it. Upstream work becomes part of the compressed structure. Downstream work has to be rebuilt on top of it.</p>
+
+  <p>Meridian will not make you feel any of this. The finished model is 8 work order rows plus 8 labor rows plus 7 parts rows plus 28 capacity rows plus 10 bridge rows plus 90 date rows plus the dimensions at 7, 5, 7, 4, 3 and 4 rows. That totals 181 rows in the entire model. Every choice in this chapter runs instantly at that size. You are learning the discipline here so that it is already a habit the day the timesheet extract arrives with millions of rows and a four minute refresh turns into forty.</p>
+
+  <h3>The exception, which is the real dividing line</h3>
+
+  <p>The planner set the baseline three weeks ago and is now being asked why average turn days moved. She filters the report to MSP and reads 15.0 days. She clears the filter and reads 12.0 days. Both numbers came out of the same model on the same afternoon. Both are correct. Here is why one stored column could never have produced both.</p>
+
+  <p>The upstream principle on its own is wrong. Follow it blindly and you produce reports that lie. Work has to move downstream whenever the result depends on what the user selected. Anything a slicer can change cannot be precomputed, because at refresh time nobody has clicked anything yet.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Forget the lists of tasks. The question that decides the layer is: can a slicer change this number? If the answer is yes, the number does not exist until query time, and no amount of upstream cleverness can precompute it. Everything else in this chapter is a refinement of that one test.</p>
+  </aside>
+
+  <p>Turn time on a work order shows both sides of the line in the same calculation. WO-1003 opened on 2025-01-14 and closed on 2025-02-05, which is 22 days. That 22 is a property of the row. It holds whether the user filters to MSP, to March, or to AOG work. It belongs upstream, as a column. Average turn days across closed work orders is a different animal. Across all six closed work orders it is 12.0 days, from a sum of 72 over 6 orders. Filter the report to MSP and the closed work orders are WO-1001 at 10 days, WO-1002 at 5 days and WO-1006 at 30 days. The average becomes 45 divided by 3, which is 15.0 days. Two numbers from one dataset, both correct, and only a measure can produce the second one.</p>
+
+  <p>That is the planner's pair of numbers. Her 12.0 and her 15.0 are the same measure read under two filter contexts, which is why nobody moved the baseline. It also answers the production controller from the opening of this chapter. Turn days on one work order is a property of the row, so it belongs in Power Query as a stored column. Once it is stored, you can bucket it, put the buckets on an axis, and count work orders in each bucket. A measure could only ever have printed the number in a card.</p>
+
+  <h3>The procedure, in the order to run it</h3>
+
+  <ol class="steps">
+    <li>Ask whether the answer changes when the user changes a slicer. If it does, it is a measure. Stop here, the remaining questions do not apply.</li>
+    <li>Check whether it is a row level attribute that you will group by, filter on, sort by, or join on. If it is, it belongs in Power Query as a column. Axes, slicers and relationships all need a stored column to point at.</li>
+    <li>Ask whether the calculation needs values sitting in the current filter context of another table, for example planned hours from FactCapacity beside actual hours from FactLabor. That combination only exists at query time, so it is a measure.</li>
+    <li>Decide whether the thing has to exist before relationships are built: a key, a dimension member, an Unknown row. Put it in Power Query. A relationship can be built on a calculated column and it will work, but you have then stored the key twice. The dirty version stays in the model for someone else to pick up by mistake.</li>
+    <li>Ask whether it is a table that depends on other model tables and could never have been produced upstream, such as a what-if scenario table. That is a DAX calculated table, and you accept that it is rebuilt on every refresh.</li>
+  </ol>
+
+  <p>Run the questions in that order and take the first match. The order matters because question one dominates everything else. A late flag looks like a row level attribute, and it is one. Then somebody asks for a tolerance slicer that changes the definition of late. The flag stops being an attribute and becomes a measure. Upstream discipline will not save you there.</p>
+
+  <h3>Fifteen decisions, with the failure mode attached</h3>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 4.2</span> Where each Meridian transformation belongs, and what breaks if you put it elsewhere.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Task</th>
+            <th scope="col">Correct home</th>
+            <th scope="col">Why</th>
+            <th scope="col">What goes wrong the other way</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Trim TechnicianID on LaborEntries</th>
+            <td>Power Query</td>
+            <td>Key hygiene has to happen before the relationship uses the key</td>
+            <td>Untrimmed, TECH-04 shows 6.0 hours instead of 10.5 and 4.5 hours sit in the blank row. Trimmed in a calculated column it works, but you now store two technician keys and the dirty one is still selectable</td>
+          </tr>
+          <tr>
+            <th scope="row">Derive PartCategory from PartNumber</th>
+            <td>Power Query</td>
+            <td>Row level attribute used to group; it becomes 4 rows in DimPart</td>
+            <td>A measure cannot be placed on an axis, so Brakes 3,720 and Engine 15,300 can never become a bar chart</td>
+          </tr>
+          <tr>
+            <th scope="row">Build DimStation from three sources</th>
+            <td>Power Query</td>
+            <td>Append WorkOrders, Technicians and ShopCapacity, deduplicate to the 4 real stations MSP, TUS, LAS and PHX, then add the Unassigned member to reach 5 rows</td>
+            <td>As a DAX calculated table it is rebuilt on every refresh and cannot fold. The descriptive columns live inside the formula, where nobody maintains them as data</td>
+          </tr>
+          <tr>
+            <th scope="row">Total labor cost</th>
+            <td>Measure</td>
+            <td>6,326.50 is the total only when nothing is filtered</td>
+            <td>Any stored total is wrong for every subtotal and every slicer state, and it will be silently summed twice</td>
+          </tr>
+          <tr>
+            <th scope="row">Labor cost per line</th>
+            <td>Either, default Power Query</td>
+            <td>Row level arithmetic on two immutable inputs, 8 values summing to 6,326.50</td>
+            <td>Genuinely close. Discussed in full below</td>
+          </tr>
+          <tr>
+            <th scope="row">Work order turn days</th>
+            <td>Power Query</td>
+            <td>A property of the row: WO-1006 is 30 days regardless of selection</td>
+            <td>As a measure you cannot bucket, sort or slice by turn days, only display them</td>
+          </tr>
+          <tr>
+            <th scope="row">Flag a work order as late</th>
+            <td>Power Query</td>
+            <td>ClosedDate against PromisedDate, both on the same row; gives 3 late and 3 on time</td>
+            <td>As a measure you cannot put On time and Late on a slicer, and the open orders WO-1004 and WO-1008 need explicit handling either way</td>
+          </tr>
+          <tr>
+            <th scope="row">Rank technicians by hours</th>
+            <td>Measure</td>
+            <td>The rank depends on the filter context, so it changes with every selection the user makes</td>
+            <td>A stored rank is frozen at refresh. TECH-02 leads on 16.5 hours overall, but rank inside TUS or inside March is a different list entirely</td>
+          </tr>
+          <tr>
+            <th scope="row">Year to date hours</th>
+            <td>Measure</td>
+            <td>Year to date is defined against the dates the user has selected</td>
+            <td>A stored year to date column is correct on exactly one day of the year and wrong on the other 89 in this model</td>
+          </tr>
+          <tr>
+            <th scope="row">Customer facing running total</th>
+            <td>Measure</td>
+            <td>It depends on the axis of the visual and on every filter around it</td>
+            <td>Precomputed per row it survives contact with no filter at all, and customers are the audience least likely to tell you it is wrong</td>
+          </tr>
+          <tr>
+            <th scope="row">Unpivot ShopCapacity</th>
+            <td>Power Query</td>
+            <td>Reshaping is what M exists for: 7 rows times 4 trade columns gives 28 rows totalling 176 hours</td>
+            <td>In DAX it is a calculated table stitched from four column selections, unfoldable and rebuilt every refresh</td>
+          </tr>
+          <tr>
+            <th scope="row">Split Certifications to rows</th>
+            <td>Power Query</td>
+            <td>Split on the delimiter to produce the 10 row bridge before relationships are made</td>
+            <td>Text parsing in DAX to fake a bridge gives you a column of delimited strings that no relationship can use</td>
+          </tr>
+          <tr>
+            <th scope="row">Add MonthKey to DimDate</th>
+            <td>Power Query</td>
+            <td>A stable attribute used for sorting and for the capacity join</td>
+            <td>Honestly, on 90 rows a calculated column costs nothing measurable here. Prefer Power Query for consistency. The speed argument does not apply at this size</td>
+          </tr>
+          <tr>
+            <th scope="row">Add an Unknown row to a dimension</th>
+            <td>Power Query</td>
+            <td>Append one row so TECH-07 has somewhere to land and its 10.0 hours stay visible</td>
+            <td>DAX cannot add a row to an imported table. You would have to replace the whole table with a calculated table and lose the source query</td>
+          </tr>
+          <tr>
+            <th scope="row">What-if rate parameter</th>
+            <td>DAX</td>
+            <td>The value is a user selection by definition, so it has no upstream home</td>
+            <td>There is no other way to build it, and every measure that consumes it has to stay a measure</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Three of those rows deserve their function named. Naming a function without a reason is how bad habits spread.</p>
+
+  <p>Ranking technicians uses <code>RANKX</code> and not <code>TOPN</code>. <code>TOPN</code> returns a table of the best n rows and never produces a rank number you can put on a visual. <code>RANKX</code> returns a position for the current row in the current filter context, which is what a rank on a visual means.</p>
+
+  <p>Year to date hours uses <code>CALCULATE</code> with <code>DATESYTD</code>. <code>TOTALYTD</code> is shorter and it hides the <code>CALCULATE</code> inside itself. It does accept an extra filter argument, but that argument is positional and sits next to an optional year end date. The next person reading the formula cannot see what is filtering what. The explicit form puts the context modification on the page where it can be read. <code>CALCULATE</code> and not a plain filter expression, because only <code>CALCULATE</code> can replace the filter context that the visual has already applied.</p>
+
+  <p>If you ever do build turn days as a measure rather than as a column, use <code>DATEDIFF</code> with the DAY interval. Subtracting one date from the other carries the time component with it and hands you a decimal that then needs rounding. <code>DATEDIFF</code> states its unit in the code where the next reader can see it. Average turn days over a stored column uses <code>AVERAGE</code> and not <code>AVERAGEX</code>, because there is nothing left to iterate once the value sits on the row.</p>
+
+  <h3>Query folding, and how to tell whether you still have it</h3>
+
+  <p>The planner messages you at seven in the morning. The overnight refresh has gone from four minutes to forty, her report was still building when she needed it, and nobody changed the data. You changed something. You added one step to the labor query on Friday afternoon. That step is the reason, and the reason has a name.</p>
+
+  <dl class="defs">
+    <dt>Query folding</dt>
+    <dd>The mechanism by which Power Query translates your applied steps into a single native query and sends that to the source, instead of downloading the table and doing the work locally.</dd>
+    <dt>Materialised</dt>
+    <dd>Stored as real values in memory. Imported columns and calculated columns are materialised, so they occupy space. A measure is computed on demand and stores nothing.</dd>
+    <dt>Process recalc</dt>
+    <dd>The pass after data load in which the engine evaluates calculated columns, calculated tables and hierarchies, in dependency order.</dd>
+  </dl>
+
+  <p>Filter LaborEntries to Q1 2025 against a real database and Power Query writes a SQL statement with a WHERE clause. The database runs it. Only the Q1 rows ever cross the network. That is folding, and it matters for three reasons that all point the same way: the source is better at set based work than the mashup engine is, far less data travels, and the source can use its own indexes on your behalf. A folded query on a large table is often an order of magnitude faster than the same steps evaluated locally. It is the single biggest refresh lever you have.</p>
+
+  <p>To check, right click the last applied step and look at View Native Query. If it is available, everything up to that step folded and you can read the SQL. If it is greyed out, folding has already stopped. Click back up the step list until the option becomes available again; the first step where it goes grey is the one that broke it. This is the whole diagnostic, and it takes twenty seconds.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 4.3</span> Common steps and whether they usually fold. Verify each one with View Native Query, and trust no table here, including this one.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Step</th><th scope="col">Folds</th><th scope="col">Note</th></tr>
+        </thead>
+        <tbody>
+          <tr class="row-good"><td>Filter rows on OpenedDate</td><td>Yes</td><td>Becomes a WHERE clause</td></tr>
+          <tr class="row-good"><td>Remove columns</td><td>Yes</td><td>Becomes the SELECT list</td></tr>
+          <tr class="row-good"><td>Rename column</td><td>Yes</td><td>Becomes an alias</td></tr>
+          <tr class="row-good"><td>Group by with sum or count</td><td>Yes</td><td>Becomes GROUP BY, and shrinks the payload sharply</td></tr>
+          <tr><td>Change type</td><td>Usually</td><td>Becomes a cast. A few target types do not fold</td></tr>
+          <tr><td>Merge, inner join, same source</td><td>Usually</td><td>Two different sources cannot fold, because no single engine can see both</td></tr>
+          <tr><td>Unpivot columns</td><td>Sometimes</td><td>Connector dependent. Check the native query, do not assume</td></tr>
+          <tr class="row-bad"><td>Add index column</td><td>No</td><td>Row order is an M concept with no set based equivalent</td></tr>
+          <tr class="row-bad"><td>Table.Buffer</td><td>No</td><td>Materialising the table locally is precisely what it is for</td></tr>
+          <tr class="row-bad"><td>A custom M function you wrote</td><td>Usually not</td><td>The engine cannot translate arbitrary M into the source dialect</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Folding is a prefix property. Once a step breaks it, everything after that step runs locally, no matter how foldable those later steps look on their own. That gives you the practical rule: filter rows and remove columns first, while folding is still alive. Put the index column, the buffer and your clever custom function at the end, where they can only slow down a table that is already small.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">FactLabor, ordered to keep folding</span></div>
+<pre><code><span class="c">// Filter and drop columns first, while folding is still alive.</span>
+<span class="k">let</span>
+    Source  <span class="op">=</span> <span class="k">Sql.Database</span>(<span class="s">"shopfloor01"</span>, <span class="s">"MRO"</span>),
+    Labor   <span class="op">=</span> Source{[Schema<span class="op">=</span><span class="s">"dbo"</span>, Item<span class="op">=</span><span class="s">"LaborEntries"</span>]}[Data],
+    Kept    <span class="op">=</span> <span class="k">Table.SelectColumns</span>(Labor,
+        {<span class="s">"LaborID"</span>, <span class="s">"WorkOrderID"</span>, <span class="s">"TechnicianID"</span>,
+         <span class="s">"WorkDate"</span>, <span class="s">"Hours"</span>, <span class="s">"HourlyRate"</span>}),
+    Q1      <span class="op">=</span> <span class="k">Table.SelectRows</span>(Kept, <span class="k">each</span>
+        <span class="col">[WorkDate]</span> <span class="op">&gt;=</span> #date(<span class="n">2025</span>, <span class="n">1</span>, <span class="n">1</span>) <span class="k">and</span>
+        <span class="col">[WorkDate]</span> <span class="op">&lt;=</span> #date(<span class="n">2025</span>, <span class="n">3</span>, <span class="n">31</span>)),
+    Trimmed <span class="op">=</span> <span class="k">Table.TransformColumns</span>(Q1,
+        {{<span class="s">"TechnicianID"</span>, <span class="k">Text.Trim</span>, <span class="k">type text</span>}})
+<span class="k">in</span>
+    Trimmed</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 2 to 4</div><div class="linex-v">The let block opens, then the connection on line 3 and the table on line 4. Nothing has been fetched yet; M is lazy and only executes when the result is demanded.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 5 to 7</div><div class="linex-v">Column removal goes first. It becomes the SELECT list, so the six columns you keep are the only ones that ever cross the network.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 8 to 10</div><div class="linex-v">The date filter becomes a WHERE clause. It is written as an explicit range, because a plain comparison is the form the connector translates most reliably. A date helper function is where folding often stops.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 11 to 12</div><div class="linex-v">The trim that fixes L-505. Text.Trim and not a text replace of every space, because replacing spaces would also destroy any key that legitimately contains one. Against SQL Server this folds to a trim in the native query. Against another connector, check View Native Query before you assume anything.</div></div>
+  </div>
+
+  <p>The order in that query is the whole lesson. Move the trim to the top and it still gives the right answer. On a large table you may have pulled every column and every year across the wire to get it.</p>
+
+  <p>That is the planner's forty minute refresh. The step you added on Friday was an index column, and an index column cannot fold. Because folding is a prefix property, every step after it stopped folding too, including the date filter that used to keep the whole quarter at the source. Move the index column to the end of the query, behind the filter and the column removal, and the database goes back to doing the heavy work.</p>
+
+  <h3>What a calculated column actually costs</h3>
+
+  <p>A DAX calculated column appears the instant you type it in a model of a few hundred rows, so most people treat it as free. It costs memory and it costs refresh time, every single refresh. The reason is worth stating plainly.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>A calculated column is materialised into the model exactly like an imported one, so it consumes memory. It is also usually compressed less effectively, because the engine loads and compresses the imported columns first and picks a segment sort order based on what it can see at that moment. Your calculated column is evaluated after that sort has been chosen, so the sort was never optimised for it. How much worse the compression turns out to be depends entirely on the data, so measure your own model before you quote a ratio. On DimDate at 90 rows this is noise. On a labor table of tens of millions of rows it can be the difference between a model that fits in memory and one that does not.</p>
+  </aside>
+
+  <p>There are two more costs that surprise people. First, a calculated column is recomputed on refresh and on any model change. That is why adding an innocent measure to a large model sometimes triggers a wait you did not ask for. Second, a calculated column that reads another table creates a dependency. The engine must finish that table before it can evaluate your column. Chain a few of these together and process recalc has to walk the chain in order. Picture a column on FactLabor that reads DimTechnician, and a column on DimTechnician that reads DimStation. Nothing here is catastrophic on its own. Together they turn a refresh you understood into one you have to investigate.</p>
+
+  <h3>What a measure costs, which is the mirror image</h3>
+
+  <p>A measure stores nothing, so it adds not one byte to the model. It pays for that at the other end. It is evaluated when a visual asks, and it is asked often. Put technicians on the rows of a matrix and months on the columns. DimTechnician has 7 rows and Q1 has 3 months, so that is 7 times 3, or 21 body cells. Add 7 row subtotals, 3 column subtotals and the grand total, and one measure has produced 32 values in one visual. Add a second visual and a slicer. Then multiply by however many people have the report open.</p>
+
+  <p>Be careful with how you picture that. The engine is smarter than the cell count suggests: for a simple aggregation it will often satisfy the whole matrix with one or two storage engine scans and slice the results up afterwards. The cell count becomes real when the measure manipulates filter context in ways the engine cannot batch, and that is where badly written <code>CALCULATE</code> logic hurts. A measure that forces per cell evaluation over a large fact table is the most common cause of a report that feels slow without any single thing looking wrong.</p>
+
+  <h3>The middle case nobody argues about honestly</h3>
+
+  <p>The finance manager wants one number for the month: what labor cost. He does not care which table it comes from, and he should not have to. On the face of it this is the easiest request in the chapter, and it is the case that sits exactly on the fence. FactLabor has Hours and HourlyRate on every row. Line cost is one multiplication. You can store it as a Power Query column, or you can never store it and let a measure do the multiplication at query time.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Cost</span></div>
+<pre><code>Labor Cost <span class="op">=</span>
+<span class="k">SUMX</span> (
+    <span class="t">FactLabor</span>,
+    <span class="t">FactLabor</span><span class="col">[Hours]</span> <span class="op">*</span> <span class="t">FactLabor</span><span class="col">[HourlyRate]</span>
+)</code></pre>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>SUMX</code> and not <code>SUM</code>, because <code>SUM</code> takes a single column and there is no single column here to sum. The product has to be formed row by row before anything can be added up, and <code>SUMX</code> is the iterator that creates that row context. If you had stored a LineCost column in Power Query then <code>SUM</code> would be correct and <code>SUMX</code> would be pointless extra machinery, which is exactly the trade being argued below.</p>
+  </div>
+
+  <p>The case for storing the column: the multiplication happens once per refresh instead of on every query, and a plain <code>SUM</code> over a stored column is a pure scan with no expression to evaluate. On a very large fact table that difference is measurable.</p>
+
+  <p>The case against: the stored column costs memory, and it costs more than people expect. Cardinality means the number of distinct values in a column. The cardinality of a product is roughly the cardinality of hours multiplied by the cardinality of rates, and high cardinality columns are the expensive ones in a columnar model. Meridian has 8 distinct line costs, so this is invisible here. In a real timesheet table LineCost is often one of the worst compressing columns in the model. The stored column also cannot respond to a what-if rate slicer, ever, because it was computed before anyone selected anything.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Cost at Scenario Rate</span></div>
+<pre><code>Labor Cost at Scenario Rate <span class="op">=</span>
+<span class="k">VAR</span> ScenarioRate <span class="op">=</span>
+    <span class="k">SELECTEDVALUE</span> ( <span class="t">'Rate Scenario'</span><span class="col">[Rate]</span> )
+<span class="k">RETURN</span>
+    <span class="k">IF</span> (
+        <span class="k">ISBLANK</span> ( ScenarioRate ),
+        <span class="col">[Labor Cost]</span>,
+        <span class="k">SUMX</span> ( <span class="t">FactLabor</span>, <span class="t">FactLabor</span><span class="col">[Hours]</span> <span class="op">*</span> ScenarioRate )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 2 to 3</div><div class="linex-v">Read the single rate the user selected. SELECTEDVALUE and not VALUES. VALUES returns a table, and it throws an error the moment more than one value is in context. SELECTEDVALUE returns blank in that same situation and lets you decide what to do about it. Not MIN either, because MIN would silently pick a value when the user has selected several and hide the ambiguity.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 5 to 7</div><div class="linex-v">ISBLANK and not a comparison to zero, because in DAX a blank compares equal to zero and a scenario rate of zero is a selection a user could legitimately make. Line 7 falls back to the real Labor Cost measure, so the visual shows actuals until somebody moves the slicer.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 8</div><div class="linex-v">The scenario branch multiplies hours by the selected rate and ignores HourlyRate entirely. This is the line a stored LineCost column can never produce.</div></div>
+  </div>
+
+  <details class="expand" open>
+    <summary>Trace both versions by hand, row by row</summary>
+    <div class="expand-body">
+      <p>Eight rows, one multiplication each. The stored column would hold the right hand values below and <code>SUM</code> would add them. The measure forms them at query time and adds them in the same pass.</p>
+      <figure class="tbl">
+        <figcaption><span class="tbl-num">Table 4.4</span> FactLabor line cost, computed either way, with the scenario contrast.</figcaption>
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr><th scope="col">LaborID</th><th scope="col" class="num">Hours</th><th scope="col" class="num">HourlyRate</th><th scope="col" class="num">Line cost</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="key">L-501</td><td class="num">7.5</td><td class="num">95</td><td class="num">712.50</td></tr>
+              <tr><td class="key">L-502</td><td class="num">6.0</td><td class="num">110</td><td class="num">660.00</td></tr>
+              <tr><td class="key">L-503</td><td class="num">9.0</td><td class="num">95</td><td class="num">855.00</td></tr>
+              <tr><td class="key">L-504</td><td class="num">8.0</td><td class="num">88</td><td class="num">704.00</td></tr>
+              <tr><td class="key">L-505</td><td class="num">4.5</td><td class="num">110</td><td class="num">495.00</td></tr>
+              <tr><td class="key">L-506</td><td class="num">10.0</td><td class="num">102</td><td class="num">1,020.00</td></tr>
+              <tr><td class="key">L-507</td><td class="num">12.0</td><td class="num">120</td><td class="num">1,440.00</td></tr>
+              <tr><td class="key">L-508</td><td class="num">5.0</td><td class="num">88</td><td class="num">440.00</td></tr>
+              <tr class="row-total"><td>Total</td><td class="num">62.0</td><td class="num muted">mixed</td><td class="num">6,326.50</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+      <p>Now set the scenario rate to a flat 100 per hour. The measure returns 62.0 times 100, which is 6,200.00, so the scenario sits 126.50 below the actual 6,326.50 (6,326.50 minus 6,200.00). A stored LineCost column returns 6,326.50 no matter where the slicer is, because the numbers in the fourth column above were fixed at refresh time.</p>
+    </div>
+  </details>
+
+  <p>So what should you actually do. Store the column when the inputs are immutable and the row level arithmetic is simple. A closed period fits that description: HourlyRate is the rate that was billed and nobody is going to reprice history. Use <code>SUMX</code> the moment the rate could ever be parameterised. Retrofitting a what-if onto a stored column means rewriting every measure that already depends on it.</p>
+
+  <p>For the finance manager's monthly number, both versions print 6,326.50 and he will never know which one you built. Choose for the request that comes after his. The day somebody asks what the month would have cost at a flat 100 per hour, only the measure can answer, and the answer is 6,200.00.</p>
+
+  <p>The storage argument is also weaker than it used to be. <code>SUMX</code> over a multiplication of two columns in the same table is one of the patterns the storage engine handles well. It can do the arithmetic inside the scan without materialising an intermediate table, so you are paying for a scan you were going to pay for anyway. The stored column usually wins only on very large fact tables. Even then, the compression penalty on a high cardinality product eats into the gain. This decision is genuinely close. A colleague who argues the other side with a measured refresh time and a measured query time in front of them is probably right for their model.</p>
+
+  <h3>The lookup that should have been a relationship</h3>
+
+  <p>The shift supervisor tells you the report is wrong. His whiteboard says TECH-04 booked 10.5 hours this week. Your technician page says 6.0. He is right, you are wrong, and the cause is one calculated column that somebody wrote to avoid building a relationship.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Adding a calculated column to a fact table that pulls an attribute across with <code>LOOKUPVALUE</code>, instead of building the relationship. It is the single most common symptom of a model whose author has not committed to the star schema. It is usually written by someone who could not get the relationship to work and quietly went around it.</p>
+  </aside>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">The column you should not write</span></div>
+<pre><code><span class="c">// Calculated column on FactLabor. Do not do this.</span>
+TechName <span class="op">=</span>
+<span class="k">LOOKUPVALUE</span> (
+    <span class="t">DimTechnician</span><span class="col">[TechnicianName]</span>,
+    <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span>, <span class="t">FactLabor</span><span class="col">[TechnicianID]</span>
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v">A new stored column on the fact table, duplicating text that already exists once per technician in the dimension. On 8 labor rows that is 8 copies of a name. On a large fact table it is millions of copies of a string that VertiPaq already stored efficiently in one small dimension.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 3 to 6</div><div class="linex-v">A filtered scan of DimTechnician for every row of FactLabor at process recalc, with no relationship to make it cheap. It also fails hard: L-505 with its untrimmed key returns blank, and if two dimension rows ever matched the same key the expression raises an error rather than picking one.</div></div>
+    <div class="linex-row"><div class="linex-k">Everything</div><div class="linex-v">The deeper damage is that no relationship exists, so filter context never propagates. Slicing by HomeStation, by EmployeeType or through BridgeTechCert is impossible, and the 10.0 orphan hours from TECH-07 disappear into a blank with nothing to catch them.</div></div>
+  </div>
+
+  <p>The fix is not a better formula. Trim the key in Power Query. Add the Unknown row for TECH-07. Build the relationship from DimTechnician[TechnicianID] to FactLabor[TechnicianID]. Then drag TechnicianName onto the visual straight from the dimension. No column is required at all, and TECH-04 comes back to 10.5 hours, which is the number on the supervisor's whiteboard. If you genuinely need the value materialised on the fact row, for example to sort a fact level visual by an attribute, then this is what it should look like.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Only if the value must sit on the row</span></div>
+<pre><code>HomeStation <span class="op">=</span> <span class="k">RELATED</span> ( <span class="t">DimTechnician</span><span class="col">[HomeStation]</span> )</code></pre>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>RELATED</code> and not <code>LOOKUPVALUE</code>, because <code>RELATED</code> follows a relationship that already exists in the model. The engine resolves it through the many to one path it has already built, so it is cheaper, and it cannot silently disagree with what the rest of the model does. <code>LOOKUPVALUE</code> performs an independent filtered lookup with no relationship behind it. That means it works in places <code>RELATED</code> cannot, for example matching on a column pair that is not the relationship key. That case is the only one where reaching for it is defensible. If <code>RELATED</code> will not compile, the honest reading is that your relationship is missing or inactive, and that is the thing to fix.</p>
+  </div>
+
+  <h3>One last honest note</h3>
+
+  <p>None of these choices will change a single millisecond on 181 rows. You could put every calculation in this chapter in the wrong layer and Meridian would still render instantly. That is what makes it a good place to build the habit and a bad place to test it. The moment your model stops being a teaching set, the cheapest diagnostic you own is the question at the top of the procedure, asked before you write anything: can a slicer change this number.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Work happens in four layers that run in order: the source, Power Query at refresh, calculated columns and tables at model load, measures at query time. Each layer sees more than the one before and costs more to run.</li>
+      <li>Push work as far upstream as it will go, because upstream work runs once and downstream work runs for every visual, every user and every interaction.</li>
+      <li>The exception overrides the principle: anything a slicer can change cannot be precomputed, so it is a measure. Ask that question first and take the first match.</li>
+      <li>Row level attributes used to group, filter, sort or relate belong in Power Query, along with keys, unknown members and anything that must exist before relationships are built.</li>
+      <li>Folding means your steps are executed by the source. Check with View Native Query, remember it is a prefix property, and do filtering and column removal before anything that breaks it.</li>
+      <li>Calculated columns are materialised, compress less well because they are computed after the segment sort is chosen, and are rebuilt on every refresh and model change.</li>
+      <li>Measures store nothing and pay for it at query time, which is fine until filter context manipulation forces evaluation cell by cell.</li>
+      <li>LineCost is a genuinely close call. Store it when the rate is fixed history, compute it with <code>SUMX</code> when the rate could ever become a parameter.</li>
+      <li>A <code>LOOKUPVALUE</code> column on a fact table is almost always a relationship someone gave up on.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="03.html"><span class="pn-dir">Previous</span><span class="pn-t">Building the dimensions your source does not contain</span></a><a class="pn" href="05.html"><span class="pn-dir">Next</span><span class="pn-t">Power Query mechanics that matter for modelling</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

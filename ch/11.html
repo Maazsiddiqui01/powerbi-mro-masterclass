@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>CALCULATE and every filter modifier you need</title>
+</head>
+<body data-ch="11">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">11</span><span class="tb-title">CALCULATE and every filter modifier you need</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-11">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 4 . Evaluation context and DAX</div>
+    <h2 class="chapter-title"><span class="chapter-num">11</span>CALCULATE and every filter modifier you need</h2>
+    <p class="chapter-lede">After this chapter you will be able to predict the number a CALCULATE expression returns before you write it, name which modifier changes which part of the filter context, and explain why a measure that hard filters AOG still shows AOG hours when the slicer says Scheduled.</p>
+  </div>
+
+  <p class="lead">The production controller sets the work order type slicer to Scheduled. He wants to see the scheduled work and nothing else. The labor hours card drops to 38.0, which is right. The card beside it, the one labelled AOG Hours, still reads 14.0. He asks you why a report filtered to Scheduled is showing him AOG hours, and it is a fair question.</p>
+
+  <p>The answer is in one function. CALCULATE is the only function in DAX that can change the filter context an expression is evaluated in. Filter context is the set of filters in force when a value is computed, arriving from slicers, from the rows and columns of a visual, and from page filters. Every other function reads that context. CALCULATE writes it. That is why CALCULATE appears in almost every measure of any substance you will ship, and why almost every measure of any substance you will debug turns out to be a CALCULATE you did not fully understand.</p>
+
+  <p>The mechanism is small. There are five things CALCULATE does and they happen in a fixed order. Once you can recite that order you can reason about any expression in the language. One of those five steps is counterintuitive on first contact, and nothing in the interface tells you it happened. That step is what put 14.0 on the controller's screen, and this chapter ends by resolving it.</p>
+
+  <h3>What CALCULATE does, in order</h3>
+
+  <p>CALCULATE takes an expression as its first argument and zero or more filter arguments after it. When the engine hits a CALCULATE call it runs this sequence.</p>
+
+  <ol class="list">
+    <li>It creates a new filter context that starts as a copy of the current one.</li>
+    <li>It evaluates each filter argument. Every filter argument is evaluated in the <em>outer</em> filter context, the one that existed before CALCULATE started, and in any row context that is open. Filter arguments never see each other. Two filter arguments in the same CALCULATE are evaluated independently, so the second one cannot depend on what the first one did.</li>
+    <li>If there is a row context, CALCULATE performs context transition. Every column of the table being iterated becomes a filter in the new context. This is the step covered in <a class="xref" href="#ch-09">Chapter 9</a>, and it happens whether you wanted it or not.</li>
+    <li>It applies the CALCULATE modifiers. <code>ALL</code>, <code>REMOVEFILTERS</code>, <code>ALLEXCEPT</code>, <code>ALLSELECTED</code>, <code>KEEPFILTERS</code>, <code>USERELATIONSHIP</code> and <code>CROSSFILTER</code> belong in a category of their own. They instruct CALCULATE about how to build the context, and they run after context transition, in step four.</li>
+    <li>It applies the evaluated filter arguments to that context, then evaluates the expression.</li>
+  </ol>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><text x="24.0" y="24.0" class="d-t" fill="#17160F">Row context</text><text x="24.0" y="40.0" class="d-s">You are standing on one row. Nothing is filtered.</text><rect x="24.0" y="54.0" width="300.0" height="164.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.4"/><text x="36.0" y="72.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="24" y1="80" x2="324" y2="80" stroke="#AE4419" stroke-width="1"/><text x="36.0" y="98.0" class="d-m" fill="#17160F">L-501</text><text x="124.0" y="98.0" class="d-m" fill="#17160F">TECH-02</text><text x="308.0" y="98.0" class="d-m" text-anchor="end" fill="#17160F">7.5</text><text x="36.0" y="124.0" class="d-m" fill="#17160F">L-502</text><text x="124.0" y="124.0" class="d-m" fill="#17160F">TECH-04</text><text x="308.0" y="124.0" class="d-m" text-anchor="end" fill="#17160F">6.0</text><text x="36.0" y="150.0" class="d-m" fill="#17160F">L-503</text><text x="124.0" y="150.0" class="d-m" fill="#17160F">TECH-02</text><text x="308.0" y="150.0" class="d-m" text-anchor="end" fill="#17160F">9.0</text><text x="36.0" y="176.0" class="d-m" fill="#17160F">L-504</text><text x="124.0" y="176.0" class="d-m" fill="#17160F">TECH-05</text><text x="308.0" y="176.0" class="d-m" text-anchor="end" fill="#17160F">8.0</text><text x="36.0" y="202.0" class="d-m" fill="#17160F">L-505</text><text x="124.0" y="202.0" class="d-m" fill="#17160F">TECH-04</text><text x="308.0" y="202.0" class="d-m" text-anchor="end" fill="#17160F">4.5</text><rect x="26" y="107" width="296" height="24" fill="none" stroke="#AE4419" stroke-width="1.8" rx="3"/><path d="M336,119 L346,119" class="d-line-hot" marker-end="url(#ah)"/><text x="24.0" y="232.0" class="d-s">Created by a calculated column, or by any</text><text x="24.0" y="248.0" class="d-s">iterator: SUMX, FILTER, ADDCOLUMNS, RANKX.</text><text x="24.0" y="264.0" class="d-s" font-style="italic">It knows WHICH row. It does not remove any.</text><text x="500.0" y="24.0" class="d-t" fill="#17160F">Filter context</text><text x="500.0" y="40.0" class="d-s">A set of rows survives. No row is current.</text><rect x="500.0" y="54.0" width="300.0" height="164.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.4"/><text x="512.0" y="72.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="500" y1="80" x2="800" y2="80" stroke="#AE4419" stroke-width="1"/><text x="512.0" y="98.0" class="d-m" fill="#C9C4B6">L-501</text><text x="600.0" y="98.0" class="d-m" fill="#C9C4B6">TECH-02</text><text x="784.0" y="98.0" class="d-m" text-anchor="end" fill="#C9C4B6">7.5</text><rect x="502" y="107" width="296" height="24" fill="#EAF2EC"/><text x="512.0" y="124.0" class="d-m" fill="#17160F">L-502</text><text x="600.0" y="124.0" class="d-m" fill="#17160F">TECH-04</text><text x="784.0" y="124.0" class="d-m" text-anchor="end" fill="#17160F">6.0</text><text x="512.0" y="150.0" class="d-m" fill="#C9C4B6">L-503</text><text x="600.0" y="150.0" class="d-m" fill="#C9C4B6">TECH-02</text><text x="784.0" y="150.0" class="d-m" text-anchor="end" fill="#C9C4B6">9.0</text><text x="512.0" y="176.0" class="d-m" fill="#C9C4B6">L-504</text><text x="600.0" y="176.0" class="d-m" fill="#C9C4B6">TECH-05</text><text x="784.0" y="176.0" class="d-m" text-anchor="end" fill="#C9C4B6">8.0</text><rect x="502" y="185" width="296" height="24" fill="#EAF2EC"/><text x="512.0" y="202.0" class="d-m" fill="#17160F">L-505</text><text x="600.0" y="202.0" class="d-m" fill="#17160F">TECH-04</text><text x="784.0" y="202.0" class="d-m" text-anchor="end" fill="#17160F">4.5</text><text x="500.0" y="232.0" class="d-s">Created by slicers, filters and the axes of the</text><text x="500.0" y="248.0" class="d-s">visual. Here: TechnicianID is TECH-04.</text><text x="500.0" y="264.0" class="d-s" font-style="italic">It knows WHICH rows exist. It has no cursor.</text><rect x="24.0" y="296.0" width="846.0" height="86.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="38.0" y="318.0" class="d-t" fill="#17160F">Context transition</text><path d="M300,340 L470,340" class="d-line-hot" marker-end="url(#ah)"/><text x="120.0" y="346.0" class="d-lbl" fill="#77746B">row context</text><text x="520.0" y="346.0" class="d-lbl" fill="#77746B">filter context</text><text x="38.0" y="342.0" class="d-m" fill="#AE4419" font-weight="600">CALCULATE</text><text x="38.0" y="362.0" class="d-s">Invoked inside a row context, CALCULATE turns the current row into a filter on every column of that table.</text><text x="38.0" y="376.0" class="d-s">Any measure referenced inside an iterator gets this for free, which is why SUMX ( DimTechnician, [Labor Hours] ) returns 52.0 and not 62.0.</text></svg></div><figcaption><span class="fig-num">Figure 11.1</span>Row context knows which row you are on. Filter context knows which rows still exist.</figcaption></figure>
+
+  <p>This is the same pair of panels you met in <a class="xref" href="#ch-09">Chapter 9</a>, and it repays a second look now that the five steps are in front of you. In the left panel one FactLabor row is outlined and the other four sit there untouched. An iterator knows which row it is on. That knowledge filters nothing until something converts it into a filter. Step three above is that conversion, and CALCULATE is the only function that performs it. Read the full width card along the bottom for the rest of it. Follow the arrow that runs from the words row context to the words filter context. That arrow is the step that makes a measure reference inside an iterator return a different number from the same reference sitting in a card visual on the page. The card gives the Meridian case underneath: <code>SUMX ( DimTechnician, [Labor Hours] )</code> returns 52.0 and not 62.0.</p>
+
+  <p>Step five carries the fact that explains most of the confusion in this language. When CALCULATE applies a filter argument on a column, it does not add that filter to whatever filter was already sitting on the column. It <strong>replaces</strong> it. The old filter on that column is gone. Filters on every other column survive untouched.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Ask why CALCULATE replaces instead of intersecting and the answer is that a filter argument is a table. <code>DimWOType[WOType] = "AOG"</code> expands into a table of the values that satisfy it, built from <code>ALL</code> on that column. Applying a table to a column sets the context for that column to exactly those values. Nothing of what was there survives, because nothing of what was there was consulted. Whether that should have been the default is a fair question. The practical answer is that the opposite behaviour costs you one keyword, <code>KEEPFILTERS</code>. Starting from an intersecting default would instead mean adding a filter remover for every column you touched.</p>
+  </aside>
+
+  <h3>The two syntaxes, and why one is sugar for the other</h3>
+
+  <p>Take the Meridian measure <code>[Labor Hours]</code>, defined as <code>SUM(FactLabor[Hours])</code>, which returns 62.0 across the whole quarter. Now filter it to AOG work.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">AOG Hours, boolean shorthand</span></div>
+    <pre><code><span class="k">CALCULATE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="t">DimWOType</span><span class="col">[WOType]</span> <span class="op">=</span> <span class="s">"AOG"</span>
+)</code></pre>
+  </div>
+
+  <p>That is the shorthand, and it reads like a condition: keep the rows where WOType is AOG. With nothing selected on the page it returns 14.0, which is WO-1002 at 9.0 plus WO-1005 at 0 plus WO-1007 at 5.0. Here is the same measure written out in full, and the full form is closer to what the engine actually runs.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">AOG Hours, table form</span></div>
+    <pre><code><span class="k">CALCULATE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="k">FILTER</span>(
+        <span class="k">ALL</span>( <span class="t">DimWOType</span><span class="col">[WOType]</span> ),
+        <span class="t">DimWOType</span><span class="col">[WOType]</span> <span class="op">=</span> <span class="s">"AOG"</span>
+    )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v"><code>ALL</code> on the column produces every distinct WOType in the model, ignoring whatever the report has selected. Three values: Scheduled, AOG, Mod.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v">The condition keeps the one row where WOType is AOG, so the <code>FILTER</code> opened on line 3 returns a one row table.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 3 to 6</div><div class="linex-v">That one row table becomes the filter on DimWOType[WOType]. It is the whole filter, not an addition to the existing one, because the existing one was discarded by the <code>ALL</code> on line 4.</div></div>
+  </div>
+
+  <p>The two are the same expression. The shorthand is compiled into the table form with <code>ALL</code> on the referenced column. That expansion is the entire explanation for the behaviour people find surprising. The shorthand reads like a condition and behaves like a replacement, and the hidden <code>ALL</code> is why.</p>
+
+  <p>You will also meet a variant written as <code>FILTER(ALL(DimWOType), DimWOType[WOType] = "AOG")</code>, with <code>ALL</code> on the whole table instead of on the column. It returns the same 14.0 here, and on a two column dimension you will never see a difference. The expansion underneath differs, though. A table level <code>ALL</code> clears the filters on every column of DimWOType. The moment that dimension gains a description or a priority column that someone slices on, the table form quietly drops that slicer. The shorthand keeps it.</p>
+
+  <p>This is the production controller's screen, exactly. Put a slicer on the report page for <code>DimWOType[WOType]</code> and set it to Scheduled. A card showing <code>[Labor Hours]</code> reads 38.0, which is WO-1001 at 13.5 plus WO-1003 at 12.5 plus WO-1006 at 12.0 plus WO-1008 at 0. Put the AOG measure above it on the same page and it reads 14.0. The measure removed the slicer's Scheduled filter from the WOType column and put AOG there instead. He is looking at a card that answers a question he did not ask.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 11.1</span> What each measure returns while the WOType slicer is set to Scheduled.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Measure</th><th scope="col">Filter argument</th><th scope="col" class="num">Result</th><th scope="col">Why</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Labor Hours</th><td class="muted">none</td><td class="num">38.0</td><td>Slicer applies. Scheduled work orders only.</td></tr>
+          <tr class="row-bad"><th scope="row">AOG Hours</th><td><code>WOType = "AOG"</code></td><td class="num">14.0</td><td>Slicer filter on WOType replaced. Reads as if nothing were selected.</td></tr>
+          <tr class="row-good"><th scope="row">AOG Hours, kept</th><td><code>KEEPFILTERS(WOType = "AOG")</code></td><td class="num cell-good">(blank)</td><td>Intersection of Scheduled and AOG is empty.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Both rows are correct answers to different questions. The first answers "how many AOG hours are there". The second answers "how many of the hours the user is currently looking at are AOG". The production controller was asking the second question and the report was answering the first. Decide which question your page is asking before you write the measure, because both compile and only one of them is right.</p>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p>Use the boolean shorthand for any comparison on a single column against constants. Reach for the explicit <code>FILTER</code> form only when you need it: a condition across two columns, a column compared against a measure, or a filter that has to be evaluated row by row over a fact table. FILTER over a large table forces the engine to materialise and iterate it, while the shorthand compiles to a filter the storage engine can push down. At Meridian's eight work orders that difference is unmeasurable, which is why habits formed on toy models get expensive later.</p>
+  </div>
+
+  <h3>ALL, the blunt instrument</h3>
+
+  <p>The finance manager wants a share column. Labor hours by aircraft type, and next to each type the percentage of the quarter it represents. She expects the percentages to add to 100. You put <code>[Labor Hours]</code> in the numerator, and then you need a denominator that holds still at 62.0 while the rows of the visual change underneath it. Holding a denominator still is what <code>ALL</code> is for.</p>
+
+  <p><code>ALL</code> removes filters. What it removes depends on what you hand it. With no arguments at all it clears the entire filter context of the model. That is almost never what a report measure wants, and it is mostly useful inside a scoped calculation. Hand it a table and it clears every filter on that table. Hand it one or more columns and it clears the filters on those columns only, leaving the rest of the table alone.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Pct of Total Hours</span></div>
+    <pre><code><span class="k">DIVIDE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="k">CALCULATE</span>( <span class="col">[Labor Hours]</span>, <span class="k">ALL</span>( <span class="t">DimAircraft</span> ) )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v">The numerator is evaluated in the visual's own filter context. On the E175 row it is 17.5, which is WO-1003 at 12.5 plus WO-1007 at 5.0.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v">ALL(DimAircraft) drops every filter the aircraft dimension is contributing, including AircraftType, ACREG and Operator. The denominator becomes 62.0 on every row of the visual.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 1</div><div class="linex-v">DIVIDE rather than the slash operator, because DIVIDE returns blank on a zero denominator instead of raising an error, and a divide by zero error kills the whole visual rather than one cell.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 11.2</span> Percent of total hours by aircraft type. Denominator held at 62.0 by ALL(DimAircraft).</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Aircraft type</th><th scope="col" class="num">Hours</th><th scope="col" class="num">Denominator</th><th scope="col" class="num">Percent</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">A320-200</th><td class="num">23.5</td><td class="num">62.0</td><td class="num">37.9%</td></tr>
+          <tr><th scope="row">B737-800</th><td class="num">9.0</td><td class="num">62.0</td><td class="num">14.5%</td></tr>
+          <tr><th scope="row">E175</th><td class="num">17.5</td><td class="num">62.0</td><td class="num">28.2%</td></tr>
+          <tr><th scope="row">Unknown type (N338WA)</th><td class="num">12.0</td><td class="num">62.0</td><td class="num">19.4%</td></tr>
+          <tr class="row-total"><th scope="row">Total</th><td class="num">62.0</td><td class="num">62.0</td><td class="num">100.0%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The finance manager gets her share column and it adds to 100.0 percent. E175 is 17.5 divided by 62.0, which is 0.28226, shown as 28.2 percent. The fourth row exists only because the aircraft dimension was built by appending the tails found in the work orders. Point this measure at the raw registry instead and the 12.0 hours land in a blank row, while the three real types add to 80.6 percent with nothing on screen saying so.</p>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>ALL(DimAircraft)</code> rather than <code>ALL(DimAircraft[AircraftType])</code>. The visual might later gain a second field from the same dimension, Operator for instance. A column level ALL would leave that new filter in place. The denominator would quietly become the operator total instead of the grand total, and the percentages would still look plausible. Table level ALL is the safer default for a true grand total. Column level ALL is right when you deliberately want to hold some of the dimension's filters and release others.</p>
+  </div>
+
+  <h3>REMOVEFILTERS, which is ALL with a clearer name</h3>
+
+  <p><code>REMOVEFILTERS</code> accepts the same arguments as <code>ALL</code>. In the modifier position inside CALCULATE it does exactly the same thing. Microsoft added the name, and the name is the whole contribution, and it is still worth adopting.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Pct of Total Hours, preferred spelling</span></div>
+    <pre><code><span class="k">DIVIDE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="k">CALCULATE</span>(
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">REMOVEFILTERS</span>( <span class="t">DimAircraft</span> )
+    )
+)</code></pre>
+  </div>
+
+  <p>Naming preferences are cheap, so here is <code>REMOVEFILTERS</code> carrying a calculation of its own. Put <code>DimStation[StationCode]</code> on the rows of a matrix and ask what share of the quarter each station worked.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Pct of Quarter Hours</span></div>
+    <pre><code>Pct of Quarter Hours <span class="op">=</span>
+<span class="k">DIVIDE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="k">CALCULATE</span>(
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">REMOVEFILTERS</span>( <span class="t">DimStation</span> )
+    )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v">The numerator keeps the row's own station filter. On the MSP row it is 34.5, being WO-1001 at 13.5 plus WO-1002 at 9.0 plus WO-1006 at 12.0, with WO-1008 contributing nothing.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v"><code>REMOVEFILTERS( DimStation )</code> drops the station filter and nothing else, so the denominator is 62.0 on every row of the visual. A month slicer, a WOType slicer or a technician slicer would still apply inside that denominator, because none of them sit on <code>DimStation</code>.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 11.3</span> Share of quarter labor hours by station, with the denominator held at 62.0 by REMOVEFILTERS(DimStation).</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Station</th><th scope="col" class="num">Hours</th><th scope="col" class="num">Denominator</th><th scope="col" class="num">Pct of quarter</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">MSP</th><td class="num">34.5</td><td class="num">62.0</td><td class="num">55.6%</td></tr>
+          <tr><th scope="row">TUS</th><td class="num">22.5</td><td class="num">62.0</td><td class="num">36.3%</td></tr>
+          <tr><th scope="row">LAS</th><td class="num">5.0</td><td class="num">62.0</td><td class="num">8.1%</td></tr>
+          <tr><th scope="row">UNASSIGNED</th><td class="num muted">(blank)</td><td class="num">62.0</td><td class="num muted">(blank)</td></tr>
+          <tr><th scope="row">PHX</th><td class="num muted">(blank)</td><td class="num">62.0</td><td class="num muted">(blank)</td></tr>
+          <tr class="row-total"><th scope="row">Total</th><td class="num">62.0</td><td class="num">62.0</td><td class="num">100.0%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>34.5 divided by 62.0 is 0.55645, shown as 55.6 percent. 22.5 divided by 62.0 is 0.36290, shown as 36.3 percent. 5.0 divided by 62.0 is 0.08065, shown as 8.1 percent, and those three add to 100.0. The last two rows are the ones worth pausing on. UNASSIGNED holds WO-1005, which has no labor rows. PHX exists only in the planning workbook and has no work orders at all. Both return a blank, so Power BI hides them from the visual by default. Turn on "Show items with no data" and they reappear with an empty share, which is the honest reading: neither station worked a share of anything.</p>
+
+  <p>The reason to prefer it is that <code>ALL</code> is overloaded. In the modifier position it removes filters. In an expression position it is a table function that returns rows. That is the job it is doing on line 4 of the table form earlier in this chapter, inside <code>FILTER(ALL(DimWOType[WOType]), ...)</code>. Same identifier, two different jobs, and the reader has to work out which one from the surrounding syntax. <code>REMOVEFILTERS</code> only ever means "clear the filters here", so when a colleague reads your measure six months from now there is nothing to work out.</p>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p>Use <code>REMOVEFILTERS</code> in every filter argument position. Keep <code>ALL</code> for the places where you actually need a table of rows returned, typically as the source of a <code>FILTER</code> or <code>SUMMARIZE</code>. They are functionally identical as modifiers, so this costs nothing and buys readability. The one caveat is version support: <code>REMOVEFILTERS</code> arrived later than <code>ALL</code>, so very old Analysis Services models may not accept it. Current Power BI Desktop and current Fabric semantic models do.</p>
+  </div>
+
+  <p>The working rule is positional. If the name appears directly as an argument of CALCULATE or CALCULATETABLE, spell it <code>REMOVEFILTERS</code>. If it appears inside another table expression, spell it <code>ALL</code>.</p>
+
+  <h3>ALLEXCEPT, and the trap it sets</h3>
+
+  <p>The production controller wants a different share. For each work order, what proportion of its own station's hours did it take? WO-1001 measured against MSP, WO-1003 measured against TUS, one line at a time down the list. The denominator has to change from row to row, following whichever station that row belongs to, and you cannot hardcode a station into a measure that has to serve all of them.</p>
+
+  <p><code>ALLEXCEPT</code> removes filters from a table and everything related to it, except the columns you list. That is the natural way to express "share of the parent group" while leaving the parent to be decided at query time.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Pct of Station Hours</span></div>
+    <pre><code><span class="k">DIVIDE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="k">CALCULATE</span>(
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">ALLEXCEPT</span>( <span class="t">FactWorkOrder</span>, <span class="t">DimStation</span><span class="col">[StationCode]</span> )
+    )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v">The first argument is the table whose filters are cleared. DimStation, DimAircraft, DimWOType and DimDate all sit on the one side of a relationship from FactWorkOrder. That makes them part of the expanded FactWorkOrder table, so their filters are cleared too.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v">StationCode is named as the exception, so a filter already sitting on that column survives. Note the word already. <code>ALLEXCEPT</code> preserves a filter and it never creates one. The station has to be present in the visual for this measure to mean anything. Table 11.4 puts the work order and the station side by side on the rows, and the denominator becomes that station's total. Drop the station column from the visual and every denominator silently becomes 62.0, because there was no StationCode filter left to keep.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 11.4</span> Each work order's labor hours as a share of its own station total.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Work order</th><th scope="col">Station</th><th scope="col" class="num">Hours</th><th scope="col" class="num">Station total</th><th scope="col" class="num">Share</th></tr></thead>
+        <tbody>
+          <tr><td class="key">WO-1001</td><td>MSP</td><td class="num">13.5</td><td class="num">34.5</td><td class="num">39.1%</td></tr>
+          <tr><td class="key">WO-1002</td><td>MSP</td><td class="num">9.0</td><td class="num">34.5</td><td class="num">26.1%</td></tr>
+          <tr><td class="key">WO-1006</td><td>MSP</td><td class="num">12.0</td><td class="num">34.5</td><td class="num">34.8%</td></tr>
+          <tr><td class="key">WO-1008</td><td>MSP</td><td class="num">0</td><td class="num">34.5</td><td class="num">0.0%</td></tr>
+          <tr><td class="key">WO-1003</td><td>TUS</td><td class="num">12.5</td><td class="num">22.5</td><td class="num">55.6%</td></tr>
+          <tr><td class="key">WO-1004</td><td>TUS</td><td class="num">10.0</td><td class="num">22.5</td><td class="num">44.4%</td></tr>
+          <tr><td class="key">WO-1007</td><td>LAS</td><td class="num">5.0</td><td class="num">5.0</td><td class="num">100.0%</td></tr>
+          <tr><td class="key">WO-1005</td><td>UNASSIGNED</td><td class="num">0</td><td class="num">0</td><td class="num">(blank)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>That is the controller's answer. WO-1001 is 13.5 divided by 34.5, which is 0.39130, shown as 39.1 percent. The three MSP work orders with hours come to 39.1 plus 26.1 plus 34.8, which is 100.0 percent. The fourth contributes nothing, because WO-1008 has no labor rows. WO-1005 returns a blank because <code>DIVIDE</code> was used, and that blank is honest: the UNASSIGNED station has no hours to take a share of.</p>
+
+  <p>There is a version of this that some architects prefer, which clears the fact table and then puts the visible station back as an explicit filter.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">The explicit equivalent</span></div>
+    <pre><code><span class="k">CALCULATE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="k">REMOVEFILTERS</span>( <span class="t">FactWorkOrder</span> ),
+    <span class="k">VALUES</span>( <span class="t">DimStation</span><span class="col">[StationCode]</span> )
+)</code></pre>
+  </div>
+
+  <p>This reads better: clear the fact table, then put back the one thing you want to keep. On the visual behind Table 11.4 it produces the same numbers. File the two as different measures, though, because the scope they clear is different. <code>REMOVEFILTERS(FactWorkOrder)</code> clears the filters on the columns of FactWorkOrder itself and stops there. A slicer on DimDate or DimWOType still applies inside that denominator. <code>ALLEXCEPT</code> works on the expanded table and takes those slicers out as well.</p>
+
+  <p>Add a month slicer to the page and the two versions stop agreeing. The explicit form gives each work order its share of its station <em>within the selected month</em>. The <code>ALLEXCEPT</code> form gives its share of the station across the whole quarter. The March rows then add to something under 100 percent, and a reader who does not know the measure will report that as a bug. Both forms are correct. Decide which of the two questions the page is asking before you pick one.</p>
+
+  <p>Set that slicer to February and the divergence is easy to check by hand. The active date relationship runs to <code>OpenedDate</code>. The visual now shows the three work orders opened in February: WO-1004 at TUS, WO-1005 at UNASSIGNED and WO-1006 at MSP. February labor is L-506 at 10.0 hours on WO-1004 and L-507 at 12.0 hours on WO-1006. The numerators are 10.0, blank and 12.0 in both versions. Only the denominators move.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 11.5</span> The same two measures with the month slicer set to February. REMOVEFILTERS leaves the month filter in the denominator, ALLEXCEPT takes it out.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Work order</th><th scope="col">Station</th><th scope="col" class="num">Feb hours</th><th scope="col" class="num">REMOVEFILTERS denominator</th><th scope="col" class="num">Share</th><th scope="col" class="num">ALLEXCEPT denominator</th><th scope="col" class="num">Share</th></tr></thead>
+        <tbody>
+          <tr><td class="key">WO-1004</td><td>TUS</td><td class="num">10.0</td><td class="num">10.0</td><td class="num">100.0%</td><td class="num">22.5</td><td class="num">44.4%</td></tr>
+          <tr><td class="key">WO-1006</td><td>MSP</td><td class="num">12.0</td><td class="num">12.0</td><td class="num">100.0%</td><td class="num">34.5</td><td class="num">34.8%</td></tr>
+          <tr><td class="key">WO-1005</td><td>UNASSIGNED</td><td class="num muted">(blank)</td><td class="num">0</td><td class="num muted">(blank)</td><td class="num">0</td><td class="num muted">(blank)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The explicit form gives 10.0 divided by 10.0 and 12.0 divided by 12.0, because WO-1004 is the whole of TUS in February and WO-1006 is the whole of MSP in February. Both rows with hours on them read 100.0 percent, which is correct and which tells the reader nothing they did not already know. The <code>ALLEXCEPT</code> form gives 10.0 divided by 22.5, which is 0.44444 and shows as 44.4 percent, and 12.0 divided by 34.5, which is 0.34783 and shows as 34.8 percent, both against the quarter totals from Table 11.4. February is the month that shows this cleanly. Try it in March instead and the only station with hours is LAS. The LAS March total and the LAS quarter total are both 5.0, so that row reads 100.0 percent under either form and the difference hides.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p><code>ALLEXCEPT(FactWorkOrder, DimStation[StationCode])</code> clears more than the filters you were thinking about. It clears DimDate, DimAircraft and DimWOType too, because those tables expand into FactWorkOrder. A user who slices to March and to AOG gets a denominator that ignores both selections. It also breaks in the future: add a dimension on the one side of FactWorkOrder next quarter and every ALLEXCEPT in the model starts clearing that one as well, with no error. Now the surprise in the other direction. DimTechnician relates to FactLabor, so it never expands into FactWorkOrder, and a technician slicer survives this ALLEXCEPT untouched.</p>
+  </aside>
+
+  <h3>KEEPFILTERS, the one everybody gets wrong</h3>
+
+  <p>Here is where the production controller gets his answer. <code>KEEPFILTERS</code> is an instruction that changes how a filter argument is applied. It tells CALCULATE to intersect the argument with the existing filter on the column instead of replacing it. That is the whole function. It takes the default behaviour of CALCULATE and inverts it for one argument.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Two AOG measures that behave differently</span></div>
+    <pre><code><span class="c">// replaces the WOType filter, ignores the slicer</span>
+<span class="k">CALCULATE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="t">DimWOType</span><span class="col">[WOType]</span> <span class="op">=</span> <span class="s">"AOG"</span>
+)
+
+<span class="c">// intersects with the WOType filter, respects the slicer</span>
+<span class="k">CALCULATE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="k">KEEPFILTERS</span>( <span class="t">DimWOType</span><span class="col">[WOType]</span> <span class="op">=</span> <span class="s">"AOG"</span> )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 2 to 5</div><div class="linex-v">The shorthand expands to ALL on WOType then a filter for AOG. Whatever the slicer had chosen on that column is discarded. With the slicer on Scheduled this returns 14.0, being WO-1002 at 9.0 plus WO-1005 at 0 plus WO-1007 at 5.0.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 8 to 11</div><div class="linex-v">KEEPFILTERS suppresses the implicit ALL. The AOG table is intersected with the slicer's table. Scheduled intersect AOG is the empty set, so the measure returns blank.</div></div>
+  </div>
+
+  <details class="expand" open>
+    <summary>Trace this by hand, row by row</summary>
+    <div class="expand-body">
+      <p>Slicer set to Scheduled. Outer filter context on <code>DimWOType[WOType]</code> is the one row table { Scheduled }.</p>
+      <p><strong>Without KEEPFILTERS.</strong> The filter argument expands to <code>FILTER(ALL(DimWOType[WOType]), WOType = "AOG")</code>. ALL discards { Scheduled } and returns { Scheduled, AOG, Mod }. FILTER reduces that to { AOG }, and CALCULATE applies it in place of { Scheduled }. Three work orders now pass: WO-1002 with L-503 at 9.0 hours, WO-1005 with no labor rows at all, WO-1007 with L-508 at 5.0 hours. Sum is 14.0.</p>
+      <p><strong>With KEEPFILTERS.</strong> The same { AOG } table is produced, and CALCULATE intersects instead of replacing. { Scheduled } intersect { AOG } is empty, so no work orders pass and no labor rows pass. <code>SUM</code> over zero rows returns a blank. The card shows nothing at all, and a conditional format keyed on "less than 1" will not fire, because a blank never reaches the comparison.</p>
+      <p><strong>Now select both Scheduled and AOG in the slicer.</strong> Outer context is { Scheduled, AOG }. Without KEEPFILTERS you still get 14.0, because the replacement does not care what the slicer said. With KEEPFILTERS the intersection is { AOG }, so you also get 14.0. The two measures agree here, which is why this bug survives testing: it only diverges when the selection and the hardcoded value do not overlap.</p>
+    </div>
+  </details>
+
+  <p>KEEPFILTERS matters in a second place that has nothing to do with slicers. When a filter argument spans two columns of the same table, it replaces the filter on each column independently. That can resurrect column combinations the original context had excluded. KEEPFILTERS holds the original pairs intact. This is the difference between filtering on columns and filtering on rows, and it is why a filter argument that touches two columns almost always wants KEEPFILTERS around it.</p>
+
+  <p>Meridian has a two column case sitting in <span class="derived-tag">Built</span> <code>DimAircraft</code>. Put <code>AircraftType</code> on the rows of a matrix and <code>Operator</code> on the columns and each populated cell is a filter on a pair of values, not two independent filters. There are seven such pairs in the dimension, one per tail, because no two tails share both a type and an operator. Now write a measure that asks for the Airbus fleet plus everything Northwind Regional operates.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Fleet Pair Hours, with and without KEEPFILTERS</span></div>
+    <pre><code><span class="c">// replaces the filter on BOTH columns</span>
+Fleet Pair Hours <span class="op">=</span>
+<span class="k">CALCULATE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="k">FILTER</span>(
+        <span class="k">ALL</span>( <span class="t">DimAircraft</span><span class="col">[AircraftType]</span>, <span class="t">DimAircraft</span><span class="col">[Operator]</span> ),
+        <span class="t">DimAircraft</span><span class="col">[AircraftType]</span> <span class="op">=</span> <span class="s">"A320-200"</span>
+            <span class="op">||</span> <span class="t">DimAircraft</span><span class="col">[Operator]</span> <span class="op">=</span> <span class="s">"Northwind Regional"</span>
+    )
+)
+
+<span class="c">// intersects with the pair the cell already carries</span>
+Fleet Pair Hours Kept <span class="op">=</span>
+<span class="k">CALCULATE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="k">KEEPFILTERS</span>(
+        <span class="k">FILTER</span>(
+            <span class="k">ALL</span>( <span class="t">DimAircraft</span><span class="col">[AircraftType]</span>, <span class="t">DimAircraft</span><span class="col">[Operator]</span> ),
+            <span class="t">DimAircraft</span><span class="col">[AircraftType]</span> <span class="op">=</span> <span class="s">"A320-200"</span>
+                <span class="op">||</span> <span class="t">DimAircraft</span><span class="col">[Operator]</span> <span class="op">=</span> <span class="s">"Northwind Regional"</span>
+        )
+    )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v"><code>ALL</code> over two columns returns the pairs that exist in the table, not the cross join of the two columns. Seven pairs go in, and the OR condition keeps three of them: A320-200 with Cascade Air, A320-200 with Northwind Regional, and E175 with Northwind Regional. Those three pairs reach N771QR, N615RB and N902TT.</div></div>
+    <div class="linex-row"><div class="linex-k">Result of the first</div><div class="linex-v">That three row table is applied in place of whatever pair the cell was carrying, on both columns at once. N771QR contributes 23.5 from WO-1001 and WO-1004, N615RB contributes nothing because WO-1005 has no labor rows, and N902TT contributes 17.5 from WO-1003 and WO-1007. Every cell in the matrix returns 23.5 plus 0 plus 17.5, which is 41.0.</div></div>
+    <div class="linex-row"><div class="linex-k">Result of the second</div><div class="linex-v"><code>KEEPFILTERS</code> intersects the three pairs with the cell's own pair, so only cells whose pair is in the list survive. The Cascade Air A320-200 cell keeps 23.5 and the Northwind Regional E175 cell keeps 17.5. Everything else is an empty intersection and returns blank.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 11.6</span> One filter argument spanning two columns of DimAircraft, read cell by cell. The replace version prints 41.0 into combinations the report never selected.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Aircraft type</th><th scope="col">Operator</th><th scope="col">Tail</th><th scope="col" class="num">Labor Hours</th><th scope="col" class="num">Fleet Pair Hours</th><th scope="col" class="num">Fleet Pair Hours Kept</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">A320-200</th><td>Cascade Air</td><td class="key">N771QR</td><td class="num">23.5</td><td class="num">41.0</td><td class="num">23.5</td></tr>
+          <tr><th scope="row">A320-200</th><td>Northwind Regional</td><td class="key">N615RB</td><td class="num muted">(blank)</td><td class="num">41.0</td><td class="num muted">(blank)</td></tr>
+          <tr class="row-bad"><th scope="row">B737-800</th><td>Cascade Air</td><td class="key">N448LM</td><td class="num">9.0</td><td class="num cell-bad">41.0</td><td class="num muted">(blank)</td></tr>
+          <tr class="row-bad"><th scope="row">B737-800</th><td>Sierra Charter</td><td class="key">N120CE</td><td class="num muted">(blank)</td><td class="num cell-bad">41.0</td><td class="num muted">(blank)</td></tr>
+          <tr><th scope="row">E175</th><td>Northwind Regional</td><td class="key">N902TT</td><td class="num">17.5</td><td class="num">41.0</td><td class="num">17.5</td></tr>
+          <tr class="row-bad"><th scope="row">E175</th><td>Sierra Charter</td><td class="key">N553KD</td><td class="num muted">(blank)</td><td class="num cell-bad">41.0</td><td class="num muted">(blank)</td></tr>
+          <tr class="row-bad"><th scope="row">Unknown type</th><td>Unknown operator</td><td class="key">N338WA</td><td class="num">12.0</td><td class="num cell-bad">41.0</td><td class="num muted">(blank)</td></tr>
+          <tr class="row-total"><td>Total</td><td></td><td></td><td class="num">62.0</td><td class="num">41.0</td><td class="num">41.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The four shaded rows are the damage. The B737-800 row for Cascade Air reads 41.0, and not one of those 41.0 hours was worked on a B737-800. The pair filter replaced the cell's type and the cell's operator, then went and found aircraft the cell had excluded. The kept version puts blanks there instead. Its two surviving cells, 23.5 plus 17.5, add to exactly the 41.0 that the replace version was printing everywhere. That is the tell. When a measure repeats one number across every cell of a matrix, a filter argument has replaced the axis it was supposed to respect.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>KEEPFILTERS is cheap but not free. It adds no iterator and forces no materialisation. What it can do is reshape the query plan enough that a filter which used to be pushed to the storage engine now resolves in the formula engine. On Meridian's 8 fact rows this is undetectable. Take a high cardinality column on a fact table with 200 million rows. Measure that before you ship. The plan change is real even though the function is light.</p>
+  </aside>
+
+  <h3>ALLSELECTED, the one to verify before you trust it</h3>
+
+  <p>The shift supervisor selects MSP and TUS in the station slicer, because those are the two stations he covers. The share column beside the hours now adds to 91.9 percent. He asks where the missing 8.1 percent went. He will not accept "it is at LAS, which you filtered out" as an answer on a page that shows him two stations and one total.</p>
+
+  <p><code>ALLSELECTED</code> is built for exactly this. It restores the filter context that existed outside the current visual. Slicers, page filters and report filters survive. The filters the visual itself is applying, its rows, columns and legend, are removed. The denominator then equals what the user can currently see, and the model total stops leaking into it.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Pct of Visible Hours</span></div>
+    <pre><code><span class="k">DIVIDE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="k">CALCULATE</span>(
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">ALLSELECTED</span>( <span class="t">DimStation</span> )
+    )
+)</code></pre>
+  </div>
+
+  <p>Put stations on the rows of a matrix and set a station slicer to MSP and TUS only. The visible hours are 34.5 plus 22.5, which is 57.0. Compare the two denominators.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 11.7</span> Same visual, two denominators, with the station slicer set to MSP and TUS.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Station</th><th scope="col" class="num">Hours</th><th scope="col" class="num">Pct with REMOVEFILTERS</th><th scope="col" class="num">Pct with ALLSELECTED</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">MSP</th><td class="num">34.5</td><td class="num">55.6%</td><td class="num">60.5%</td></tr>
+          <tr><th scope="row">TUS</th><td class="num">22.5</td><td class="num">36.3%</td><td class="num">39.5%</td></tr>
+          <tr class="row-total"><th scope="row">Total shown</th><td class="num">57.0</td><td class="num">91.9%</td><td class="num">100.0%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The REMOVEFILTERS column divides by 62.0 and lands at 91.9 percent, which is correct and which most users read as a defect. That is the shift supervisor's missing 8.1 percent, and it is at LAS. The ALLSELECTED column divides by 57.0 and adds to 100 percent, which is what people expect from a share column sitting next to a slicer. 34.5 divided by 57.0 is 0.60526, shown as 60.5 percent. 22.5 divided by 57.0 is 0.39474, shown as 39.5 percent. Give the supervisor the second column and tell him it is a share of what he selected.</p>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p>Use <code>ALLSELECTED</code> when the reader will compare the percentages to each other and expect them to total 100 within what they selected. Use <code>REMOVEFILTERS</code> when the reader will compare the percentage to an absolute baseline, such as share of the whole quarter. Do not use ALLSELECTED as a general purpose "remove filters but nicer". Its result depends on where it is called from, and the concept of "outside the visual" is defined by shadow filter contexts that the report author never sees.</p>
+  </div>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Nest ALLSELECTED inside an iterator, inside another CALCULATE, or inside a calculated table, and it stops meaning what the same expression means in a measure a visual evaluates directly. Its formal semantics involve shadow filter contexts, and it has genuine edge cases. What is certain is the simple case shown above. Anything more nested should be checked in your own report against numbers you worked out by hand. This is the one function in this chapter where I would not defend a claim in a design review without a screenshot of the actual result.</p>
+  </aside>
+
+  <h3>VALUES and DISTINCT</h3>
+
+  <p>Both return a one column table of the values visible in the current filter context. The difference is the blank row.</p>
+
+  <p>When a fact table contains a key that does not exist in the dimension, Power BI adds an invisible blank row to the dimension so those fact rows have somewhere to go. In the finished Meridian model that never happens for aircraft, because <span class="derived-tag">Built</span> <code>DimAircraft</code> was created by appending the tails found in the work orders, which recovered N338WA. Point the relationship at the raw <code>AircraftRegistry</code> instead, with its 6 rows, and WO-1006 becomes an orphan and the blank row appears.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Two ways to count tails</span></div>
+    <pre><code>Tails with VALUES <span class="op">=</span>
+    <span class="k">COUNTROWS</span>( <span class="k">VALUES</span>( <span class="t">AircraftRegistry</span><span class="col">[ACREG]</span> ) )
+
+Tails with DISTINCT <span class="op">=</span>
+    <span class="k">COUNTROWS</span>( <span class="k">DISTINCT</span>( <span class="t">AircraftRegistry</span><span class="col">[ACREG]</span> ) )</code></pre>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 11.8</span> Tail count against the raw registry, which is missing N338WA.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Measure</th><th scope="col" class="num">Result</th><th scope="col">Contents</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Tails with VALUES</th><td class="num">7</td><td>The 6 registry tails plus the blank member that holds WO-1006.</td></tr>
+          <tr><th scope="row">Tails with DISTINCT</th><td class="num">6</td><td>The 6 registry tails. The blank member is excluded.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>COUNTROWS</code> wrapped around the table function, and not <code>DISTINCTCOUNT</code>, because the point of this pair is to make the blank member visible and <code>DISTINCTCOUNT</code> buries the choice of table function inside a single name. Its own treatment of blanks is then a separate question you have to go and look up, which is one lookup more than this comparison needs. Use <code>VALUES</code> when you are reapplying a filter, as in the ALLEXCEPT rewrite earlier. Dropping the blank member there would exclude the orphaned facts from your denominator, and the percentages would stop adding up. Use <code>DISTINCT</code> when you are counting real dimension members for a human to read, because "7 aircraft" against a fleet list of 6 is a number you will have to explain in a meeting. The right answer at Meridian is neither: fix the dimension so the blank row cannot occur, and the choice stops mattering.</p>
+  </div>
+
+  <h3>SELECTEDVALUE, HASONEVALUE, ISFILTERED and ISCROSSFILTERED</h3>
+
+  <p><code>SELECTEDVALUE</code> is a wrapper. <code>SELECTEDVALUE(DimWOType[WOType], "all types")</code> is shorthand for "if exactly one value is visible in that column return it, otherwise return the alternate result". It is the safe way to read what a slicer is set to.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Dynamic title driven by a slicer</span></div>
+    <pre><code>WO Type Header <span class="op">=</span>
+    <span class="s">"Labor hours, "</span> <span class="op">&amp;</span>
+    <span class="k">SELECTEDVALUE</span>( <span class="t">DimWOType</span><span class="col">[WOType]</span>, <span class="s">"all types"</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v">Slicer on AOG alone returns "Labor hours, AOG" and the card beneath it shows 14.0. Slicer on Scheduled and AOG together returns "Labor hours, all types" because two values are visible, which is honest: the header no longer claims a single type.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>SELECTEDVALUE</code> rather than <code>IF(HASONEVALUE(col), VALUES(col), "all types")</code>. The long form is three functions where one will do, and a bare <code>VALUES</code> used as a scalar throws a runtime error the moment two values are visible. Keep the long form only when you need different branches for the zero value case and the many value case, since SELECTEDVALUE collapses both into one alternate result. Do not reach for <code>FIRSTNONBLANK</code>, which older blog posts suggest. It returns a value even when several are selected, so it will label your card AOG while the numbers behind it include Mod.</p>
+  </div>
+
+  <p>The last three are inspection functions, and the distinction between the first two is a standard interview question because it is a clean test of whether you understand propagation.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 11.9</span> With one slicer on the page, set to DimAircraft[AircraftType] equals E175.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Expression</th><th scope="col">Result</th><th scope="col">Reason</th></tr></thead>
+        <tbody>
+          <tr><td><code>ISFILTERED(DimAircraft[AircraftType])</code></td><td>TRUE</td><td>That exact column carries a filter.</td></tr>
+          <tr><td><code>ISFILTERED(DimAircraft[Operator])</code></td><td>FALSE</td><td>Nothing filters Operator directly.</td></tr>
+          <tr><td><code>ISCROSSFILTERED(DimAircraft[Operator])</code></td><td>TRUE</td><td>Filtered as a consequence, because a sibling column in the same table is filtered.</td></tr>
+          <tr><td><code>ISFILTERED(FactWorkOrder[ACREG])</code></td><td>FALSE</td><td>No filter was placed on the fact column itself.</td></tr>
+          <tr><td><code>ISCROSSFILTERED(FactWorkOrder[ACREG])</code></td><td>TRUE</td><td>The filter propagated down the relationship from DimAircraft.</td></tr>
+          <tr><td><code>HASONEVALUE(DimAircraft[AircraftType])</code></td><td>TRUE</td><td>Exactly one value is visible. Selecting E175 and A320-200 makes it FALSE.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Say it precisely. ISFILTERED asks whether a filter was placed on that column. ISCROSSFILTERED asks whether the column ends up restricted for any reason, including a filter placed elsewhere that reached it. A direct filter restricts the column too, so ISFILTERED being TRUE always implies ISCROSSFILTERED is TRUE. The reverse holds only sometimes. Cross filtering also follows relationship direction. Meridian's relationships are single direction, so a filter on <code>FactWorkOrder</code> leaves <code>DimAircraft</code> uncrossfiltered: filters travel from the one side to the many side, and back the other way only when the relationship is bidirectional.</p>
+
+  <h3>Composing filter arguments</h3>
+
+  <p>Multiple filter arguments in a single CALCULATE are combined with AND. Each is applied independently to its own columns.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Three ways to compose</span></div>
+    <pre><code><span class="c">// AND across two arguments: AOG work at MSP</span>
+<span class="k">CALCULATE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="t">DimWOType</span><span class="col">[WOType]</span> <span class="op">=</span> <span class="s">"AOG"</span>,
+    <span class="t">DimStation</span><span class="col">[StationCode]</span> <span class="op">=</span> <span class="s">"MSP"</span>
+)
+
+<span class="c">// OR inside one argument: unplanned plus modification work</span>
+<span class="k">CALCULATE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="t">DimWOType</span><span class="col">[WOType]</span> <span class="op">=</span> <span class="s">"AOG"</span>
+        <span class="op">||</span> <span class="t">DimWOType</span><span class="col">[WOType]</span> <span class="op">=</span> <span class="s">"Mod"</span>
+)
+
+<span class="c">// same thing with IN, which is easier to extend</span>
+<span class="k">CALCULATE</span>(
+    <span class="col">[Labor Hours]</span>,
+    <span class="t">DimWOType</span><span class="col">[WOType]</span> <span class="k">IN</span> { <span class="s">"AOG"</span>, <span class="s">"Mod"</span> }
+)</code></pre>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 11.10</span> Results of the three compositions, with no slicers applied.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Composition</th><th scope="col">Work orders that pass</th><th scope="col" class="num">Hours</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">AOG AND MSP</th><td>WO-1002 only</td><td class="num">9.0</td></tr>
+          <tr><th scope="row">AOG OR Mod</th><td>WO-1002, WO-1004, WO-1005, WO-1007</td><td class="num">24.0</td></tr>
+          <tr><th scope="row">IN { AOG, Mod }</th><td>WO-1002, WO-1004, WO-1005, WO-1007</td><td class="num">24.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>AOG and MSP intersects to WO-1002 alone, since WO-1005 has a blank station that was mapped to UNASSIGNED and WO-1007 is at LAS. AOG or Mod is the 14.0 AOG hours plus WO-1004's 10.0 Mod hours, which is 24.0. The <code>IN</code> form and the <code>||</code> form compile to the same thing, so choose <code>IN</code>. Adding a third work order type later costs you one token inside the braces, where the <code>||</code> form costs you a whole new clause.</p>
+
+  <p>Here is the limitation that trips people. The boolean shorthand can reference only one column. Write <code>DimWOType[WOType] = "AOG" || DimStation[StationCode] = "MSP"</code> and it will not compile, because there is no single column for CALCULATE to place the resulting table on. OR across two columns needs a real table expression, typically <code>FILTER</code> over a summarised table or a <code>TREATAS</code> of value pairs. Treat that as information about cost. The language is telling you that OR across dimensions costs more than AND across dimensions, and it will be slower on a large model.</p>
+
+  <h3>CALCULATE and variables</h3>
+
+  <p>The planner opens the work order type breakdown you sent her and every row of the share column reads 100.0 percent. Scheduled, AOG, Mod, and the total underneath them. She asks whether the report is finished. The measure behind that column looks correct, and one variable in it was declared one line too early.</p>
+
+  <p>A variable declared with <code>VAR</code> is evaluated once, at the point of declaration, in the filter context that exists there. It holds a value from then on, and using it somewhere else re evaluates nothing. Move a VAR inside a CALCULATE and its value changes. Reference a VAR inside a CALCULATE and its value stays exactly what it was.</p>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Pct of All Types, broken</span></div>
+        <pre><code><span class="k">VAR</span> Hours <span class="op">=</span> <span class="col">[Labor Hours]</span>
+<span class="k">RETURN</span>
+<span class="k">DIVIDE</span>(
+    Hours,
+    <span class="k">CALCULATE</span>(
+        Hours,
+        <span class="k">REMOVEFILTERS</span>( <span class="t">DimWOType</span> )
+    )
+)</code></pre>
+      </div>
+      <p>The author expected CALCULATE to recompute <code>Hours</code> without the WOType filter. It cannot. <code>Hours</code> was already resolved to a number on line 1, in the row's own context. CALCULATE is handed a constant and returns that constant.</p>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Pct of All Types</span></div>
+        <pre><code><span class="k">VAR</span> Hours <span class="op">=</span> <span class="col">[Labor Hours]</span>
+<span class="k">VAR</span> AllTypes <span class="op">=</span>
+    <span class="k">CALCULATE</span>(
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">REMOVEFILTERS</span>( <span class="t">DimWOType</span> )
+    )
+<span class="k">RETURN</span>
+    <span class="k">DIVIDE</span>( Hours, AllTypes )</code></pre>
+      </div>
+      <p>The measure reference sits inside CALCULATE, so it is evaluated in the modified context. Each VAR now holds the number it was supposed to hold.</p>
+    </div>
+  </div>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>The broken version shows 100.0 percent on the AOG row, 100.0 percent on the Scheduled row, 100.0 percent on the Mod row and 100.0 percent on the total. That is the planner's screen. Every cell divides 14.0 by 14.0, or 38.0 by 38.0, or 10.0 by 10.0. A column of identical values is the signature of a variable captured too early. Learn to recognise it on sight, because the formula bar gives you no hint at all. Move the measure reference inside the CALCULATE, as the fix on the right does, and the planner gets a column she can read: 14.0 over 62.0 for AOG, 38.0 over 62.0 for Scheduled, 10.0 over 62.0 for Mod.</p>
+  </div>
+
+  <p>The same behaviour is a tool. Because a variable freezes the current context, it is the cleanest way to hold onto "what this row is" before you go and change the context to get a comparison base.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Pct of Station Hours, variable form</span></div>
+    <pre><code><span class="k">VAR</span> ThisWO <span class="op">=</span> <span class="col">[Labor Hours]</span>
+<span class="k">VAR</span> StationTotal <span class="op">=</span>
+    <span class="k">CALCULATE</span>(
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">ALLEXCEPT</span>( <span class="t">FactWorkOrder</span>, <span class="t">DimStation</span><span class="col">[StationCode]</span> )
+    )
+<span class="k">RETURN</span>
+    <span class="k">DIVIDE</span>( ThisWO, StationTotal )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 1</div><div class="linex-v">Captured in the work order's own context. On the WO-1001 row this is 13.5 and it stays 13.5 for the rest of the expression, no matter what happens below.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 2 to 6</div><div class="linex-v">Evaluated in a context where everything except the station has been cleared. On the WO-1001 row this is the MSP total, 34.5.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 8</div><div class="linex-v">13.5 divided by 34.5, which is 39.1 percent, matching Table 11.4.</div></div>
+  </div>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Name variables for the context they were captured in, not for the value they hold. <code>ThisWO</code> and <code>StationTotal</code> tell the next reader that one was taken before the context change and one after. <code>Hours1</code> and <code>Hours2</code> tell them nothing, and this class of bug is invisible unless the names carry the information.</p>
+  </aside>
+
+  <h3>The order of evaluation, restated</h3>
+
+  <p>Every question about CALCULATE resolves against this list. When a measure returns something you did not expect, walk it.</p>
+
+  <ol class="list">
+    <li>Copy the current filter context.</li>
+    <li>Evaluate every filter argument in the outer filter context and any outer row context, independently of each other.</li>
+    <li>Perform context transition if a row context is open, turning the iterated row's column values into filters.</li>
+    <li>Apply the modifiers. <code>REMOVEFILTERS</code>, <code>ALL</code>, <code>ALLEXCEPT</code> and <code>ALLSELECTED</code> run here, after context transition. That ordering is why <code>CALCULATE([Labor Hours], REMOVEFILTERS(FactWorkOrder))</code> inside an iterator over work orders returns the grand total. The transition put the row filter in, and the modifier took it straight back out.</li>
+    <li>Apply the filter arguments, replacing existing filters on the same columns unless <code>KEEPFILTERS</code> asked for intersection.</li>
+    <li>Evaluate the expression in the resulting context.</li>
+  </ol>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 11.11</span> Modifier reference. Everything in this chapter, one line each.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Function</th><th scope="col">What it does to the filter context</th></tr></thead>
+        <tbody>
+          <tr><td class="key">ALL()</td><td>Clears every filter in the model. Rare in report measures.</td></tr>
+          <tr><td class="key">ALL(Table)</td><td>Clears all filters on that table.</td></tr>
+          <tr><td class="key">ALL(Col, ...)</td><td>Clears filters on the listed columns only.</td></tr>
+          <tr><td class="key">REMOVEFILTERS</td><td>Identical to ALL in the modifier position. Preferred spelling because the intent is unambiguous.</td></tr>
+          <tr><td class="key">ALLEXCEPT</td><td>Clears filters on the table and its expanded related tables, keeping the listed columns.</td></tr>
+          <tr><td class="key">ALLNOBLANKROW</td><td>Like ALL but drops the blank member added for orphan keys. Useful for counting real dimension members.</td></tr>
+          <tr><td class="key">ALLSELECTED</td><td>Restores the context from outside the current visual. Gives the user's selection as the denominator.</td></tr>
+          <tr><td class="key">KEEPFILTERS</td><td>Changes a filter argument from replace to intersect.</td></tr>
+          <tr><td class="key">VALUES</td><td>Visible values of a column, including the blank member for orphan keys.</td></tr>
+          <tr><td class="key">DISTINCT</td><td>Visible values of a column, excluding that blank member.</td></tr>
+          <tr><td class="key">SELECTEDVALUE</td><td>The single visible value, or an alternate result when zero or many are visible.</td></tr>
+          <tr><td class="key">HASONEVALUE</td><td>TRUE when exactly one value of the column is visible.</td></tr>
+          <tr><td class="key">ISFILTERED</td><td>TRUE when a filter was placed on that column directly.</td></tr>
+          <tr><td class="key">ISCROSSFILTERED</td><td>TRUE when the column is restricted for any reason, including propagation from elsewhere.</td></tr>
+          <tr><td class="key">USERELATIONSHIP</td><td>Activates an inactive relationship for this evaluation. Needed for Meridian's PromisedDate and ClosedDate.</td></tr>
+          <tr><td class="key">CROSSFILTER</td><td>Changes a relationship's cross filter direction for this evaluation only. Safer than making the model bidirectional.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The last two rows of that table are the only entries that change the wiring of the model instead of the filters running through it, and they get a chapter to themselves. <a class="xref" href="#ch-12">Chapter 12</a> works both through on Meridian: <code>USERELATIONSHIP</code> counting the same eight work orders as 8 opened, 6 closed and 8 promised through three relationships into one date table, and <code>CROSSFILTER</code> opening the certification bridge to produce 39.0, 10.5, 12.0 and 23.5 hours, which add to 85.0 against a true total of 62.0.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Filter arguments replace the existing filter on the columns they touch. They do not add to it. That one rule accounts for most CALCULATE results that look wrong.</li>
+      <li>The boolean shorthand compiles into <code>FILTER(ALL(column), condition)</code>. The hidden <code>ALL</code> is why replacement happens, so you never have to memorise the behaviour separately.</li>
+      <li>With a slicer on Scheduled, <code>CALCULATE([Labor Hours], DimWOType[WOType]="AOG")</code> returns 14.0 and the same expression wrapped in <code>KEEPFILTERS</code> returns blank. Both are correct answers to different questions.</li>
+      <li>A filter argument that spans two columns replaces the filter on both of them at once. <code>Fleet Pair Hours</code> prints 41.0 into every cell of an aircraft type by operator matrix, including the B737-800 cells that contributed none of those hours. Wrapped in <code>KEEPFILTERS</code> the same argument leaves 23.5 on A320-200 with Cascade Air, 17.5 on E175 with Northwind Regional and blank everywhere else, and those two add back to 41.0.</li>
+      <li>One number repeated across every cell of a matrix is the signature of a filter argument that replaced the axis it was meant to respect. Wrap it in <code>KEEPFILTERS</code> and check the cells again before you look anywhere else.</li>
+      <li><code>REMOVEFILTERS(DimStation)</code> holds the denominator at 62.0, so MSP is 55.6 percent of the quarter, TUS 36.3 and LAS 8.1. <code>ALLEXCEPT(FactWorkOrder, DimStation[StationCode])</code> looks like the same instrument and behaves differently. With a February slicer the TUS and MSP work orders read 44.4 and 34.8 percent under it, against 100.0 percent each under <code>REMOVEFILTERS(FactWorkOrder)</code> plus <code>VALUES</code>, because ALLEXCEPT removed the month as well.</li>
+      <li>Prefer <code>REMOVEFILTERS</code> over <code>ALL</code> as a modifier. They behave identically and only one of them says what it means.</li>
+      <li><code>ALLEXCEPT</code> clears the expanded table, including dimensions you did not list and dimensions that do not exist yet. Audit every use whenever you add a relationship.</li>
+      <li>Modifiers apply after context transition, which is what lets <code>REMOVEFILTERS</code> undo a transition that has already happened inside an iterator.</li>
+      <li>Variables are evaluated where they are declared. A column of identical percentages is the symptom of one captured too early.</li>
+      <li><code>ALLSELECTED</code> is the one function here whose nested behaviour you should verify against hand calculated numbers before you rely on it.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="10.html"><span class="pn-dir">Previous</span><span class="pn-t">Calculated column or measure</span></a><a class="pn" href="12.html"><span class="pn-dir">Next</span><span class="pn-t">USERELATIONSHIP and CROSSFILTER</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

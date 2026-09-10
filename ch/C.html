@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>The manhour maze: nine words for nine different numbers</title>
+</head>
+<body data-ch="C">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">C</span><span class="tb-title">The manhour maze: nine words for nine different numbers</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-C">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 0 . The domain</div>
+    <h2 class="chapter-title"><span class="chapter-num">C</span>The manhour maze: nine words for nine different numbers</h2>
+    <p class="chapter-lede">After this chapter you can name all nine manhour words that Meridian Aero Services uses, say for each one who produces it, which table holds it and what its total is, and convert between them with arithmetic you could do on the back of a job card. You will also be able to split a missed target into the part the roster caused and the part the crew caused, and write the two measures that prove the split.</p>
+  </div>
+
+  <h3>Four people, four numbers, one meeting</h3>
+
+  <p>The quarter review at Meridian Aero Services starts badly. The production controller says the shop booked 62 hours. The department heads say they submitted 63. Somebody from central planning says the target was 75, and the resource scheduler adds that she rostered 109 hours of crew to deliver it. Four numbers, four people, nobody lying, and all four correct.</p>
+
+  <p>That meeting is this chapter. Each of those four numbers is a true statement about a different moment. Each was made by a different function and recorded in a different system. All four stay in your model exactly as they are, and none of them gets reconciled away. Your job is to hold them apart and label them so precisely that the argument never starts.</p>
+
+  <p>Two words first, because they turn up in every sentence after this one. Meridian Aero Services is an MRO, which stands for maintenance, repair and overhaul. Aircraft arrive, work is done on them, and they leave. A work order is one job on one aircraft, identified by a code such as <code>WO-1001</code>, and the work order is the row that almost everything else in the model hangs off.</p>
+
+  <p>The meeting surfaced four of the manhour words. Meridian uses nine. Here they are, one at a time, in the order the work actually flows.</p>
+
+  <h3>The nine words</h3>
+
+  <h4>1. Demand</h4>
+
+  <p>Demand is the hours the business asks the shop to deliver in a month. It is produced by central resource planning. That function sits above the shop and allocates work across every station it controls. A station is one physical site where Meridian works on aircraft, such as MSP. In Meridian the demand figure lives in <code>RPODemand</code>, one row per service line per month, and it totals <strong>75.0 hours</strong> across the quarter. A service line is the kind of maintenance being done, and Meridian has four of them: Heavy, Light, Line, and Cabin and IFE. IFE stands for in-flight entertainment, so that fourth line covers seats, galleys, panels and screens.</p>
+
+  <p>Compare demand straight against attended hours and Meridian looks 34.0 hours over-resourced. That is the first wrong conclusion available in this dataset. Demand belongs against achievable, and you will meet achievable in a moment.</p>
+
+  <h4>2. Attended</h4>
+
+  <p>Attended is the hours people are rostered to be present and paid. It is produced by resource scheduling, the function that turns an hours target into named humans on named shifts. In Meridian it lives in <code>CrewRoster</code>, again one row per service line per month, and it totals <strong>109.0 hours</strong>. Attended counts every paid minute. That includes the shift briefing, the walk to the stand, and the twenty minutes waiting for a stand to be cleared. Treat attended as the shop's working ceiling and you overstate that ceiling by 21.28 hours, because 109.0 minus 87.72 is 21.28.</p>
+
+  <h4>3. Productivity factor</h4>
+
+  <p>The productivity factor is the fraction of attended time that reaches a job card. A job card is the piece of paperwork a technician books time against. The factor is set by resource scheduling and reviewed periodically. In Meridian it lives in <code>ProductivityFactor</code>, one row per service line, and its values run from <strong>0.68 to 0.88</strong>. Those two values are illustrative for Meridian. The section below headed "The productivity factor, properly" deals with the factor at length, because it is the word that causes the most trouble. Read it as a score for how hard a crew works and every planning meeting becomes an argument you cannot win.</p>
+
+  <h4>4. Achievable</h4>
+
+  <p>Achievable is attended hours multiplied by the productivity factor, which makes it the real ceiling on what the rostered crew could book. You calculate it yourself, in DAX. No source system at Meridian holds it, so achievable is the one word in the nine that exists only if you build it. Its total is <strong>87.72 hours</strong>. Confuse achievable with capacity and you will compare a people number to a building number: achievable is about who is rostered on a service line, capacity is about how many trade hours a station has to sell.</p>
+
+  <h4>5. Available</h4>
+
+  <p>Available is the planned manhour figure the pre-input work package says a check should take. It is frozen at induction so that performance has something fixed to be measured against. Induction is the moment the aircraft arrives and is towed into the bay. Pre-input is the planning step that happens weeks before the aircraft arrives, when a planner assembles every task card due in the window and rolls the estimated hours up by trade. A trade is a skill group, such as airframe or avionics.</p>
+
+  <p>Available is produced by production planning and lives in <code>HeavyPreInput</code>, one row per work order per trade, totalling <strong>57.0 hours</strong>. Available and demand are both planning numbers, and they are still different facts. Available sits at work order and trade level. Demand sits at service line and month level. Light maintenance has demand and has no pre-input pack at all.</p>
+
+  <h4>6. Projected</h4>
+
+  <p>Projected is the live forecast of what a check will finally take, revised as findings land. A finding is work a technician discovers that no task card covered. On a heavy check the findings are the reason the number moves. Projected is produced by production control and lives in <code>ManhourForecast</code>, one row per work order per revision. The correct total is the latest revision per work order, which is <strong>63.5 hours</strong>. Each revision supersedes the one before it, so adding them all gives 99.5, a number that no person at Meridian ever believed.</p>
+
+  <h4>7. Achieved</h4>
+
+  <p>Achieved is the hours technicians actually booked against work. Of the nine words it is the only one that is a genuine transaction record of something that happened. It is produced by production, meaning the technicians themselves, and lands in the timesheet extract <code>LaborEntries</code>, which becomes <code>FactLabor</code> in your model. One row per technician per work order per day. Total <strong>62.0 hours</strong>. Achieved and submitted differ by 1.0 hour at Meridian and both are official, which is the subject of the next word.</p>
+
+  <h4>8. Submitted</h4>
+
+  <p>Submitted is the official achieved figure each department reports to central planning at month end. Central planning then consolidates it into the pack the business reads. Submitted is produced by the department itself and lives in <code>DeptSubmission</code>, one row per service line per month, totalling <strong>63.0 hours</strong>. The timesheet says heavy maintenance booked 26.0 hours in January and the department submitted 27.0, because a late booking was corrected after the submission cutoff. Mix submitted and achieved inside one visual and the pack will not tie out, and no one in the room will be able to say which row caused it.</p>
+
+  <h4>9. Capacity</h4>
+
+  <p>Capacity is the planned bay and trade hours a station has in a month, which makes it the supply side of the whole picture. It is produced by production planning and lives in <code>ShopCapacity</code>, one row per station per month with a column per trade, totalling <strong>176 hours</strong> once unpivoted. Unpivoting turns those four trade columns into four rows, one per trade, which is the shape a model can filter. Capacity sits at station and trade level, so it does not decompose to a service line and cannot be compared to demand without work. It also covers PHX, a station that appears in the planning workbook and in no other system at Meridian, carrying 16 planned hours against zero activity.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table C.1</span> The nine words lined up. Nine different numbers, every one of them correct in its own frame.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Word</th>
+            <th scope="col">What it means</th>
+            <th scope="col">Who produces it</th>
+            <th scope="col">Meridian table</th>
+            <th scope="col" class="num">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Demand</th><td>what the business asks for</td><td>central resource planning</td><td class="key">RPODemand</td><td class="num">75.0</td></tr>
+          <tr><th scope="row">Attended</th><td>hours people are rostered to be present</td><td>resource scheduling</td><td class="key">CrewRoster</td><td class="num">109.0</td></tr>
+          <tr><th scope="row">Productivity factor</th><td>fraction of attended that reaches a job card</td><td>resource scheduling</td><td class="key">ProductivityFactor</td><td class="num">0.68 to 0.88</td></tr>
+          <tr><th scope="row">Achievable</th><td>attended times factor, the real ceiling</td><td>you, in DAX</td><td class="key muted">calculated</td><td class="num">87.72</td></tr>
+          <tr><th scope="row">Available</th><td>pre-input planned hours for a check</td><td>production planning</td><td class="key">HeavyPreInput</td><td class="num">57.0</td></tr>
+          <tr><th scope="row">Projected</th><td>live forecast, latest revision only</td><td>production control</td><td class="key">ManhourForecast</td><td class="num">63.5</td></tr>
+          <tr><th scope="row">Achieved</th><td>hours actually booked to a job card</td><td>production</td><td class="key">LaborEntries</td><td class="num">62.0</td></tr>
+          <tr><th scope="row">Submitted</th><td>official month end departmental figure</td><td>each department</td><td class="key">DeptSubmission</td><td class="num">63.0</td></tr>
+          <tr><th scope="row">Capacity</th><td>planned bay and trade hours by station</td><td>production planning</td><td class="key">ShopCapacity</td><td class="num">176</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>The word "hours" on its own is never an answer. If a card, a column header or a slide says hours without one of the nine qualifiers in front of it, somebody will read it as the wrong one of the nine, and they will be reasonable to do so. Put the qualifying word in the visual title. A tooltip is too late, because nobody hovers over a number they already believe.</p>
+  </aside>
+
+  <h3>The chain, drawn</h3>
+
+  <p>The finance manager catches you in the corridor. He wants one number for the month, he says, and he does not want a lecture about which system it came from. You cannot answer him yet. Before you can, you have to know which five numbers are competing to be that one, and in what order they happen.</p>
+
+  <p>Five of the nine words form a chain, and the chain runs left to right in the order the month happens. Demand is set, crew is rostered, the factor converts rostered hours into a ceiling, technicians book time, and the department submits a figure at month end.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 940 430" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><text x="26.0" y="30.0" class="d-t" fill="#17160F">One month of work, six different numbers, all of them correct</text><rect x="26" y="62" width="158" height="120" rx="5" fill="#F5F0DC" stroke="#78641F" stroke-width="1.6"/><text x="38.0" y="84.0" class="d-t" fill="#78641F" font-size="12.5">Demand</text><text x="172.0" y="84.0" class="d-t" text-anchor="end" fill="#17160F" font-size="14">75.0</text><line x1="26" y1="94" x2="184" y2="94" stroke="#78641F" stroke-width="1"/><text x="38.0" y="114.0" class="d-s">what the business</text><text x="38.0" y="130.0" class="d-s">asked for</text><text x="38.0" y="158.0" class="d-m" font-weight="600">RPODemand</text><path d="M187,122 L200,122" class="d-line-hot" marker-end="url(#ah)"/><rect x="204" y="62" width="158" height="120" rx="5" fill="#F5F0DC" stroke="#78641F" stroke-width="1.6"/><text x="216.0" y="84.0" class="d-t" fill="#78641F" font-size="12.5">Attended</text><text x="350.0" y="84.0" class="d-t" text-anchor="end" fill="#17160F" font-size="14">109.0</text><line x1="204" y1="94" x2="362" y2="94" stroke="#78641F" stroke-width="1"/><text x="216.0" y="114.0" class="d-s">hours people are</text><text x="216.0" y="130.0" class="d-s">rostered to be present</text><text x="216.0" y="158.0" class="d-m" font-weight="600">CrewRoster</text><path d="M365,122 L378,122" class="d-line-hot" marker-end="url(#ah)"/><rect x="382" y="62" width="158" height="120" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="394.0" y="84.0" class="d-t" fill="#1B5A68" font-size="12.5">Achievable</text><text x="528.0" y="84.0" class="d-t" text-anchor="end" fill="#17160F" font-size="14">87.72</text><line x1="382" y1="94" x2="540" y2="94" stroke="#1B5A68" stroke-width="1"/><text x="394.0" y="114.0" class="d-s">attended x productivity</text><text x="394.0" y="130.0" class="d-s">the real ceiling</text><text x="394.0" y="158.0" class="d-m" font-weight="600">calculated</text><path d="M543,122 L556,122" class="d-line-hot" marker-end="url(#ah)"/><rect x="560" y="62" width="158" height="120" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="572.0" y="84.0" class="d-t" fill="#AE4419" font-size="12.5">Achieved</text><text x="706.0" y="84.0" class="d-t" text-anchor="end" fill="#17160F" font-size="14">62.0</text><line x1="560" y1="94" x2="718" y2="94" stroke="#AE4419" stroke-width="1"/><text x="572.0" y="114.0" class="d-s">hours actually booked</text><text x="572.0" y="130.0" class="d-s">to a job card</text><text x="572.0" y="158.0" class="d-m" font-weight="600">LaborEntries</text><path d="M721,122 L734,122" class="d-line-hot" marker-end="url(#ah)"/><rect x="738" y="62" width="158" height="120" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="750.0" y="84.0" class="d-t" fill="#AE4419" font-size="12.5">Submitted</text><text x="884.0" y="84.0" class="d-t" text-anchor="end" fill="#17160F" font-size="14">63.0</text><line x1="738" y1="94" x2="896" y2="94" stroke="#AE4419" stroke-width="1"/><text x="750.0" y="114.0" class="d-s">the month end figure</text><text x="750.0" y="130.0" class="d-s">the business reports</text><text x="750.0" y="158.0" class="d-m" font-weight="600">DeptSubmission</text><text x="394.0" y="200.0" class="d-lbl" fill="#1B5A68">x 0.88 heavy, 0.68 line, light and cabin</text><rect x="26.0" y="214.0" width="440.0" height="90.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="40.0" y="236.0" class="d-t" fill="#98281E">The average of averages trap</text><text x="40.0" y="258.0" class="d-m">correct, weighted:  87.72 / 109.0 = 80.5 percent</text><text x="40.0" y="276.0" class="d-m" fill="#98281E">wrong, row average: 4.68 / 6      = 78.0 percent</text><text x="40.0" y="296.0" class="d-s">The heavy rows carry more attended hours, so they weigh more.</text><rect x="486.0" y="214.0" width="428.0" height="90.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="500.0" y="236.0" class="d-t" fill="#77746B">The three ratios people confuse</text><text x="500.0" y="258.0" class="d-m">demand / achievable   75.0 / 87.72 = 85.5 percent</text><text x="500.0" y="276.0" class="d-m">achieved / achievable 62.0 / 87.72 = 70.7 percent</text><text x="500.0" y="294.0" class="d-m">achieved / demand     62.0 / 75.0  = 82.7 percent</text><rect x="26.0" y="318.0" width="888.0" height="92.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="40.0" y="340.0" class="d-t" fill="#2B6140">Cabin and IFE in February, and why the crew was not the problem</text><text x="40.0" y="362.0" class="d-m">demand 11.0    achievable 10.20    achieved 10.00</text><text x="40.0" y="382.0" class="d-m" fill="#98281E">structural shortfall, too few rostered:  11.00 - 10.20 = 0.80 hours</text><text x="40.0" y="400.0" class="d-m">execution shortfall, crew did not convert: 10.20 - 10.00 = 0.20 hours</text><text x="520.0" y="382.0" class="d-s">Four fifths of the miss was a rostering</text><text x="520.0" y="398.0" class="d-s">decision made weeks earlier.</text></svg></div><figcaption><span class="fig-num">Figure C.1</span>One month of work traced from demand through to the number the business reports.</figcaption></figure>
+
+  <p>Read the five cards left to right first and ignore everything below them. Demand 75.0 and Attended 109.0 are drawn olive because they are planning estimates: somebody decided them. Achievable 87.72 is teal because you built it, and it exists nowhere in the source. Achieved 62.0 and Submitted 63.0 are terracotta because they are records of things that happened. The small teal label under the Achievable card is the whole conversion: multiply by 0.88 for heavy and by 0.68 for line, light and cabin.</p>
+
+  <p>Now the cards below. The red one is the average of averages trap, and the two numbers on it, 80.5 percent and 78.0 percent, are the same quantity computed two ways. The grey card gives the three ratios that get confused with each other, 85.5, 70.7 and 82.7 percent. The green card across the bottom decomposes one month of cabin work into a 0.80 hour rostering problem and a 0.20 hour execution problem. Each of those three cards gets a section of its own later in this chapter, and by the end you will be able to reproduce every number on them by hand.</p>
+
+  <p>So the finance manager gets 63.0, the submitted figure, because that is what his department already reported and what central planning already consolidated. Say the word out loud when you hand it over. The number stops being "hours" and becomes submitted hours, and the next person who quotes it will quote the word with it.</p>
+
+  <h3>The six tables the planning extension adds</h3>
+
+  <p>The resource scheduler emails you a workbook on a Monday and calls it the manpower planning pack. Six tabs. Not one of them holds a work order number, so not one of them can be joined straight to the work order table you already have. You still have to build on them, because these six tabs are where four of the nine words come from.</p>
+
+  <p>Four of the six are printed here in full. They are small enough to read, and you should know them by sight before you open Power Query.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table C.2</span> RPODemand, all six rows. The hours the business asks Meridian to deliver.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">ServiceLine</th><th scope="col">Month</th><th scope="col" class="num">DemandHours</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Heavy</td><td class="key">2025-01</td><td class="num">30.0</td></tr>
+          <tr><td>Light</td><td class="key">2025-01</td><td class="num">10.0</td></tr>
+          <tr><td>Heavy</td><td class="key">2025-02</td><td class="num">14.0</td></tr>
+          <tr><td>Cabin and IFE</td><td class="key">2025-02</td><td class="num">11.0</td></tr>
+          <tr><td>Line</td><td class="key">2025-03</td><td class="num">6.0</td></tr>
+          <tr><td>Heavy</td><td class="key">2025-03</td><td class="num">4.0</td></tr>
+          <tr class="row-total"><td>Total</td><td></td><td class="num">75.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>In a real shop this table is an extract from the central planning system, or an email attachment from the person who runs it, and it arrives once a month. Here is what is wrong with it. The grain is service line and month, and grain means the level of detail one row represents. That grain is far coarser than anything else you hold, so this table can never be joined to a work order.</p>
+
+  <p>The second problem is that the table is sparse. Light appears once, in January. Cabin and IFE appears once, in February. A real demand extract carries a row for every service line in every month, most of them zero. The difference matters in DAX, because a missing row returns blank while a zero row returns 0. A blank and a zero look identical on a card and behave differently in every ratio you build on them.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table C.3</span> CrewRoster, all six rows. Attended hours, meaning hours people are rostered to be at work.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">ServiceLine</th><th scope="col">Month</th><th scope="col" class="num">AttendedHours</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Heavy</td><td class="key">2025-01</td><td class="num">40.0</td></tr>
+          <tr><td>Light</td><td class="key">2025-01</td><td class="num">16.0</td></tr>
+          <tr><td>Heavy</td><td class="key">2025-02</td><td class="num">20.0</td></tr>
+          <tr><td>Cabin and IFE</td><td class="key">2025-02</td><td class="num">15.0</td></tr>
+          <tr><td>Line</td><td class="key">2025-03</td><td class="num">10.0</td></tr>
+          <tr><td>Heavy</td><td class="key">2025-03</td><td class="num">8.0</td></tr>
+          <tr class="row-total"><td>Total</td><td></td><td class="num">109.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>This comes from the roster system, or from whichever spreadsheet the resource scheduler actually plans in before the roster system is updated. What is wrong with it: it holds exactly the same six combinations of service line and month as the demand table. That is convenient for teaching and unusual in life. In a working shop you roster crew in months where demand is zero, because people are employed whether or not the aircraft turns up, and those rows are the ones that expose idle cost. A roster table that lines up perfectly with the demand table has usually been built from the demand table. What you are holding then is the plan again, wearing a different column name.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Comparing 75.0 demand hours to 109.0 attended hours and reporting 34.0 hours of spare resource. Attended hours include every paid minute of briefings, tool collection and waiting for access. The comparable pair is 75.0 demand against 87.72 achievable, which leaves 12.72 hours of headroom, not 34.0. The error is large, and it always points the same way: it makes the shop look better resourced than it is.</p>
+  </aside>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table C.4</span> ProductivityFactor, all four rows. The fraction of attended time that reaches a job card.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">ServiceLine</th><th scope="col" class="num">Factor</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Line</td><td class="num">0.68</td></tr>
+          <tr><td>Light</td><td class="num">0.68</td></tr>
+          <tr><td>Heavy</td><td class="num">0.88</td></tr>
+          <tr><td>Cabin and IFE</td><td class="num">0.68</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>This is resource scheduling's table. In most shops it is four cells in a workbook that somebody agreed in a meeting three years ago. What is wrong with it: there is no month column. The factor is fixed for the whole quarter. Any month on month movement you plot for the overall factor therefore comes purely from the mix of service lines, and never from the shop getting better or worse at converting attended time. That is a trap you will fall into within your first quarter, and the arithmetic for it is in Table C.7 below. The second problem is that the table has four rows and no owner. Nothing in the model tells you when it was last reviewed.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table C.5</span> DeptSubmission, all six rows. The official achieved figure each department reports at month end.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">ServiceLine</th><th scope="col">Month</th><th scope="col" class="num">SubmittedHours</th></tr>
+        </thead>
+        <tbody>
+          <tr class="row-bad"><td>Heavy</td><td class="key">2025-01</td><td class="num">27.0</td></tr>
+          <tr><td>Light</td><td class="key">2025-01</td><td class="num">9.0</td></tr>
+          <tr><td>Heavy</td><td class="key">2025-02</td><td class="num">12.0</td></tr>
+          <tr><td>Cabin and IFE</td><td class="key">2025-02</td><td class="num">10.0</td></tr>
+          <tr><td>Line</td><td class="key">2025-03</td><td class="num">5.0</td></tr>
+          <tr><td>Heavy</td><td class="key">2025-03</td><td class="num">0.0</td></tr>
+          <tr class="row-total"><td>Total</td><td></td><td class="num">63.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Each department fills this in at month end and sends it up. What is wrong with it is the tinted row. The timesheet system says heavy maintenance booked 26.0 hours in January. The department submitted 27.0. A booking landed late and was corrected after the submission cutoff, so there are now two achieved numbers for the same month and both of them are defensible. The submission is the number the business reports and the number external commitments are measured against. The timesheet is the number that reconciles to individual work orders. You cannot pick one and delete the other, and you must never let a single visual mix them.</p>
+
+  <p>That is the resource scheduler's workbook read end to end. The last two tabs, <code>CrewAssignment</code> and <code>CrewCodeMap</code>, answer a different question. The four tables above tell you what work was done. Those two tell you whose crew did it, which produces a second and equally correct set of hours by service line that disagrees with the first. They get a chapter of their own. See <a class="xref" href="#ch-D">Chapter D</a>.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Most of these six tables arrive as a spreadsheet in most shops, and the further a table sits from the regulated core, the more likely it is to be the one that breaks your model. Aircraft records have referential integrity enforced by an aviation authority. A planning workbook has referential integrity enforced by whoever remembered. Every one of the nine numbers in this chapter that is worth arguing about comes from the spreadsheet side.</p>
+  </aside>
+
+  <h3>The planning table, all six rows</h3>
+
+  <p>The production controller wants to know how the shop got from a target of 75 to a booked figure of 62. Here is the whole quarter in one table, which is where that answer lives. Every number in the rest of this chapter comes out of it, so read a row at a time before reading the totals.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table C.6</span> The planning chain, six rows. Achievable is attended multiplied by the factor for that service line.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Service line</th>
+            <th scope="col">Month</th>
+            <th scope="col" class="num">Demand</th>
+            <th scope="col" class="num">Attended</th>
+            <th scope="col" class="num">Factor</th>
+            <th scope="col" class="num">Achievable</th>
+            <th scope="col" class="num">Achieved</th>
+            <th scope="col" class="num">Submitted</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Heavy</th><td class="key">2025-01</td><td class="num">30.0</td><td class="num">40.0</td><td class="num">0.88</td><td class="num">35.20</td><td class="num">26.0</td><td class="num">27.0</td></tr>
+          <tr><th scope="row">Light</th><td class="key">2025-01</td><td class="num">10.0</td><td class="num">16.0</td><td class="num">0.68</td><td class="num">10.88</td><td class="num">9.0</td><td class="num">9.0</td></tr>
+          <tr><th scope="row">Heavy</th><td class="key">2025-02</td><td class="num">14.0</td><td class="num">20.0</td><td class="num">0.88</td><td class="num">17.60</td><td class="num">12.0</td><td class="num">12.0</td></tr>
+          <tr><th scope="row">Cabin and IFE</th><td class="key">2025-02</td><td class="num">11.0</td><td class="num">15.0</td><td class="num">0.68</td><td class="num">10.20</td><td class="num">10.0</td><td class="num">10.0</td></tr>
+          <tr><th scope="row">Line</th><td class="key">2025-03</td><td class="num">6.0</td><td class="num">10.0</td><td class="num">0.68</td><td class="num">6.80</td><td class="num">5.0</td><td class="num">5.0</td></tr>
+          <tr><th scope="row">Heavy</th><td class="key">2025-03</td><td class="num">4.0</td><td class="num">8.0</td><td class="num">0.88</td><td class="num">7.04</td><td class="num">0.0</td><td class="num">0.0</td></tr>
+          <tr class="row-total"><td>Total</td><td></td><td class="num">75.0</td><td class="num">109.0</td><td class="num muted">see below</td><td class="num">87.72</td><td class="num">62.0</td><td class="num">63.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Take the first row and do it by hand. Heavy maintenance in January was asked for 30.0 hours. Resource scheduling rostered 40.0 attended hours to cover it. Heavy runs at a 0.88 productivity factor, so 40.0 times 0.88 gives <strong>35.20 achievable hours</strong>. That is the most the rostered crew could ever have booked to a job card. They booked 26.0. The department submitted 27.0. One row, five numbers, and every gap between them means something different.</p>
+
+  <p>Read the totals column by column and the argument from the opening meeting resolves itself. Demand 75.0 is what was asked. Attended 109.0 is what was paid for. Achievable 87.72 is the ceiling those paid hours actually reach. Achieved 62.0 is what the timesheets hold. Submitted 63.0 is what the business reports. Every one of those five is a legitimate answer to the question "how many hours", which is why the question is useless without a qualifier.</p>
+
+  <p>Notice the last row. Heavy maintenance in March had 8.0 attended hours rostered and booked nothing at all. That is <code>WO-1008</code>, a work order inducted on 2025-03-10 with no labor rows against it. The aircraft was in the bay. Nobody booked a single hour. A zero in an achieved column almost never means no work happened, and chasing that zero is a better use of a morning than any dashboard you could build about it.</p>
+
+  <p>Four of the five columns are a plain sum, which makes them the easiest measures in the model. A measure is a calculation Power BI works out on demand, inside whatever filters the visual has applied. DAX is the formula language you write measures in.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">The four base measures</span></div>
+    <pre><code><span class="c">// what the business asked for</span>
+<span class="col">Demand Hours</span> <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">RPODemand</span><span class="col">[DemandHours]</span> )
+
+<span class="c">// hours people are rostered to be present and paid</span>
+<span class="col">Attended Hours</span> <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">CrewRoster</span><span class="col">[AttendedHours]</span> )
+
+<span class="c">// hours actually booked to a job card, from the timesheet</span>
+<span class="col">Achieved Hours</span> <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )
+
+<span class="c">// the official month end figure the department reported</span>
+<span class="col">Submitted Hours</span> <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">DeptSubmission</span><span class="col">[SubmittedHours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Results</div><div class="linex-v">75.0, 109.0, 62.0 and 63.0 with no filter applied. Each one ties to the total row of Table C.6.</div></div>
+    <div class="linex-row"><div class="linex-k">Why SUM</div><div class="linex-v"><code>SUM</code> adds a column that already holds the number you want. The obvious alternative is <code>SUMX</code>, which walks the table row by row and evaluates an expression before adding. Nothing has to be evaluated here, so <code>SUMX</code> would do the same work with an extra step. Save <code>SUMX</code> for the next measure, where each row genuinely needs arithmetic first.</div></div>
+    <div class="linex-row"><div class="linex-k">Why four measures</div><div class="linex-v">Four names, four descriptions, four source tables. A single measure called <code>Hours</code> with a slicer to choose which one is the shape that puts you back in the Monday meeting.</div></div>
+  </div>
+
+  <h3>The productivity factor, properly</h3>
+
+  <p>The cabin supervisor is asked why his crew was rostered for 15.0 hours in February and booked 10.0. He has an answer. It sounds like an excuse when he says it out loud, so he stops halfway through and the room draws its own conclusion. The number that turns his answer into arithmetic is the productivity factor, and it causes more trouble in a maintenance shop than the other eight words put together.</p>
+
+  <p>The productivity factor is the fraction of paid, attended time that reaches a job card. A technician rostered for eight hours does not book eight hours of task time, and never has, in any shop, anywhere. The shift briefing takes time. So does collecting and signing out the tooling, then walking to the stand with it. Then the crew waits: for a bay to be powered, for a panel to be opened by another trade, for an aircraft to arrive at all. Reading the task card takes time, and so does the paperwork afterwards, which is the paperwork that lets the aircraft be released, so it is real work that produces no bookable hours. The productivity factor absorbs all of it in one number.</p>
+
+  <p>The productivity factor measures the shape of the working day. It is not a measure of how hard anyone works, and a shop that reads it as effort will spend every planning meeting arguing about the wrong thing. Two crews with identical work rates will show different factors if one of them works a continuous shift and the other spends half its day waiting. That is the mechanism, and it explains the two Meridian values.</p>
+
+  <p>Heavy sits at 0.88 and line, light and cabin sit at 0.68. A hangar crew works a continuous shift on one aircraft. The aircraft is jacked, the panels are open, and the work is there in front of them from the start of the shift to the end of it. A line crew waits on arrivals. The aircraft is not on the stand yet, then it is, then it leaves, and the crew stands ready in between. Both crews are working. Only one of them has work available for every rostered minute.</p>
+
+  <p>Back to the cabin supervisor. His 15.0 attended hours at a 0.68 productivity factor give a ceiling of 10.20 hours, and his crew booked 10.00. He converted almost all of what he was given. The section headed "The cabin decomposition" turns that sentence into two numbers he can carry into the next meeting.</p>
+
+  <p>Say this out loud once: Meridian's 0.88 and 0.68 are illustrative. Every shop sets its own values, usually from a time study or from history, and normally reviews them on a fixed cadence. They vary by month too, because a December with a training block and a holiday period converts less attended time than a March does. Copy Meridian's two numbers into a real model and you will produce confidently formatted wrong answers.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>At Meridian the roster table has six rows and every measure in this chapter is instant. That will not survive contact with a real shop, where the same table carries one row per crew per shift per day and runs to hundreds of thousands of rows a year. When it does, resist the urge to bake the factor into a calculated column on the fact table. A column stores one value per row in the model and cannot respond to a what-if parameter, which is a slider the report user drags to try a different number. The first time somebody asks what the plan looks like at 0.75, a column forces you to reload the model to answer.</p>
+  </aside>
+
+  <p>Now the trap the fixed factor sets. Because <code>ProductivityFactor</code> has no month column, the four values never move. Plot the overall factor by month anyway and here is what Meridian shows.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table C.7</span> The overall productivity factor by month, when none of the four underlying factors ever changes.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Month</th><th scope="col">Service lines present</th><th scope="col" class="num">Attended</th><th scope="col" class="num">Achievable</th><th scope="col" class="num">Overall factor</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">2025-01</th><td>Heavy 40.0, Light 16.0</td><td class="num">56.0</td><td class="num">46.08</td><td class="num">82.3%</td></tr>
+          <tr><th scope="row">2025-02</th><td>Heavy 20.0, Cabin 15.0</td><td class="num">35.0</td><td class="num">27.80</td><td class="num">79.4%</td></tr>
+          <tr><th scope="row">2025-03</th><td>Line 10.0, Heavy 8.0</td><td class="num">18.0</td><td class="num">13.84</td><td class="num">76.9%</td></tr>
+          <tr class="row-total"><td>Quarter</td><td></td><td class="num">109.0</td><td class="num">87.72</td><td class="num">80.5%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>January is 46.08 divided by 56.0, which is 82.3 percent. February is 27.80 divided by 35.0, which is 79.4 percent. March is 13.84 divided by 18.0, which is 76.9 percent. Three months, a clean downward line, and a story that writes itself in any meeting: productivity is falling.</p>
+
+  <p>Nothing fell. Every underlying factor is exactly where it was in January. The share of attended hours sitting on heavy work dropped from 40 out of 56 in January to 8 out of 18 in March, and heavy converts at 0.88 while everything else converts at 0.68. The line on the chart is mix, and only mix.</p>
+
+  <h3>The factor runs in both directions</h3>
+
+  <p>On the same morning the production controller asks what his rostered crew can possibly book, and the resource scheduler asks how many people she has to put on shift to hit a target. They are asking about the same 0.68. They are running it in opposite directions, and the two answers are not interchangeable, so learn both.</p>
+
+  <p><strong>Forwards.</strong> You have a roster and you want to know the ceiling. Attended times factor gives achievable. Heavy in January: 40.0 attended times 0.88 gives 35.20 achievable hours. This is the direction the production controller cares about, because it answers "if everyone turns up as rostered, what is the most we can book".</p>
+
+  <p><strong>Backwards.</strong> You have a demand figure and you want to know how many people to roster. Demand divided by factor gives the attended hours the roster must supply. Cabin and IFE in February: 11.0 demand divided by 0.68 gives 16.18 attended hours needed. This is the direction the resource scheduler cares about, because it answers "how many bodies do I need on shift to deliver what I have been asked for".</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table C.8</span> Running the factor backwards. Demand divided by factor gives the attended hours the roster must supply.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Service line</th><th scope="col">Month</th><th scope="col" class="num">Demand</th><th scope="col" class="num">Factor</th><th scope="col" class="num">Attended needed</th><th scope="col" class="num">Rostered</th><th scope="col">Verdict</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Heavy</th><td class="key">2025-01</td><td class="num">30.0</td><td class="num">0.88</td><td class="num">34.09</td><td class="num">40.0</td><td>covered</td></tr>
+          <tr><th scope="row">Light</th><td class="key">2025-01</td><td class="num">10.0</td><td class="num">0.68</td><td class="num">14.71</td><td class="num">16.0</td><td>covered</td></tr>
+          <tr><th scope="row">Heavy</th><td class="key">2025-02</td><td class="num">14.0</td><td class="num">0.88</td><td class="num">15.91</td><td class="num">20.0</td><td>covered</td></tr>
+          <tr class="row-bad"><th scope="row">Cabin and IFE</th><td class="key">2025-02</td><td class="num">11.0</td><td class="num">0.68</td><td class="num">16.18</td><td class="num cell-bad">15.0</td><td>short by 1.18</td></tr>
+          <tr><th scope="row">Line</th><td class="key">2025-03</td><td class="num">6.0</td><td class="num">0.68</td><td class="num">8.82</td><td class="num">10.0</td><td>covered</td></tr>
+          <tr><th scope="row">Heavy</th><td class="key">2025-03</td><td class="num">4.0</td><td class="num">0.88</td><td class="num">4.55</td><td class="num">8.0</td><td>covered</td></tr>
+          <tr class="row-total"><td>Total</td><td></td><td class="num">75.0</td><td class="num"></td><td class="num">94.25</td><td class="num">109.0</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Five rows are covered and one is short. Cabin and IFE in February needed 16.18 attended hours and got 15.0. The roster was 1.18 attended hours light before the month began. That shortfall was decided in a rostering meeting, weeks before any technician touched the aircraft, and it is the reason the next section exists.</p>
+
+  <p>One honesty note on that total. The six rounded figures in the "attended needed" column add to 94.26. The unrounded sum is 94.25, because the heavy rows together are 48.0 divided by 0.88 and the rest are 27.0 divided by 0.68. The 94.25 in the table is the one your model will return, because DAX divides before it rounds. Anybody checking your figure on a calculator from the printed column will get 94.26 and will tell you your dashboard is wrong. It is worth knowing where that hundredth of an hour comes from before the email arrives.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Achievable Hours, and the roster requirement</span></div>
+    <pre><code><span class="c">// forwards: attended x factor, the real ceiling.  87.72</span>
+<span class="col">Achievable Hours</span> <span class="op">=</span>
+<span class="k">SUMX</span> (
+    <span class="t">CrewRoster</span>,
+    <span class="t">CrewRoster</span><span class="col">[AttendedHours]</span>
+        <span class="op">*</span> <span class="k">RELATED</span> ( <span class="t">ProductivityFactor</span><span class="col">[Factor]</span> )
+)
+
+<span class="c">// backwards: demand / factor, what the roster must supply.  94.25</span>
+<span class="col">Attended Hours Required</span> <span class="op">=</span>
+<span class="k">SUMX</span> (
+    <span class="t">RPODemand</span>,
+    <span class="k">DIVIDE</span> (
+        <span class="t">RPODemand</span><span class="col">[DemandHours]</span>,
+        <span class="k">RELATED</span> ( <span class="t">ProductivityFactor</span><span class="col">[Factor]</span> )
+    )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Why SUMX</div><div class="linex-v">Each row has to be multiplied or divided by its own factor before anything is added, and <code>SUM</code> cannot do arithmetic mid-flight. The alternative is a calculated column holding the product, then <code>SUM</code> over it. That works, and it is what most people write first. It also freezes the factor into the model at refresh, so a what-if parameter cannot move it, and it stores a value per row for a number you can compute on demand.</div></div>
+    <div class="linex-row"><div class="linex-k">Why RELATED</div><div class="linex-v"><code>RELATED</code> follows an existing many-to-one relationship from <code>CrewRoster</code> to <code>ProductivityFactor</code> on the service line. The obvious alternative is <code>LOOKUPVALUE</code>, which finds the same value without a relationship at all. That is exactly why it is the worse choice here: it hides a missing relationship instead of forcing you to create one, and the missing relationship is a modelling problem that will bite you again in the next measure.</div></div>
+    <div class="linex-row"><div class="linex-k">Why DIVIDE</div><div class="linex-v"><code>DIVIDE</code> returns blank when the denominator is zero or blank. The plain <code>/</code> operator raises an error that surfaces in the visual as a broken tile. If a service line ever arrives with no factor row, which is a matter of time in a hand-maintained four row table, <code>DIVIDE</code> gives you a blank you can spot and <code>/</code> gives you a support ticket.</div></div>
+  </div>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>When somebody says "the factor", ask which direction they are running it in before you answer. Forwards it converts a roster into a ceiling and the production controller is asking. Backwards it converts a target into a headcount and the resource scheduler is asking. The same 0.68 answers both questions and the two answers are not interchangeable.</p>
+  </aside>
+
+  <h3>The average of averages trap</h3>
+
+  <p>The finance manager is back, and this time he wants the overall productivity factor for the quarter. One number, for the whole shop, to go on a slide. There are two ways to produce it and they give different answers.</p>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <p>Add a calculated column to the roster table so each row carries its factor, then average the column.</p>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Factor, calculated column, then the average</span></div>
+        <pre><code><span class="c">// calculated column on CrewRoster</span>
+<span class="col">Factor</span> <span class="op">=</span> <span class="k">RELATED</span> ( <span class="t">ProductivityFactor</span><span class="col">[Factor]</span> )
+
+<span class="c">// the one-liner that gets written by accident</span>
+<span class="col">Productivity Factor</span> <span class="op">=</span>
+    <span class="k">AVERAGE</span> ( <span class="t">CrewRoster</span><span class="col">[Factor]</span> )</code></pre>
+      </div>
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">The six row factors are 0.88, 0.68, 0.88, 0.68, 0.68 and 0.88. They add to 4.68. Divided by 6 that is 0.78, so the card reads <strong>78.0 percent</strong>.</div></div>
+        <div class="linex-row"><div class="linex-k">Why it is wrong</div><div class="linex-v">Every row gets one vote. Heavy in March, with 8.0 attended hours, counts exactly as much as heavy in January, with 40.0. The measure is answering "what is the average of the six numbers in this column", which nobody asked.</div></div>
+      </div>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <p>Divide the total achievable hours by the total attended hours. Every hour gets one vote instead of every row.</p>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Productivity Factor, weighted</span></div>
+        <pre><code><span class="col">Productivity Factor</span> <span class="op">=</span>
+<span class="k">DIVIDE</span> (
+    <span class="k">SUMX</span> (
+        <span class="t">CrewRoster</span>,
+        <span class="t">CrewRoster</span><span class="col">[AttendedHours]</span>
+            <span class="op">*</span> <span class="k">RELATED</span> ( <span class="t">ProductivityFactor</span><span class="col">[Factor]</span> )
+    ),
+    <span class="k">SUMX</span> ( <span class="t">CrewRoster</span>, <span class="t">CrewRoster</span><span class="col">[AttendedHours]</span> )
+)</code></pre>
+      </div>
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">87.72 divided by 109.0, which is 0.80477, so the card reads <strong>80.5 percent</strong>.</div></div>
+        <div class="linex-row"><div class="linex-k">Why it is right</div><div class="linex-v">The numerator is achievable hours and the denominator is attended hours, so the measure is answering "of every attended hour the shop paid for, what share reached a job card". That is the question.</div></div>
+        <div class="linex-row"><div class="linex-k">Why SUMX twice</div><div class="linex-v">The denominator could be <code>SUM ( CrewRoster[AttendedHours] )</code> and would return the same 109.0. Writing both halves as <code>SUMX</code> over <code>CrewRoster</code> keeps the two totals visibly anchored to the same table and the same filter, which is what makes the ratio a weighted average instead of an average of averages. Once you split a ratio across two tables you have to prove the rows line up.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>A card reading 78.0 percent, formatted correctly, next to five other cards that all tie out. No error, no blank, no warning. The gap to the true figure is 2.5 percentage points, which is small enough to survive every review and large enough to change a headcount decision. Run 78.0 percent against the 109.0 attended hours and you get a ceiling of 85.02 hours against the true 87.72, so the error is worth 2.7 achievable hours a quarter. Scale the same mistake to a shop with two hundred technicians and it is people.</p>
+  </div>
+
+  <p>Here is why the two differ, in one sentence: the heavy rows carry more attended hours than the others, so they should weigh more, and the simple average refuses to let them. Heavy holds 68.0 of the 109.0 attended hours, which is 62.4 percent of the total. Count rows instead of hours and heavy holds three of six, which is 50 percent. The weighted answer is 0.88 times 62.4 percent plus 0.68 times 37.6 percent. The unweighted answer is 0.88 times 50 percent plus 0.68 times 50 percent, which is exactly 0.78 and always will be, whatever the hours say.</p>
+
+  <p>So the figure that goes on the finance manager's slide is 80.5 percent. If somebody in the room has 78.0 percent on a printout, you now know which measure they wrote, and you can say so without opening their file.</p>
+
+  <details class="expand" open>
+    <summary>Trace the 87.72 by hand, row by row</summary>
+    <div class="expand-body">
+      <p>Six multiplications, in the order of Table C.6.</p>
+      <ul class="list">
+        <li>Heavy January: 40.0 times 0.88 is 35.20</li>
+        <li>Light January: 16.0 times 0.68 is 10.88</li>
+        <li>Heavy February: 20.0 times 0.88 is 17.60</li>
+        <li>Cabin and IFE February: 15.0 times 0.68 is 10.20</li>
+        <li>Line March: 10.0 times 0.68 is 6.80</li>
+        <li>Heavy March: 8.0 times 0.88 is 7.04</li>
+      </ul>
+      <p>Running total: 35.20, then 46.08, then 63.68, then 73.88, then 80.68, then 87.72.</p>
+      <p>The same answer by service line, which is the version that shows the weighting: heavy attended is 40.0 plus 20.0 plus 8.0, which is 68.0, and 68.0 times 0.88 is 59.84. Everything else is 16.0 plus 15.0 plus 10.0, which is 41.0, and 41.0 times 0.68 is 27.88. Add them: 59.84 plus 27.88 is 87.72. Note that 68.0 and 41.0 add to 109.0, so nothing has been lost.</p>
+    </div>
+  </details>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>The reason <code>AVERAGE ( CrewRoster[Factor] )</code> gets written is that it reads like English. Somebody asks for the average productivity factor, and that is a measure that returns the average productivity factor. The same trap has a hundred other forms: average utilisation, average on time percentage, average margin per work order. Any time you are averaging something that is itself a ratio, stop, find the two totals underneath it, and divide those instead.</p>
+  </aside>
+
+  <h3>The cabin decomposition</h3>
+
+  <p>Cabin and IFE missed February. Demand was 11.0 hours and the crew booked 10.0. The meeting is going to be about the 1.0 hour that went missing, and the cabin supervisor is going to have to explain it. Watch what the model can do for him.</p>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Demand</div><div class="kv-v">11.0</div></div>
+    <div class="kv-item"><div class="kv-k">Achievable</div><div class="kv-v">10.20</div></div>
+    <div class="kv-item"><div class="kv-k">Achieved</div><div class="kv-v">10.00</div></div>
+    <div class="kv-item"><div class="kv-k">Structural shortfall</div><div class="kv-v">0.80</div></div>
+    <div class="kv-item"><div class="kv-k">Execution shortfall</div><div class="kv-v">0.20</div></div>
+  </div>
+
+  <p>The 1.0 hour splits in two, and the split point is achievable. Demand was 11.0 and the rostered crew could only ever have reached 10.20, because 15.0 attended hours at a 0.68 factor is 10.20. That first gap, 11.0 minus 10.20, is <strong>0.80 hours of structural shortfall</strong>. It means too few people were rostered. Then the crew, whose ceiling was 10.20, booked 10.00. That second gap, 10.20 minus 10.00, is <strong>0.20 hours of execution shortfall</strong>. It means the crew converted almost everything available to them and fell 0.20 hours short.</p>
+
+  <p>Say the result in plain words, because this is the sentence that changes the meeting. Four fifths of the miss was a rostering decision taken weeks before anyone picked up a spanner. One fifth happened on the floor. The cabin crew converted 98 percent of the ceiling it was given, and the ceiling was 7 percent below the target.</p>
+
+  <p>The productivity factor is what puts the ceiling in the model, and the ceiling is what makes the split possible. Take the factor away and the meeting has a target of 11.0, an actual of 10.0, and a supervisor being asked why his people are 1.0 hour down. That is the meeting he walked out of at the start of this chapter, and this is the arithmetic that ends it.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Structural Shortfall, Execution Shortfall</span></div>
+    <pre><code><span class="c">// the roster was too small for the demand</span>
+<span class="c">// negative means the roster gave more ceiling than needed</span>
+<span class="col">Structural Shortfall</span> <span class="op">=</span>
+    <span class="col">[Demand Hours]</span> <span class="op">-</span> <span class="col">[Achievable Hours]</span>
+
+<span class="c">// the crew did not convert the ceiling it was given</span>
+<span class="c">// negative means it converted more than the factor predicted</span>
+<span class="col">Execution Shortfall</span> <span class="op">=</span>
+    <span class="col">[Achievable Hours]</span> <span class="op">-</span> <span class="col">[Achieved Hours]</span></code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Cabin, February</div><div class="linex-v">Structural is 11.0 minus 10.20, which is 0.80. Execution is 10.20 minus 10.00, which is 0.20. They add to 1.00, which is demand minus achieved.</div></div>
+    <div class="linex-row"><div class="linex-k">Heavy, January</div><div class="linex-v">Structural is 30.0 minus 35.20, which is negative 5.20. The roster was larger than the demand required, so heavy January had 5.20 hours of ceiling to spare. Execution is 35.20 minus 26.0, which is 9.20 hours of unconverted ceiling. That row is the opposite story to cabin and it deserves a different conversation.</div></div>
+    <div class="linex-row"><div class="linex-k">Whole quarter</div><div class="linex-v">Structural totals 75.0 minus 87.72, which is negative 12.72. Execution totals 87.72 minus 62.0, which is 25.72. They add to 13.0, which is 75.0 minus 62.0. The two measures stay additive at every level, which is the property that lets you put them side by side in one bar chart.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p>Both measures are plain subtraction between two existing measures, with no <code>CALCULATE</code> and no clamping. The tempting alternative is to wrap each one in <code>MAX ( expression, 0 )</code> so a shortfall never goes negative and the chart only ever shows misses. Resist it. Clamping destroys additivity: the six clamped structural values would add to 0.80 while the quarter total, computed at the total level, would still be negative 12.72, and the column would stop summing to its own rows. It also throws away the surplus rows, and heavy January with 5.20 hours of spare ceiling and 9.20 hours of unconverted ceiling is the most interesting row in the table. Show the sign and explain it in the measure description.</p>
+  </div>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Here is the inconvenient part. The whole cabin decomposition rests on a factor of 0.68 that resource scheduling set, that no one outside resource scheduling can audit, and that has no month column to move in. Shift it to 0.73 and the cabin ceiling becomes 10.95, the structural shortfall drops to 0.05 and the execution shortfall grows to 0.95, and the same meeting reaches the opposite conclusion about the same crew. The split is only as trustworthy as the factor behind it. Publish the factor next to the split every single time, and when somebody asks where 0.68 came from, make sure you already know the answer.</p>
+  </aside>
+
+  <h3>Three ratios, three questions, three people</h3>
+
+  <p>Three people ask you for a percentage in the same week. The resource scheduler wants to know whether the roster can absorb the work she has been given. The finance manager wants to know whether the hours he paid for got used. Central planning wants to know whether the shop delivered what was asked. All three questions come back as a percentage in the seventies or eighties, and all three sound like "how are we doing", which is why they get confused for each other.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table C.9</span> The three headline ratios. Each answers a different question and is asked by a different person.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Ratio</th><th scope="col">Arithmetic</th><th scope="col" class="num">Value</th><th scope="col">The question it answers</th><th scope="col">Who asks it</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Demand cover</th><td>75.0 / 87.72</td><td class="num">85.5%</td><td>Is there enough capacity to take the work?</td><td>resource scheduling, before the month starts</td></tr>
+          <tr><th scope="row">Achievable used</th><td>62.0 / 87.72</td><td class="num">70.7%</td><td>Did we use the capacity we paid for?</td><td>the finance manager, after the month ends</td></tr>
+          <tr><th scope="row">Demand met</th><td>62.0 / 75.0</td><td class="num">82.7%</td><td>Did we deliver what was asked of us?</td><td>the customer, and central planning</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p><strong>Demand cover, 85.5 percent.</strong> Demand against achievable. It is a forward looking question asked before the work happens. A figure under 100 percent means the roster can cover the ask with room left over. Meridian at 85.5 percent has 12.72 hours of headroom across the quarter, and Table C.8 shows that the headroom is unevenly spread and cabin in February had none of it.</p>
+
+  <p><strong>Achievable used, 70.7 percent.</strong> Achieved against achievable. This is the one the finance manager cares about, because the denominator is hours the shop paid for. It answers whether the crew that was rostered actually converted its ceiling. Meridian left 25.72 achievable hours unbooked in the quarter, and 9.20 of those sit on heavy in January alone.</p>
+
+  <p><strong>Demand met, 82.7 percent.</strong> Achieved against demand. This is the delivery number, the one that reaches the customer and the one central planning reports upwards. It skips the middle of the chain entirely, which is exactly why it starts arguments: it tells you that the shop delivered 82.7 percent of what was asked and says nothing at all about whether that was a rostering problem or an execution problem.</p>
+
+  <p>Three people, three numbers. The resource scheduler gets 85.5 percent, the finance manager gets 70.7 percent, and central planning gets 82.7 percent. Hand any one of them the wrong percentage and it will be believed, because all three are plausible and all three are in the same range.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">The three ratios</span></div>
+    <pre><code><span class="col">Demand Cover %</span> <span class="op">=</span>
+    <span class="k">DIVIDE</span> ( <span class="col">[Demand Hours]</span>, <span class="col">[Achievable Hours]</span> )
+
+<span class="col">Achievable Used %</span> <span class="op">=</span>
+    <span class="k">DIVIDE</span> ( <span class="col">[Achieved Hours]</span>, <span class="col">[Achievable Hours]</span> )
+
+<span class="col">Demand Met %</span> <span class="op">=</span>
+    <span class="k">DIVIDE</span> ( <span class="col">[Achieved Hours]</span>, <span class="col">[Demand Hours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Results</div><div class="linex-v">85.5 percent, 70.7 percent and 82.7 percent at the grand total, and every one of them recomputes correctly when a slicer cuts to one service line or one month.</div></div>
+    <div class="linex-row"><div class="linex-k">Why measures, not columns</div><div class="linex-v">Each ratio is built from two measures, so it is recalculated from the two totals inside whatever filter the visual applies. Compute the same three as calculated columns and sum them and you get the average of averages error from the last section, three more times.</div></div>
+    <div class="linex-row"><div class="linex-k">Why DIVIDE again</div><div class="linex-v">Every denominator here can legitimately be blank. Filter to Light in March and there is no demand row, no roster row and no achievable hours, so all three ratios divide by nothing. <code>DIVIDE</code> returns blank and the visual leaves the cell empty. The <code>/</code> operator would put an error in the middle of a report that is otherwise correct.</div></div>
+  </div>
+
+  <h3>How to stop this happening to you</h3>
+
+  <p>You change shops. On your second Monday somebody asks for planned hours and hands you a table called Budget. It holds a number you would call available, cut off on a date nobody has told you. None of the nine words is standardised across the industry, so the vocabulary you learned at Meridian will move with you while the meanings stay behind.</p>
+
+  <p>One shop's planned is another shop's budgeted and a third shop's sold. Achieved means the timesheet in one report and the departmental submission in the next, and both reports are printed by the same company. What transfers between shops is the habit, and the habit is three steps that take an afternoon.</p>
+
+  <ol class="steps">
+    <li>Write down the local definition of every one of the nine words in one sentence each. Write the definition your shop actually uses, including the parts that are wrong. The textbook version helps nobody in a Monday meeting.</li>
+    <li>Name the source table and the owning function for each. If two tables claim the same word, as <code>LaborEntries</code> and <code>DeptSubmission</code> both claim achieved, write down both and name which one is the system of record for which report. The system of record is the one system whose answer wins when two systems disagree, and somebody has to say which one it is in advance.</li>
+    <li>Get somebody in production control and somebody in resource scheduling to agree the list in writing. An email reply is enough. What matters is that the definition stops being yours alone.</li>
+  </ol>
+
+  <p>Then do the step that makes it survive you. Put each definition in the description field of the measure it belongs to. Power BI shows that description on hover in the field list, and it travels with the model into every report anybody builds on it. A definition in a document gets lost in a shared drive within a year. A definition in the measure description is still there when you have moved on and somebody else is standing in the Monday meeting holding your laptop.</p>
+
+  <p>The shape to aim for is one word, one measure, one source table, one description. If a measure needs a paragraph to explain which of the nine words it holds, it is two measures wearing one name. Split it, and give each half a name that could not be mistaken for the other in a meeting.</p>
+
+  <p>Do that on your second Monday and the Budget table stops being a trap. It becomes available hours, owned by planning, cut off on a date you can name, sitting in a measure whose description says so.</p>
+
+  <h3>What the regulator actually says, and what is just your shop's vocabulary</h3>
+
+  <p>Somebody from the compliance side stops at your desk on a Thursday. She has the shop's man-hour plan in front of her and she wants one thing from your model. She needs to know whether available man-hours fell more than 25 percent short in any calendar month. You have nine words, six tables and a chapter of arithmetic behind you, and you still cannot answer her, because the word she used has a published meaning and the word in your model has a local one. Sorting out which is which is the last job in this chapter.</p>
+
+  <h4>The man-hour plan is a regulatory object</h4>
+
+  <p>The maintenance man-hour plan is required by the regulator. Under EASA AMC1 145.A.30(d), a maintenance organisation must employ or contract competent staff as detailed in a man-hour plan, and that plan has to allow for planned absence, including training and vacation. EASA is the European Union Aviation Safety Agency. AMC stands for acceptable means of compliance, the text that tells an organisation how a rule can be satisfied. So the plan you have been feeding numbers into all quarter is a compliance document, and it has a reader outside your building.</p>
+
+  <p>Five parts of that rule land directly on the model you have just built.</p>
+
+  <ul class="list">
+    <li><strong>Available man-hours is the regulator's own term.</strong> It appears in the rule with a defined role and a defined reporting trigger. Use the phrase loosely inside the shop and somebody upstream will still be using it precisely.</li>
+    <li><strong>The 25 percent trigger.</strong> A shortfall of more than 25 percent in available man-hours during a calendar month is a significant deviation, for any one of the functions the rule lists. That is the only numeric manpower threshold in the whole regulation.</li>
+    <li><strong>Who has to be told.</strong> A significant deviation must be reported to the compliance monitoring manager, the safety manager and the accountable manager. Those are named post holders, and the report goes to all three of them.</li>
+    <li><strong>The review cadence.</strong> The plan must be reviewed at least every three months and updated when it needs to be. A four row factor table with no month column, like Meridian's <code>ProductivityFactor</code>, sits awkwardly next to a rule that expects a quarterly look.</li>
+    <li><strong>Base maintenance ties to the hangar visit plan.</strong> For base maintenance the man-hour plan should relate to the aircraft hangar visit plan in AMC 145.A.25(a). That is the documented link between slot planning and manpower planning, written down by the regulator.</li>
+  </ul>
+
+  <p>One more clause turns a column in your dimension table into a compliance answer. At least half the staff performing maintenance in each workshop, hangar or flight line on any shift should be employed rather than contracted, for organisational stability. Meridian's HR extract carries exactly that split. <code>DimTechnician</code> has an <code>EmployeeType</code> column holding Staff and Contract, and four of the six technicians are Staff. That column earns its place on the technician dimension twice over. Contract labour costs a different rate, which is the finance answer. The employed share on a shift is a thing a regulator asks about, which is the compliance answer. Derive that split on the fly inside a measure and only one of the two questions stays easy to ask.</p>
+
+  <p>The rule is also blunt about what it declines to give you. EASA states that a simple formula covering the whole range of possibilities is not feasible for working out how many people you need and what qualifications they hold. The organisation has to analyse its own tasks and establish its own man-hours. So never present a productivity factor or a crew sizing rule as a regulatory requirement. No such published number exists, and 0.68 and 0.88 are certainly not it.</p>
+
+  <p>That brings the compliance officer's question into focus. Meridian's available is the pre-input estimate for one check, sitting at work order and trade level in <code>HeavyPreInput</code>, with a quarter total of 57.0 hours. The regulator's available man-hours is a manpower figure for an organisation across a calendar month. Same two words, two different objects, and the 25 percent test belongs to the second one.</p>
+
+  <h4>Which of the words are published, and which are yours</h4>
+
+  <p>Now do the honest audit. Take the words from Table C.1 and ask, one at a time, whether anybody outside your shop has published a definition of them.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table C.10</span> The vocabulary audit. Four of these words have a source you can cite. Two do not.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Term</th>
+            <th scope="col">Defined in a published source?</th>
+            <th scope="col">Where it comes from</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-good"><th scope="row">Demand, as maintenance workload</th><td>Yes, by the regulator</td><td>EASA AMC1 145.A.30(d)</td></tr>
+          <tr class="row-good"><th scope="row">Available man-hours</th><td>Yes, by the regulator</td><td>EASA AMC1 145.A.30(d)</td></tr>
+          <tr class="row-good"><th scope="row">Capacity</th><td>Yes, in vendor documentation</td><td>IFS Maintenix Operator documentation, release 24r1</td></tr>
+          <tr class="row-good"><th scope="row">Productive man-hours</th><td>Yes, in military doctrine</td><td>US Army FM 3-04.500, Army Aviation Maintenance, chapter 4, 2006</td></tr>
+          <tr class="row-bad"><th scope="row">Attended hours</th><td class="cell-bad">No formally published planning definition found</td><td class="muted">house vocabulary</td></tr>
+          <tr class="row-bad"><th scope="row">Achievable hours</th><td class="cell-bad">No, could not be sourced at all</td><td class="muted">house vocabulary</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Read the demand row twice, because its scope is wider than most people assume. EASA scopes maintenance workload to include planning, maintenance record checks, the production of worksheets and task cards, the accomplishment of maintenance, inspection, and the completion of records. The regulatory definition of the work explicitly counts the paperwork. Everything the shift supervisor thinks of as the admin at either end of a job sits inside the regulator's idea of the workload, and that single fact does most of the work in the next subsection.</p>
+
+  <p>The capacity row is the vendor one. IFS Maintenix defines a shift as the time a staff member spends at work, and a capacity pattern as the types and amounts of work a location can perform in a period without naming any individual. Skill by shift by headcount by hours, before anybody is named. That is the shape of Meridian's <code>ShopCapacity</code>, station by trade by month, which is why capacity refuses to decompose to a service line. The academic literature models it the same way. Al-Shayea expresses capacity as workers times hours times a productivity coefficient, and separates four labour sources: direct hire regular time, direct hire overtime, subcontracted regular time and subcontracted overtime.</p>
+
+  <p>The productive man-hours row needs its label kept on. The conversion is documented, available man-hours multiplied by a percentage of productive effectiveness, and the source is US Army aviation maintenance doctrine, not civil MRO practice. It is usable. Cite it as what it is.</p>
+
+  <p>Then the two tinted rows. Attended hours could not be found as a formally published planning term. Achievable hours could not be sourced at all, in regulatory, vendor, industry or academic material. Say the conclusion plainly and without apology: a taxonomy of demand, capacity, available and achievable is house vocabulary. That is completely legitimate. Every shop needs words for the steps between a target and a timesheet, and Meridian's four are as good as anybody's. It carries one obligation. Since no standard supplies those definitions, your own document has to supply them, in writing, locally.</p>
+
+  <p>Which is the strongest argument available for the three steps in the previous section. Write the local definitions down. Name the source table and the owning function for each. Get them agreed by somebody in production control and somebody in resource scheduling. For at least two of the nine words, your document is the only standard there is going to be.</p>
+
+  <h4>Wrench time, and why it looks nothing like 0.68 and 0.88</h4>
+
+  <p>The shift supervisor reads an industry article at lunchtime and comes back with a printout. Wrench time for aviation maintenance technicians runs between 15 and 45 percent, it says. Your card says 80.5 percent. He wants to know which of you is wrong, and he has a printout and you have a dashboard, so the room is already leaning his way.</p>
+
+  <p>Both figures are right. They measure different things, and this is the single most likely way for the work in this chapter to be attacked, so learn the reconciliation properly.</p>
+
+  <p>The published figures are real and easy to find. McKinsey and Company, writing in March 2026 about the shortage of aviation maintenance technicians, put wrench time between 15 and 45 percent, defined as the share of hours spent on hands-on technical work. Outside aviation, in general maintenance, Doc Palmer put typical wrench time at 25 to 35 percent in Machinery Lubrication in January 2007, and said that good planning and scheduling can lift it above 50 percent, roughly doubling labour productivity.</p>
+
+  <p>The reconciliation lives in Palmer's definition. He defines wrench time as crafts personnel at work, using tools, in front of jobs. He then excludes, in so many words, obtaining parts, obtaining tools, obtaining instructions, travel to and from jobs, obtaining the work assignment, and break time. A technician walking to the stand with a toolbox accrues no wrench time. Neither does one reading the task card, queuing at stores, or filling in the card at the end of the shift.</p>
+
+  <p>Meridian's 0.68 and 0.88 count all of that. They are a bookable hours factor, meaning the share of attended hours that ends up booked to a job card. Reading the task card is bookable. Raising a non-routine is bookable, and a non-routine is the paperwork raised when a technician finds work that no task card covered. Completing the records afterwards is bookable, and under the EASA definition of maintenance workload those records are part of the work.</p>
+
+  <p>So a shop can report a bookable hours factor near 0.7 to 0.9 and a wrench time near 0.2 to 0.4 in the same month, and both are correct. One counts hours booked against a job. The other counts minutes with hands on the aircraft. There is nothing to reconcile between them, because they were never measuring the same thing.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Putting a bookable hours factor of 80.5 percent on a slide next to a published wrench time range of 25 to 35 percent, and letting the room conclude that the shop runs at three times the industry. The same error arrives in reverse when a consultant turns up with a wrench time benchmark and asks why your factor is so high. Both numbers are correct and they are not comparable. Put the word in the visual title: bookable hours factor, and say so in the measure description too. The title is where this argument gets prevented, because nobody reads the footnote before they react to the number.</p>
+  </aside>
+
+  <p>There is a practical rule under all of this. When somebody quotes a benchmark at you, establish which of the two things it measures before you agree to be compared against it. One question does it. Does this figure count time booked to a job card, or time with tools in hand?</p>
+
+  <p>And if the shop genuinely wants a wrench time number, somebody has to go and measure it. Palmer's method is an observation study. Sample two people every half hour over five days, which gives an accuracy of roughly plus or minus 7 percent. Somebody walks the hangar with a clipboard for a week. You cannot derive wrench time from a timesheet, because the timesheet records the hours booked, and wrench time is a question about what the technician was doing inside those hours.</p>
+
+  <h4>The same phrase, two meanings</h4>
+
+  <p>One more trap, and a vendor has documented this one for you. IFS Maintenix uses the phrase productivity factor for something this chapter has not described yet. In Maintenix, the productivity factor is an overall assessment of whether a location and its staff complete tasks within the time specified for the task. 100 percent means tasks finish in the estimated time. Below 100 means they take longer. Above 100 means they finish faster.</p>
+
+  <p>That is performance against estimate. It compares a booked figure to a planned figure. Meridian's productivity factor compares booked time to attended time, so the two are separate constructs wearing one phrase, and they can move in opposite directions inside the same month.</p>
+
+  <p>Put Meridian's numbers on both and the difference stops being abstract. Take the three closed heavy checks, <code>WO-1001</code>, <code>WO-1003</code> and <code>WO-1006</code>. Their pre-input available hours total 36.0 and their achieved hours total 38.0, so performance against estimate is 36.0 divided by 38.0, which is 94.7 percent. The shop ran slightly over its own estimate. The attended conversion for the same shop is 87.72 divided by 109.0, which is 80.5 percent. Two ratios, one phrase, roughly fourteen points apart, both correct.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Asked in an interview what a productivity factor is, the answer that separates you from the field is a question back: which one. Performance against estimate, in the IFS Maintenix sense, is 36.0 over 38.0 on Meridian's three closed heavy checks, which is 94.7 percent. The attended conversion is 87.72 over 109.0, which is 80.5 percent. The two behave differently and can move opposite ways in the same month, so a card labelled productivity factor tells the reader nothing until somebody says which two columns are being divided. Ask that question out loud and you have shown you have stood in the meeting where it mattered.</p>
+  </aside>
+
+  <p>The instruction is short. Before a number called the productivity factor goes on a card, find out which of the two the source system means, and ask which two columns it divides. A system that answers "planned and actual" is giving you performance against estimate. A system that answers "rostered and booked" is giving you the Meridian factor.</p>
+
+  <h4>Line, hangar, and one last warning about benchmarks</h4>
+
+  <p>Line maintenance takes its name from on line maintenance, meaning work that can be done at the gate or on the apron. Everything else is hangar maintenance. A and B checks sit in the middle and can be either. Heavy maintenance, meaning C and D checks, is hangar work only. Meridian's four service lines follow that shape, with Line at 0.68 and Heavy at 0.88.</p>
+
+  <p>Here is the warning. The surveyed literature on airline maintenance workforce planning, by Van den Bergh, De Bruecker and colleagues, notes that there is no consistent industry terminology for this split. Two shops can both report a line productivity figure and draw the boundary between line and hangar in different places. So pin the definitions down before any capacity comparison, and treat any cross company benchmark of line against heavy productivity with suspicion. The other shop may be counting an A check as line while you count it as hangar, and that one decision moves both numbers.</p>
+
+  <p>So the compliance officer gets an answer, and it is a careful one. Your model holds attended hours from the roster, 109.0 for the quarter, and the achievable ceiling you built on top of them, 87.72. Her available man-hours lives in the man-hour plan, and the 25 percent test is run against that. What you can hand her is the labelling: every column named, every source table named, and a note that the factor behind the ceiling has no month column and so has not moved since the plan was written. Then ask her when the plan is next reviewed. The rule says at least every three months, and that review is where her numbers and yours are supposed to meet.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Nine words, nine numbers, all correct: demand 75.0, attended 109.0, factor 0.68 to 0.88, achievable 87.72, available 57.0, projected 63.5, achieved 62.0, submitted 63.0, capacity 176.</li>
+      <li>Achievable is attended times the productivity factor, and it is the only one of the nine that no source system holds. You build it.</li>
+      <li>The productivity factor is the fraction of paid attended time that reaches a job card. It absorbs briefings, tooling, travel to the stand, waiting for access and paperwork. It says nothing about how hard a crew works.</li>
+      <li>Heavy runs at 0.88 and line, light and cabin at 0.68 because a hangar crew works a continuous shift on one aircraft while a line crew waits on arrivals. Both values are illustrative for Meridian and every shop sets its own.</li>
+      <li>Forwards: 40.0 attended times 0.88 is 35.20 achievable. Backwards: 11.0 demand divided by 0.68 is 16.18 attended hours the roster must supply. Only cabin in February was short, by 1.18 attended hours.</li>
+      <li>The overall factor is 87.72 divided by 109.0, which is 80.5 percent. The average of the six row factors is 4.68 divided by 6, which is 78.0 percent and wrong. Never average a ratio. Find the two totals underneath it and divide those.</li>
+      <li>Cabin missed February by 1.00 hour: 0.80 structural, because too few people were rostered, and 0.20 execution. Four fifths of that miss was decided weeks before the work started.</li>
+      <li>Demand cover 85.5 percent asks whether there is enough capacity. Achievable used 70.7 percent asks whether the paid capacity was converted. Demand met 82.7 percent asks whether the shop delivered.</li>
+      <li>Achieved and submitted differ by 1.0 hour and both are official. Name the system of record for every number and never let one visual mix the two.</li>
+      <li>Write the nine local definitions down, name the source table for each, get them agreed in writing, and put them in the measure descriptions so they travel with the model.</li>
+      <li>The man-hour plan is a regulatory object under EASA AMC1 145.A.30(d). Available man-hours is the regulator's term, a shortfall of more than 25 percent in a calendar month is a significant deviation that the compliance monitoring manager, the safety manager and the accountable manager must be told about, and the plan is reviewed at least every three months.</li>
+      <li>Demand as maintenance workload, available man-hours and capacity have published definitions. Attended and achievable do not, so those two are house vocabulary and your own document has to define them.</li>
+      <li>Wrench time and a bookable hours factor measure different things. Published wrench time runs 15 to 45 percent for aviation technicians (McKinsey, March 2026) and excludes travel, parts, instructions and breaks, while Meridian's 0.68 and 0.88 count every hour booked to a job card. Establish which one a benchmark measures before agreeing to be compared against it.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="B.html"><span class="pn-dir">Previous</span><span class="pn-t">Available, projected and achieved: three numbers that are three facts</span></a><a class="pn" href="D.html"><span class="pn-dir">Next</span><span class="pn-t">Who produces which number, and why two of them disagree</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

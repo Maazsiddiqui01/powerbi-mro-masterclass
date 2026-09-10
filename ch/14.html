@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Many-to-many, and the total that does not add up</title>
+</head>
+<body data-ch="14">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">14</span><span class="tb-title">Many-to-many, and the total that does not add up</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-14">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 5 . Hard modelling cases</div>
+    <h2 class="chapter-title"><span class="chapter-num">14</span>Many-to-many, and the total that does not add up</h2>
+    <p class="chapter-lede">By the end of this chapter you will be able to trace a many to many result by hand, explain to a manager why the visible rows do not sum to the total shown underneath them, and pick deliberately between blanking the total, allocating the value, and changing the question.</p>
+  </div>
+
+  <p class="lead">The shop manager stops at your desk with one question. How many labor hours were booked by technicians holding each certification? She wants A&amp;P, Avionics, NDT and Engine Run down the rows and hours across. You build the matrix in four minutes. The four rows add to 85.0 hours, and the total row printed underneath them says 62.0. Meridian booked 62.0 hours in Q1, so the total is right, and the rows are right too. By the end of this chapter you will be able to stand in front of her and say why both of those hold at the same time.</p>
+
+  <h3>Why this question is genuinely many to many</h3>
+
+  <p>Start with the term, because it is about to do a lot of work. A many to many relationship is one where a row on each side can match several rows on the other side. Look at the raw <code>Technicians</code> extract. <code>TECH-04</code>, D. Sandoval, has the value <code>A&amp;P; Avionics; Engine Run</code> in the <code>Certifications</code> column. One technician, three certifications. Now read the same column down the other axis: <code>A&amp;P</code> appears against <code>TECH-01</code>, <code>TECH-02</code> and <code>TECH-04</code>. One certification, three technicians.</p>
+
+  <p>That is the definition, and it is why neither side is unique. Try to hold Sandoval's three certifications in one column on a technician table. You get the text <code>A&amp;P; Avionics; Engine Run</code>, which nobody can filter on. Try to hold the three A&amp;P holders in one column on a certification table and the same problem points the other way. The pairing itself has to become rows. One row per technician per certification, and that grain belongs to neither table. In the Meridian model those rows live in <span class="bridge-tag">Bridge</span> <code>BridgeTechCert</code>. That is a bridge table, meaning a table whose whole job is to hold one row per pair. Power Query built it by splitting the delimited column to rows.</p>
+
+  <p>Take the pause here. The model is right and the question is awkward, and both of those are true together. The awkwardness belongs to what the shop manager asked for. Ask the same question in SQL, in Excel or on paper and it follows you there.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 452" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="24.0" y="130.0" width="170.0" height="68.5" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="35.0" y="147.0" class="d-t" fill="#1B5A68">DimCertification</text><line x1="24.0" y1="156.0" x2="194.0" y2="156.0" stroke="#1B5A68" stroke-width="1"/><text x="35.0" y="168.0" class="d-m" font-weight="600" fill="#1B5A68">CertCode</text><text x="35.0" y="184.5" class="d-s" font-style="italic">4 rows</text><rect x="268.0" y="122.0" width="180.0" height="84.0" rx="5" fill="#F5F0DC" stroke="#78641F" stroke-width="1.6"/><text x="279.0" y="139.0" class="d-t" fill="#78641F">BridgeTechCert</text><line x1="268.0" y1="148.0" x2="448.0" y2="148.0" stroke="#78641F" stroke-width="1"/><text x="279.0" y="160.0" class="d-m">CertCode</text><text x="279.0" y="175.5" class="d-m">TechnicianID</text><text x="279.0" y="192.0" class="d-s" font-style="italic">10 rows</text><rect x="524.0" y="122.0" width="180.0" height="84.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="535.0" y="139.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="524.0" y1="148.0" x2="704.0" y2="148.0" stroke="#1B5A68" stroke-width="1"/><text x="535.0" y="160.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="535.0" y="175.5" class="d-m">HomeStation</text><text x="535.0" y="192.0" class="d-s" font-style="italic">6 rows</text><rect x="524.0" y="262.0" width="180.0" height="71.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="535.0" y="279.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="524.0" y1="288.0" x2="704.0" y2="288.0" stroke="#AE4419" stroke-width="1"/><text x="535.0" y="300.0" class="d-m">TechnicianID</text><text x="535.0" y="315.5" class="d-m">Hours</text><line x1="194.0" y1="158.0" x2="268.0" y2="158.0" class="d-line-hot" marker-end="url(#ah)"/><text x="209.0" y="170.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="253.0" y="170.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="524" y1="158" x2="448" y2="158" class="d-line-hot" marker-end="url(#ah)" marker-start="url(#ah)"/><text x="509.0" y="152.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="463.0" y="152.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="486.0" y="140.0" class="d-lbl" text-anchor="middle" fill="#AE4419">both</text><line x1="614.0" y1="208.0" x2="614.0" y2="262.0" class="d-line-hot" marker-end="url(#ah)"/><text x="605.0" y="226.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="605.0" y="250.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="24.0" y="236.0" class="d-s">TECH-04 holds three certifications.</text><text x="24.0" y="252.0" class="d-s">A&amp;amp;P is held by three technicians.</text><text x="24.0" y="268.0" class="d-s">Neither side is unique, so a bridge in</text><text x="24.0" y="284.0" class="d-s">the middle is the only honest shape.</text><rect x="24.0" y="352.0" width="452.0" height="88.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="38.0" y="374.0" class="d-t" fill="#98281E">Hours by certification</text><text x="38.0" y="396.0" class="d-m">A&amp;amp;P 39.0     Avionics 10.5     NDT 12.0     Engine Run 23.5</text><text x="38.0" y="416.0" class="d-m" fill="#98281E" font-weight="600">Rows sum to 85.0. The grand total shows 62.0.</text><text x="38.0" y="434.0" class="d-s" font-style="italic">This is correct, not a bug. See chapter 14.</text><rect x="500.0" y="352.0" width="370.0" height="88.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="514.0" y="374.0" class="d-t" fill="#77746B">Why the total is smaller</text><text x="514.0" y="396.0" class="d-s">The rows count TECH-04 hours once per certification.</text><text x="514.0" y="414.0" class="d-s">The total counts each labor row once, because it is</text><text x="514.0" y="432.0" class="d-s">evaluated over the fact, not over the four rows above it.</text></svg></div><figcaption><span class="fig-num">Figure 14.1</span>A genuine many to many resolved through a bridge, and the total that will not add up.</figcaption></figure>
+
+  <p>Look at the two links that meet the bridge in the centre. Each is marked 1 at the dimension end and * at the bridge end, because the bridge sits on the many side of both. Study the link on the right, between <code>BridgeTechCert</code> and <code>DimTechnician</code>. It has an arrow head at each end and the label both, and it is the only relationship in the whole Meridian model you would ever set that way. The label records its cross filter direction, which is the setting that says which way a filter may travel along a relationship. Here is why it has to be both. A filter placed on <code>DimCertification</code> reaches the bridge easily. From the bridge it then has to climb into <code>DimTechnician</code>, against the one to many direction, before it can drop to <span class="fact-tag">Fact</span> <code>FactLabor</code> underneath. Everything in this chapter follows from that one upstream hop.</p>
+
+  <p>The two notes beside the bridge state the same awkwardness from each side, <code>TECH-04</code> holding three certifications and A&amp;P being held by three technicians. The red card underneath gives away the ending before the chapter has argued for it: certification rows of 39.0, 10.5, 12.0 and 23.5, which add to 85.0, sitting under a grand total that prints 62.0. Every number in the rest of this chapter is an attempt to explain that card and then to decide what to do about it.</p>
+
+  <h3>The three tables you need in front of you</h3>
+
+  <p>Trace this by hand before you write any DAX. Ten bridge rows, four certifications, seven technicians. That is small enough to check with a pencil and large enough to reproduce every behaviour you will meet on a table with four million rows.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 14.1</span> BridgeTechCert, all ten rows, produced by splitting Technicians[Certifications] on the "; " delimiter. The name column is looked up from DimTechnician so the table reads on the page, and the bridge itself does not carry it.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">TechnicianID</th><th scope="col">Technician name</th><th scope="col">CertCode</th></tr></thead>
+        <tbody>
+          <tr><td class="key">TECH-01</td><td>R. Okafor</td><td>A&amp;P</td></tr>
+          <tr><td class="key">TECH-01</td><td>R. Okafor</td><td>NDT</td></tr>
+          <tr><td class="key">TECH-02</td><td>M. Halvorsen</td><td>A&amp;P</td></tr>
+          <tr><td class="key">TECH-03</td><td>J. Prieto</td><td>Avionics</td></tr>
+          <tr><td class="key">TECH-03</td><td>J. Prieto</td><td>NDT</td></tr>
+          <tr><td class="key">TECH-04</td><td>D. Sandoval</td><td>A&amp;P</td></tr>
+          <tr><td class="key">TECH-04</td><td>D. Sandoval</td><td>Avionics</td></tr>
+          <tr><td class="key">TECH-04</td><td>D. Sandoval</td><td>Engine Run</td></tr>
+          <tr><td class="key">TECH-05</td><td>K. Ibrahim</td><td>Engine Run</td></tr>
+          <tr><td class="key">TECH-06</td><td>L. Petrov</td><td>Avionics</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>In the model the bridge carries two key columns and nothing else, <code>TechnicianID</code> and <code>CertCode</code>. It exists to be traversed. Keep it off report pages, and expect no measures and no dates on it.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 14.2</span> DimCertification, four rows, with the holder count derived by counting bridge rows per CertCode.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">CertCode</th><th scope="col">Technicians holding it</th><th scope="col" class="num">Bridge rows</th></tr></thead>
+        <tbody>
+          <tr><td class="key">A&amp;P</td><td>TECH-01, TECH-02, TECH-04</td><td class="num">3</td></tr>
+          <tr><td class="key">Avionics</td><td>TECH-03, TECH-04, TECH-06</td><td class="num">3</td></tr>
+          <tr><td class="key">NDT</td><td>TECH-01, TECH-03</td><td class="num">2</td></tr>
+          <tr><td class="key">Engine Run</td><td>TECH-04, TECH-05</td><td class="num">2</td></tr>
+          <tr class="row-total"><td>Total</td><td class="muted">ten technician to certification pairs</td><td class="num">10</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The bridge row count reconciles to ten, which is the whole bridge. Good. If it did not, you would have lost a row in the split step and every number after this point would be quietly wrong.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 14.3</span> Labor hours per technician after the TechnicianID trim that fixes L-505.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">TechnicianID</th><th scope="col">Name</th><th scope="col" class="num">Hours</th><th scope="col" class="num">Certifications held</th></tr></thead>
+        <tbody>
+          <tr><td class="key">TECH-01</td><td>R. Okafor</td><td class="num">12.0</td><td class="num">2</td></tr>
+          <tr><td class="key">TECH-02</td><td>M. Halvorsen</td><td class="num">16.5</td><td class="num">1</td></tr>
+          <tr><td class="key">TECH-03</td><td>J. Prieto</td><td class="num">0</td><td class="num">2</td></tr>
+          <tr><td class="key">TECH-04</td><td>D. Sandoval</td><td class="num">10.5</td><td class="num">3</td></tr>
+          <tr><td class="key">TECH-05</td><td>K. Ibrahim</td><td class="num">13.0</td><td class="num">1</td></tr>
+          <tr><td class="key">TECH-06</td><td>L. Petrov</td><td class="num">0</td><td class="num">1</td></tr>
+          <tr class="row-bad"><td class="key">TECH-07</td><td>Unknown technician</td><td class="num">10.0</td><td class="num cell-bad">0</td></tr>
+          <tr class="row-total"><td>Total</td><td></td><td class="num">62.0</td><td class="num">10</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p><code>TECH-07</code> is the orphan from <code>L-506</code>, an orphan being a fact row whose key matches nothing in the dimension. It sits in <code>FactLabor</code> and books ten hours against WO-1004. It appears in <span class="derived-tag">Built</span> <code>DimTechnician</code> only because you appended an Unknown technician row for it. It holds no certifications, so it has no bridge rows at all. Keep that in view. It is going to explain a ten hour discrepancy later.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Hours</span></div>
+    <pre><code>Labor Hours <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>SUM</code> and not <code>SUMX</code>. The value being aggregated is already a physical column on the fact table, so there is nothing to compute per row. <code>SUMX ( FactLabor, FactLabor[Hours] )</code> returns the same number, and the engine usually reduces it to the same plan. The cost is in what an iterator tells the next reader: that a row by row calculation happens here, when none does.</div></div>
+  </div>
+
+  <h3>The trace</h3>
+
+  <p>Put <code>DimCertification[CertCode]</code> on the rows of a matrix and <code>[Labor Hours]</code> in the values. The relationship from <code>DimTechnician</code> to <code>BridgeTechCert</code> has its cross filter direction set to Both, which is what the double headed arrow in the figure earlier in this chapter records. Every other relationship in the documented Meridian model is single direction, so this one is a deliberate change. Here is what the engine does for each row. Beside it is the same arithmetic you would do by hand.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 14.4</span> Hours by certification, traced technician by technician.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">CertCode</th><th scope="col">Technicians reached through the bridge</th><th scope="col">Arithmetic</th><th scope="col" class="num">Hours</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">A&amp;P</th><td>TECH-01, TECH-02, TECH-04</td><td>12.0 plus 16.5 plus 10.5</td><td class="num">39.0</td></tr>
+          <tr><th scope="row">Avionics</th><td>TECH-03, TECH-04, TECH-06</td><td>0 plus 10.5 plus 0</td><td class="num">10.5</td></tr>
+          <tr><th scope="row">NDT</th><td>TECH-01, TECH-03</td><td>12.0 plus 0</td><td class="num">12.0</td></tr>
+          <tr><th scope="row">Engine Run</th><td>TECH-04, TECH-05</td><td>10.5 plus 13.0</td><td class="num">23.5</td></tr>
+          <tr class="row-bad"><td>Sum of the four visible rows</td><td class="muted">not what the visual prints</td><td>39.0 plus 10.5 plus 12.0 plus 23.5</td><td class="num cell-bad">85.0</td></tr>
+          <tr class="row-total"><td>Grand total printed by the matrix</td><td class="muted">TECH-01 to TECH-07, each labor row once</td><td>the whole of FactLabor</td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Rows add to</div><div class="kv-v">85.0</div></div>
+    <div class="kv-item"><div class="kv-k">Total prints</div><div class="kv-v">62.0</div></div>
+    <div class="kv-item"><div class="kv-k">Difference</div><div class="kv-v">23.0</div></div>
+  </div>
+
+  <p>Twenty three hours of daylight between the rows and the total. The shift supervisor will screenshot this and send it to you with a question mark on it.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>The total row is not the sum of the rows above it. It never was, for any measure. Every cell in a matrix, including the total, is an independent evaluation of the measure in its own filter context. The row cells are evaluated with a certification filter on. The total cell is evaluated with that filter off. Power BI never adds the cells together to produce the total. For most measures over a star schema the two happen to agree, so people forget. A many to many is one of the cases where they part, and that is the moment the mechanism becomes visible.</p>
+  </aside>
+
+  <p>Follow the individual hours. Sandoval's 10.5 hours appear in the A&amp;P row, again in the Avionics row and again in the Engine Run row. Each of those three cells holds a correct answer. 10.5 hours really were booked by a technician holding A&amp;P. The same 10.5 hours really were booked by a technician holding Avionics, and again by one holding Engine Run. All three statements describe the same timesheet lines, and all three are true. Okafor's 12.0 hours appear twice, under A&amp;P and NDT.</p>
+
+  <p>In the grand total cell the filter on <code>DimCertification</code> is gone. Nothing propagates through the bridge, so <code>FactLabor</code> is unfiltered. Each of the eight labor rows is then counted exactly once, and the answer is 62.0. That 62.0 includes the ten hours from <code>TECH-07</code>. Those ten hours never appear in any row of the matrix, because that technician holds no certification.</p>
+
+  <p>Say this out loud once so it sticks: a measure evaluated over a many to many is non additive across that dimension. Non additive means the rows will never legitimately add up, in the same way a column of percentages never does. The question itself carries that property. Power BI is reporting it faithfully, and every relationship setting in the model leaves it exactly where it is.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Someone will ask you to "make the total match". The usual attempt is to redefine the total as the sum of the visible rows, which prints 85.0 and states that Meridian booked 85 hours in Q1 when the timesheets say 62. You have then replaced a total that is correct and confusing with a total that is wrong and comfortable. If you are ever tempted, remember that 85.0 changes the moment somebody adds a fifth certification to the reference data, without a single new hour being worked.</p>
+  </aside>
+
+  <h3>What to tell the business, with the numbers attached</h3>
+
+  <p>The finance manager arrives at the desk next. He has seen the screenshot, he wants one number for the month, and he has no patience for a lecture about grain. You have three honest answers for him, and he is the one who picks between them. Each answer is a different agreement about what the report means, and the DAX follows from the agreement. Settle the agreement first.</p>
+
+  <h4>Option A. Present it as coverage and refuse to print a total</h4>
+
+  <p>The row values are correct as they stand. A&amp;P covers 39.0 hours of work, Engine Run covers 23.5. The sum of those rows has no defined meaning, so do not print one. Relabel the column "Hours covered", and blank the total row.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Hours Covered</span></div>
+    <pre><code>Hours Covered <span class="op">=</span>
+    <span class="k">IF</span> (
+        <span class="k">ISINSCOPE</span> ( <span class="t">DimCertification</span><span class="col">[CertCode]</span> ),
+        <span class="col">[Labor Hours]</span>
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>IF</code> with no else branch returns blank when the condition is false. A blank measure result leaves the total row empty. A zero there would be read as "no hours", which is a different lie.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>ISINSCOPE</code> asks whether <code>DimCertification[CertCode]</code> is one of the grouping columns of the cell being evaluated. In a row of the matrix it is, so the measure returns hours. In the total row it is not, so the measure returns blank.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>HASONEVALUE ( DimCertification[CertCode] )</code> is the function most people reach for, and it looks identical until a user drops a slicer on the page and selects A&amp;P only. At that point the column has exactly one value in every cell of the visual, including the total. <code>HASONEVALUE</code> then returns true in the total row, and the total prints 39.0 as though it were a sum. <code>ISINSCOPE</code> asks a different question: is this column one of the columns grouping the visual? That is a fact about the layout of the matrix, so slicers cannot move it and the total stays blank. The cost is real and you should know it before you ship. <code>ISINSCOPE</code> returns true only when that specific column groups the visual, so the same measure on a card, or on a matrix grouped by station, returns blank. If the shop manager wants this number on a card as well, write a second measure for the card and leave this one alone.</p>
+  </div>
+
+  <h4>Option B. Allocate the hours across certifications</h4>
+
+  <p>If finance needs a set of numbers that reconcile, split each technician's hours evenly across the certifications they hold. Sandoval's 10.5 hours become 3.5 hours to each of A&amp;P, Avionics and Engine Run. Okafor's 12.0 become 6.0 to each of A&amp;P and NDT. Halvorsen holds one certification, so all 16.5 hours go to A&amp;P unchanged.</p>
+
+  <details class="expand" open>
+    <summary>Trace the allocation arithmetic by hand, row by row</summary>
+    <div class="expand-body">
+      <p>One line per bridge row. The contribution is the technician's total hours divided by the number of certifications that technician holds.</p>
+
+      <figure class="tbl">
+        <figcaption><span class="tbl-num">Table 14.5</span> Allocated contribution for each of the ten bridge rows.</figcaption>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th scope="col">Technician</th><th scope="col">CertCode</th><th scope="col" class="num">Technician hours</th><th scope="col" class="num">Certs held</th><th scope="col">Division</th><th scope="col" class="num">Contribution</th></tr></thead>
+            <tbody>
+              <tr><td class="key">TECH-01</td><td>A&amp;P</td><td class="num">12.0</td><td class="num">2</td><td>12.0 divided by 2</td><td class="num">6.0</td></tr>
+              <tr><td class="key">TECH-01</td><td>NDT</td><td class="num">12.0</td><td class="num">2</td><td>12.0 divided by 2</td><td class="num">6.0</td></tr>
+              <tr><td class="key">TECH-02</td><td>A&amp;P</td><td class="num">16.5</td><td class="num">1</td><td>16.5 divided by 1</td><td class="num">16.5</td></tr>
+              <tr><td class="key">TECH-03</td><td>Avionics</td><td class="num">0</td><td class="num">2</td><td>0 divided by 2</td><td class="num">0</td></tr>
+              <tr><td class="key">TECH-03</td><td>NDT</td><td class="num">0</td><td class="num">2</td><td>0 divided by 2</td><td class="num">0</td></tr>
+              <tr><td class="key">TECH-04</td><td>A&amp;P</td><td class="num">10.5</td><td class="num">3</td><td>10.5 divided by 3</td><td class="num">3.5</td></tr>
+              <tr><td class="key">TECH-04</td><td>Avionics</td><td class="num">10.5</td><td class="num">3</td><td>10.5 divided by 3</td><td class="num">3.5</td></tr>
+              <tr><td class="key">TECH-04</td><td>Engine Run</td><td class="num">10.5</td><td class="num">3</td><td>10.5 divided by 3</td><td class="num">3.5</td></tr>
+              <tr><td class="key">TECH-05</td><td>Engine Run</td><td class="num">13.0</td><td class="num">1</td><td>13.0 divided by 1</td><td class="num">13.0</td></tr>
+              <tr><td class="key">TECH-06</td><td>Avionics</td><td class="num">0</td><td class="num">1</td><td>0 divided by 1</td><td class="num">0</td></tr>
+              <tr class="row-total"><td>Total across the ten bridge rows</td><td></td><td class="num muted">not additive, each technician repeats</td><td class="num muted">not additive, each technician repeats</td><td>6.0 plus 6.0 plus 16.5 plus 0 plus 0 plus 3.5 plus 3.5 plus 3.5 plus 13.0 plus 0</td><td class="num">52.0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+
+      <p>Now roll the ten contributions up to the four certifications.</p>
+
+      <figure class="tbl">
+        <figcaption><span class="tbl-num">Table 14.6</span> Allocated hours by certification, and the reconciliation.</figcaption>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th scope="col">CertCode</th><th scope="col">Arithmetic</th><th scope="col" class="num">Allocated hours</th><th scope="col" class="num">Coverage hours from Table 14.4</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">A&amp;P</th><td>6.0 plus 16.5 plus 3.5</td><td class="num">26.0</td><td class="num muted">39.0</td></tr>
+              <tr><th scope="row">Avionics</th><td>0 plus 3.5 plus 0</td><td class="num">3.5</td><td class="num muted">10.5</td></tr>
+              <tr><th scope="row">NDT</th><td>6.0 plus 0</td><td class="num">6.0</td><td class="num muted">12.0</td></tr>
+              <tr><th scope="row">Engine Run</th><td>3.5 plus 13.0</td><td class="num">16.5</td><td class="num muted">23.5</td></tr>
+              <tr class="row-good"><td>Sum of rows</td><td>26.0 plus 3.5 plus 6.0 plus 16.5</td><td class="num cell-good">52.0</td><td class="num muted">85.0</td></tr>
+              <tr class="row-total"><td>Total labor hours in FactLabor</td><td>52.0 plus TECH-07 at 10.0</td><td class="num">62.0</td><td class="num">62.0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+
+      <p>The allocated rows add to 52.0, which is exactly the hours booked by technicians who exist in the bridge. The remaining 10.0 hours belong to <code>TECH-07</code>, who holds no certification and so has nowhere to be allocated. The allocation therefore reconciles to 52.0, and the 10.0 hour gap is the orphan. To make it reconcile to 62.0 you have to add an Uncertified member to <code>DimCertification</code> and a bridge row pairing <code>TECH-07</code> with it. That is a data decision. Somebody in HR owns it, and they have to agree to it before you build it.</p>
+    </div>
+  </details>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Hours Allocated</span></div>
+    <pre><code>Labor Hours Allocated <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="t">BridgeTechCert</span>,
+        <span class="k">VAR</span> TechHours <span class="op">=</span> <span class="k">CALCULATE</span> ( <span class="col">[Labor Hours]</span> )
+        <span class="k">VAR</span> CertCount <span class="op">=</span>
+            <span class="k">CALCULATE</span> (
+                <span class="k">COUNTROWS</span> ( <span class="t">BridgeTechCert</span> ),
+                <span class="k">REMOVEFILTERS</span> ( <span class="t">DimCertification</span> ),
+                <span class="k">REMOVEFILTERS</span> ( <span class="t">BridgeTechCert</span><span class="col">[CertCode]</span> )
+            )
+        <span class="k">RETURN</span>
+            <span class="k">DIVIDE</span> ( TechHours, CertCount )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>SUMX</code> and not <code>SUM</code>, and the table it iterates is the bridge itself. Iterating the bridge means the grand total sums ten technician to certification pairs and lands on 52.0. Iterate <code>DISTINCT ( BridgeTechCert[TechnicianID] )</code> and each technician is visited once at the grand total, which gives 39.0. That number matches no row of the report and no timesheet.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v"><code>CALCULATE</code> around the measure reference forces context transition. Context transition turns the current bridge row into a filter on <code>BridgeTechCert[TechnicianID]</code> and <code>BridgeTechCert[CertCode]</code>. That filter then travels up to <code>DimTechnician</code> and down to <code>FactLabor</code>. The engine already wraps a bare measure reference in an implicit <code>CALCULATE</code>, so the line behaves identically without it. Write it anyway. The transition is the entire mechanism of the measure, and hiding it costs the next reader ten minutes.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 6 to 10</div><div class="linex-v"><code>COUNTROWS</code> and not <code>COUNT</code>, because you are counting bridge rows, not non blank values in a particular column, and <code>COUNT</code> would need a column argument that adds nothing. The two <code>REMOVEFILTERS</code> calls strip the certification restriction from both ends, the dimension and the bridge itself, leaving only the technician filter placed by the transition. For <code>TECH-04</code> that returns 3.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 6 to 10, function choice</div><div class="linex-v"><code>REMOVEFILTERS</code> and not <code>ALL</code>. They do the same job as <code>CALCULATE</code> modifiers. <code>ALL</code> is also a table function used to return rows, so a reader has to work out which of its two jobs is meant here. <code>REMOVEFILTERS</code> has only one job.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 12</div><div class="linex-v"><code>DIVIDE</code> and not the <code>/</code> operator, because <code>DIVIDE</code> returns blank on a zero denominator where <code>/</code> raises an error. Be honest about this one. <code>CertCount</code> cannot be zero here: the iterator walks rows that exist in the bridge, so every technician it visits holds at least one certification. <code>DIVIDE</code> is here to survive a future edit.</div></div>
+  </div>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>This measure performs a context transition and a <code>COUNTROWS</code> per bridge row. Over ten rows that is free. Over a bridge with three hundred thousand customer to segment pairs it costs real time, and the query plan shows it as a large number of storage engine calls. The shipping version materialises the divisor once as a calculated column on <code>DimTechnician</code>, then the measure becomes <code>SUMX ( BridgeTechCert, DIVIDE ( [Labor Hours], RELATED ( DimTechnician[CertCount] ) ) )</code>. <code>RELATED</code> and not another <code>CALCULATE</code>. The bridge sits on the many side of a strong relationship to <code>DimTechnician</code>, which is the exact case <code>RELATED</code> exists for, and a lookup is cheaper than a filtered re-aggregation.</p>
+  </aside>
+
+  <h4>Option C. Change the question to one that behaves</h4>
+
+  <p>The manager may not actually want hours. Ask her what decision the number feeds. If the answer is anything close to "do we have enough A&amp;P cover on the floor", then the useful measure is a count of technicians, not a sum of hours: how many technicians holding this certification booked any time in the period.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Certified Techs With Booked Time</span></div>
+    <pre><code>Certified Techs With Booked Time <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">DISTINCTCOUNT</span> ( <span class="t">FactLabor</span><span class="col">[TechnicianID]</span> ),
+        <span class="k">TREATAS</span> (
+            <span class="k">DISTINCT</span> ( <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span> ),
+            <span class="t">FactLabor</span><span class="col">[TechnicianID]</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>DISTINCTCOUNT</code> and not <code>COUNTROWS ( VALUES ( ... ) )</code>. Be precise about where those two differ, because the usual shorthand gets it backwards. The blank member is added to the table on the <em>one</em> side of a relationship, so <code>COUNTROWS ( VALUES ( DimTechnician[TechnicianID] ) )</code> can return one more than you expect when a fact row holds an unmatched key. The column being counted here is <code>FactLabor[TechnicianID]</code>, which is the many side, so no blank member exists and the wrapped form would return the same number. Prefer <code>DISTINCTCOUNT</code> anyway: it states the intent in one function and resolves to a single storage engine operation instead of materialising a table and counting it.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 4 to 7</div><div class="linex-v"><code>TREATAS</code> applies the list of technicians who hold the certification in scope as a filter on <code>FactLabor[TechnicianID]</code>. That filter lands in every cell of the visual, including the grand total, so the total counts only technicians who appear in the bridge. A relationship on its own leaves the total cell unfiltered, and the total then counts every technician in <code>FactLabor</code>.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v"><code>DISTINCT</code> and not <code>VALUES</code>. <code>BridgeTechCert[TechnicianID]</code> sits on the many side of the relationship from <code>DimTechnician</code>, so the two return exactly the same rows today. The difference is what happens later. If somebody ever puts this column on the one side of a new relationship and a key fails to match, <code>VALUES</code> starts returning a blank member and <code>DISTINCT</code> does not. That list is being handed to <code>TREATAS</code> as a filter, and a blank that arrives inside a filter argument is a defect nobody spots for months.</div></div>
+  </div>
+
+  <p>The values are 3 for A&amp;P, 1 for Avionics, 1 for NDT and 2 for Engine Run, and the grand total is 4. Work them through: A&amp;P is held by TECH-01, TECH-02 and TECH-04, and all three booked time, so 3. Avionics is held by TECH-03, TECH-04 and TECH-06, and only TECH-04 booked time, so 1. NDT is held by TECH-01 and TECH-03, and only TECH-01 booked time, so 1. Engine Run is held by TECH-04 and TECH-05, both of whom booked time, so 2. The total is the four distinct technicians who both hold a certification and booked time: TECH-01, TECH-02, TECH-04 and TECH-05.</p>
+
+  <p>Here is the inconvenient part, and you should say it to the manager before she notices it herself. The rows add to 3 plus 1 plus 1 plus 2, which is 7, and the total is 4. A distinct count carries the same non additive property the hours did. The difference is expectation. Nobody expects a distinct count to add up, so the number stops generating support tickets. That is a smaller claim than "we fixed it", and it is the true one.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 14.7</span> The three answers side by side, with the numbers each one prints.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">CertCode</th><th scope="col" class="num">A. Coverage hours</th><th scope="col" class="num">B. Allocated hours</th><th scope="col" class="num">C. Certified techs booking time</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">A&amp;P</th><td class="num">39.0</td><td class="num">26.0</td><td class="num">3</td></tr>
+          <tr><th scope="row">Avionics</th><td class="num">10.5</td><td class="num">3.5</td><td class="num">1</td></tr>
+          <tr><th scope="row">NDT</th><td class="num">12.0</td><td class="num">6.0</td><td class="num">1</td></tr>
+          <tr><th scope="row">Engine Run</th><td class="num">23.5</td><td class="num">16.5</td><td class="num">2</td></tr>
+          <tr><td class="muted">Rows add to</td><td class="num muted">85.0</td><td class="num muted">52.0</td><td class="num muted">7</td></tr>
+          <tr class="row-total"><td>Total shown</td><td class="num">blank by design</td><td class="num">52.0</td><td class="num">4</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h4>What I would ship</h4>
+
+  <p>Option A, with Option C beside it on the same visual. Ship the coverage hours with a blanked total and a column header that says "Hours covered", and put the technician count next to it so the reader has an additive-looking number to anchor on. Two columns, one honest story: A&amp;P touches 39.0 hours of work across 3 working technicians, Avionics touches 10.5 across 1.</p>
+
+  <p>I would not ship Option B by default, even though it is the one that reconciles. The allocation is a policy, and it was invented by whoever wrote the measure. D. Sandoval spent 10.5 hours on aircraft, and the even three way split of those hours is an arithmetic convenience. The moment the finance manager makes a staffing decision on 26.0 A&amp;P hours, he is acting on a convention nobody at Meridian agreed to. Allocation belongs in the model when finance has a documented allocation rule that they own and can defend. In that case you also add the Uncertified member, so the number climbs from 52.0 and reconciles properly to 62.0.</p>
+
+  <h3>Three ways to implement the same many to many</h3>
+
+  <p>The agreement about meaning is settled, so now the model has to carry it. The planner who inherits this file will open it after you have moved on, see whatever you built, and work out what you meant from what is in front of her. That is the real difference between the three shapes below. All three produce the same four row values, 39.0, 10.5, 12.0 and 23.5. They differ in what they do to the model, in what the grand total prints, and in what a colleague can see without reading your DAX.</p>
+
+  <h4>1. Bridge table with a bidirectional relationship</h4>
+
+  <p>Two single direction relationships into the bridge, <code>DimCertification[CertCode]</code> to <code>BridgeTechCert[CertCode]</code> and <code>DimTechnician[TechnicianID]</code> to <code>BridgeTechCert[TechnicianID]</code>, and then you set the cross filter direction on the second one to Both. Without that flag the certification filter reaches the bridge and stops there, and every row of the matrix prints 62.0 because <code>FactLabor</code> is never filtered. That symptom, every row identical to the total, is the fingerprint of a bridge with the flag not set.</p>
+
+  <p>This is the standard answer and the one to reach for first. The cost is that a bidirectional relationship is a permanent property of the model. It applies to every visual, every measure and every future table somebody adds. If a second bidirectional path from <code>DimStation</code> ever appears, the two paths from a dimension to <code>FactLabor</code> become ambiguous, and Power BI will refuse the relationship. If that worries you, leave the relationship single direction and switch the traversal on inside one measure with <code>CROSSFILTER</code>. <code>CROSSFILTER</code> gives you the same both directions behaviour, scoped to a single <code>CALCULATE</code>. <code>USERELATIONSHIP</code> is the wrong tool here: it activates an inactive relationship and leaves direction alone.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Bridge implementation</span></div>
+    <pre><code><span class="c">// With the bridge in place the measure needs no change.</span>
+Labor Hours <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )
+
+<span class="c">// Alternative, if you leave the relationship single</span>
+<span class="c">// direction and want both directions in one measure only:</span>
+Hours Covered Scoped <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">CROSSFILTER</span> (
+            <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span>,
+            <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span>,
+            <span class="k">BOTH</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 2 to 3</div><div class="linex-v">That is the entire DAX cost of implementation 1. The base measure is untouched. All of the many to many behaviour lives in the model, in one checkbox on one relationship, which is why this is the default: a colleague can see what is happening by opening the model view, without reading a single measure.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 8 to 15</div><div class="linex-v"><code>CROSSFILTER</code> and not <code>USERELATIONSHIP</code>. Both are <code>CALCULATE</code> modifiers that take a relationship, and people reach for the wrong one constantly. <code>USERELATIONSHIP</code> swaps which relationship is active, which is what you want for the role-playing date problem and useless here, because the technician to bridge relationship is already active. What is wrong with it is the direction, and direction is the only thing <code>CROSSFILTER</code> changes.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 11 to 12</div><div class="linex-v">The many side column goes first and the one side column second. The engine matches the pair to a relationship either way round, but writing it many side first matches the argument order in the documentation and reads in the direction the filter is about to travel.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 13</div><div class="linex-v"><code>BOTH</code>, the third argument, is what makes the certification filter climb from the bridge into <code>DimTechnician</code>. The other accepted values are <code>ONEWAY</code> and <code>NONE</code>. <code>NONE</code> is the one worth remembering, because it lets you switch a relationship off for a single measure, which is occasionally the cleanest way out of an unwanted filter.</div></div>
+    <div class="linex-row"><div class="linex-k">Whole block</div><div class="linex-v">Pay the honest cost here: the scoped version has to be repeated in every measure that needs the traversal. Two measures and it is fine. Fifteen measures and somebody will forget one, and that measure will quietly print 62.0 on every row. The model level flag cannot be forgotten.</div></div>
+  </div>
+
+  <h4>2. Direct many to many cardinality on a shared column</h4>
+
+  <p>Skip the separate bridge. Split <code>Technicians[Certifications]</code> to rows and leave the result on the technician table itself, so it now has ten rows and <code>CertCode</code> repeats down it. Relate <code>DimCertification[CertCode]</code> to <code>DimTechnician[CertCode]</code> and set the cardinality to Many to many.</p>
+
+  <p>Two things follow immediately. First, the technician table is no longer at one row per technician. <code>TECH-04</code> now appears three times on what used to be the one side, so its relationship to <code>FactLabor</code> also has to become many to many. Second, every relationship you declare as many to many is a limited relationship, which the documentation also calls weak. A limited relationship behaves differently in three ways you will meet in production. No blank row is added on either side for unmatched keys. <code>RELATED</code> cannot be used across it. And the engine cannot apply the referential integrity optimisation it uses for strong relationships, so the join is resolved at query time.</p>
+
+  <p>The blank row point is the one that bites, and <code>TECH-07</code> is the illustration. Across a strong relationship, Power BI keeps a <code>FactLabor</code> row whose <code>TechnicianID</code> matches nothing in the dimension. It adds a blank row to the dimension and parks those hours under it. So 10.0 hours show up under an empty label, and somebody eventually asks about it. Across a limited relationship there is no blank row, so those hours attach to no member at all. They vanish from every technician sliced visual while still sitting inside the unfiltered grand total. That is the worst combination: a number that is wrong on the rows and right at the bottom, with nothing on screen to signal it. Meridian escapes this only because you built <code>DimTechnician</code> with an explicit Unknown technician row for <code>TECH-07</code>. Had you skipped that step, the weak relationship would have hidden the loss.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Direct many to many implementation</span></div>
+    <pre><code><span class="c">// The hours measure is unchanged. This shape is a model</span>
+<span class="c">// decision, not a DAX one.</span>
+Labor Hours <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )
+
+<span class="c">// This is what you give up. It is valid across the strong</span>
+<span class="c">// relationship the bridge model keeps, and it fails once</span>
+<span class="c">// that same hop is declared many to many:</span>
+Hours At Home Station MSP <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="t">FactLabor</span>,
+        <span class="k">IF</span> (
+            <span class="k">RELATED</span> ( <span class="t">DimTechnician</span><span class="col">[HomeStation]</span> ) <span class="op">=</span> <span class="s">"MSP"</span>,
+            <span class="t">FactLabor</span><span class="col">[Hours]</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 3 to 4</div><div class="linex-v">Nothing new. Implementations 1 and 2 print the same four row values from the same measure text, which is precisely why the choice between them gets made carelessly. The difference shows up in what else the model can still do.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 10 to 11</div><div class="linex-v"><code>SUMX</code> and not <code>SUM</code> this time, because the thing being summed is conditional and does not exist as a column. The first argument is <code>FactLabor</code>, a table, which is what gives the expression a row context for <code>RELATED</code> to work in. Written with the bridge model in place this returns 28.5, the hours booked by the three technicians whose home station is MSP: 12.0 from TECH-01 and 16.5 from TECH-02, with TECH-06 contributing nothing.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 13</div><div class="linex-v"><code>RELATED</code> and not <code>RELATEDTABLE</code>. You are standing on a <code>FactLabor</code> row, which is the many side, and reaching for one scalar attribute on the one side, which is what <code>RELATED</code> does. <code>RELATEDTABLE</code> goes the other way and would hand you every labor row for the technician, a table where the comparison needs a value. Under implementation 2 the relationship becomes limited and <code>RELATED</code> stops being available across it, so this measure has to be rewritten as a <code>CALCULATE</code> with an explicit filter. On its own that is a twenty minute job. It is one of a family of small taxes you keep paying for the life of the model.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 12 to 15</div><div class="linex-v"><code>IF</code> with no else branch, and not <code>IF ( ..., FactLabor[Hours], 0 )</code>. Returning blank keeps the non matching rows out of the aggregation entirely. Adding zeros would change the answer as soon as the same pattern is used for an average.</div></div>
+  </div>
+
+  <p>I would not ship this shape for Meridian. It destroys the technician dimension as a dimension, and it trades a clean bridge for a limited relationship that gives you nothing in return.</p>
+
+  <h4>3. TREATAS in the measure, no model change</h4>
+
+  <p>Load <code>BridgeTechCert</code> and <code>DimCertification</code> with no relationships at all and do the propagation in DAX.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Hours Covered Virtual</span></div>
+    <pre><code>Hours Covered Virtual <span class="op">=</span>
+    <span class="k">VAR</span> CertsInScope <span class="op">=</span>
+        <span class="k">VALUES</span> ( <span class="t">DimCertification</span><span class="col">[CertCode]</span> )
+    <span class="k">VAR</span> TechsHolding <span class="op">=</span>
+        <span class="k">CALCULATETABLE</span> (
+            <span class="k">DISTINCT</span> ( <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span> ),
+            <span class="k">TREATAS</span> ( CertsInScope, <span class="t">BridgeTechCert</span><span class="col">[CertCode]</span> )
+        )
+    <span class="k">RETURN</span>
+        <span class="k">CALCULATE</span> (
+            <span class="col">[Labor Hours]</span>,
+            <span class="k">TREATAS</span> ( TechsHolding, <span class="t">FactLabor</span><span class="col">[TechnicianID]</span> )
+        )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 2 to 3</div><div class="linex-v"><code>VALUES</code> here and not <code>DISTINCT</code>, deliberately reversing the earlier preference. <code>DimCertification</code> has no relationship in this design, so no blank member can exist, and <code>VALUES</code> reads as "whatever the visual selected", which is what you mean.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 4 to 8</div><div class="linex-v"><code>CALCULATETABLE</code> and not <code>FILTER</code>. <code>CALCULATETABLE</code> applies the filter before the table is scanned. <code>FILTER</code> would run a row by row test over the whole bridge. The result is the set of technicians holding the certifications in scope.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 7 and 12</div><div class="linex-v"><code>TREATAS</code> takes a table of values and stamps it with the data lineage of a target column, so the engine treats it as a filter on that column and can push it down to the storage engine. <code>INTERSECT</code> would produce the same set but leaves the lineage of its first argument, and a <code>FILTER</code> with a nested lookup forces a row context comparison per fact row. <code>CROSSFILTER</code> and <code>USERELATIONSHIP</code> are not options at all here, because both need a physical relationship to modify and there is none.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 12</div><div class="linex-v">The filter is applied to <code>FactLabor[TechnicianID]</code> and not to <code>DimTechnician[TechnicianID]</code> on purpose. Filtering the fact column leaves any technician slicer on the dimension in play, so the two intersect. Filtering the dimension column would override that slicer, which is almost never what the report author wanted.</div></div>
+  </div>
+
+  <p>Watch what this does to the grand total. Because the <code>TREATAS</code> filter is applied in every cell, the total cell is also restricted to the six technicians who appear in the bridge, so it prints 52.0, not 62.0. Whether that is an improvement depends on the agreement you made earlier. It is a cleaner total than 62.0 if the report is explicitly about certified staff, and it is a silent exclusion of ten hours if it is not.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 14.8</span> The three implementations compared.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Property</th><th scope="col">1. Bridge, bidirectional</th><th scope="col">2. Direct many to many</th><th scope="col">3. TREATAS</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Model change</th><td>One bridge table, two relationships, one set to Both</td><td>Technician table re-grained to ten rows, two relationships</td><td>None. Two unrelated tables loaded</td></tr>
+          <tr><th scope="row">Relationship strength</th><td>Strong throughout</td><td>Limited on both hops</td><td>No relationship</td></tr>
+          <tr><th scope="row">Blank row for unmatched keys</th><td>Added automatically</td><td class="cell-bad">Never added</td><td>Not applicable</td></tr>
+          <tr><th scope="row">RELATED usable</th><td>Yes</td><td class="cell-bad">No</td><td>Not applicable</td></tr>
+          <tr><th scope="row">Technician dimension stays clean</th><td class="cell-good">Yes</td><td class="cell-bad">No</td><td class="cell-good">Yes</td></tr>
+          <tr><th scope="row">Row values</th><td>39.0, 10.5, 12.0, 23.5</td><td>39.0, 10.5, 12.0, 23.5</td><td>39.0, 10.5, 12.0, 23.5</td></tr>
+          <tr><th scope="row">Grand total</th><td>62.0</td><td>62.0</td><td>52.0</td></tr>
+          <tr><th scope="row">Logic lives in</th><td>The model, visible to everyone</td><td>The model, visible to everyone</td><td>One measure, invisible in the diagram</td></tr>
+          <tr class="row-good"><th scope="row">Ship it when</th><td class="cell-good">Default. Almost always this one</td><td>Never, for this data</td><td>You cannot alter the model, or you want the total restricted to certified staff</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h3>The same shape, elsewhere in the shop</h3>
+
+  <p>Once you have seen it you will find it everywhere at Meridian. A work order that touches several ATA chapters is the same structure: WO-1003 could easily carry both a hydraulics chapter and an engine chapter, and hours booked to it belong to both. A part that fits several aircraft types is already visible in the data you have: <code>BRK-2210</code> was issued to WO-1001 on an A320-200 and to WO-1003 on an E175, and <code>ENG-8802</code> went to both an E175 and the unregistered N338WA. An invoice line split across cost centres is the same shape again with a weight attached to each pair.</p>
+
+  <p>All three cases share one structure, and the structure is the part worth carrying to the next model you build. Two of those three columns are missing from the current extract, and I am leaving them missing. Inventing columns to fill the gap would teach you a pattern the data cannot back up. In each case the link between the two tables has its own grain, one row per pair, and the hours or the dollars you want to measure sit at neither table's grain. A measure that adds up cleanly along one table goes non additive along the other. You then face the same three choices this chapter has just worked through: present coverage, allocate with a documented rule, or count members instead of summing amounts. The weighted invoice case is the interesting one. The allocation rule already exists in the source system, so use theirs.</p>
+
+  <h3>Telling a real many to many from a modelling mistake</h3>
+
+  <p>The production controller wants labor cost and parts cost on one line per work order. You drag <code>WorkOrderID</code> from <code>FactLabor</code> onto <code>WorkOrderID</code> in <code>FactParts</code>, Power BI offers many to many cardinality, and the relationship is created. Both sides then fan out against each other and neither cost reconciles to anything. Power BI makes that offer whenever both join columns hold duplicates, and most of the time the offer is a warning. Read it as one.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Ask whether the many to many is a fact about the world or an artefact of a missing key. If a person at the business can name the pair as a noun and describe attributes of it, such as an issue date or an expiry, it is real and it deserves a bridge. If the only reason both sides have duplicates is that the table which would have been the one side is not in your model, it is an artefact and the fix is to find that table.</p>
+  </aside>
+
+  <p>The real one in Meridian is technician to certification. "Sandoval's A&amp;P" is a thing an HR manager would recognise on sight. It has a certificate number and a renewal date in the source system, even though this extract does not carry those columns. And there is no key you could add anywhere that would turn the pairing into one to many. Ten pairs, ten real facts about the world.</p>
+
+  <p>The artefact is the join the production controller asked for, <code>FactLabor</code> to <code>FactParts</code>. Both tables have <code>WorkOrderID</code>, and it repeats on both sides. WO-1001 appears on L-501 and L-502. WO-1003 appears on L-504 and L-505, and again on P-9003 and P-9004. The relationship even appears to work until labor cost and parts cost land in the same visual. Now apply the test. Ask what a single row of that join would describe. A labor line paired with a parts line describes nothing that happens on the floor, so the pair is meaningless. The table that is missing is the header, <code>FactWorkOrder</code>. It holds <code>WorkOrderID</code> exactly once per work order, and it gives both line tables a proper one side to hang from. Route the production controller's visual through it and the many to many disappears, because it was never there.</p>
+
+  <p>If you cannot describe the pair, do not model the pair.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Every cell of a matrix, including the total, is an independent evaluation of the measure in its own filter context. The engine never sums the rows to make the total.</li>
+      <li>Hours by certification gives 39.0, 10.5, 12.0 and 23.5, which add to 85.0, against a printed total of 62.0. The 23.0 gap is correct. TECH-04 booked 10.5 hours while holding three certifications, so those hours belong under all three.</li>
+      <li>A measure over a many to many is non additive across that dimension. That property belongs to the question the shop manager asked, and the tool is reporting it faithfully.</li>
+      <li>Three honest answers: present coverage and blank the total with <code>ISINSCOPE</code>, allocate to 26.0, 3.5, 6.0 and 16.5 which reconcile to 52.0, or count certified technicians who booked time to get 3, 1, 1 and 2 with a total of 4.</li>
+      <li>Ship coverage with a blanked total plus the technician count beside it. Allocation only when someone owns the allocation rule, and then add an Uncertified member so it reconciles to 62.0 rather than 52.0.</li>
+      <li>A bridge with one bidirectional relationship is the default implementation. A direct many to many cardinality relationship is limited, adds no blank row for unmatched keys, and would have hidden TECH-07's ten hours entirely.</li>
+      <li>Before accepting a many to many, ask whether a business person can name the pair. Technician to certification passes. FactLabor to FactParts fails, and the answer there is the FactWorkOrder header.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="13.html"><span class="pn-dir">Previous</span><span class="pn-t">Role-playing dimensions: one date table, many dates</span></a><a class="pn" href="15.html"><span class="pn-dir">Next</span><span class="pn-t">Virtual relationships: TREATAS and friends</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

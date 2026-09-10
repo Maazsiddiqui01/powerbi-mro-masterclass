@@ -1,0 +1,9 @@
+WorkOrderID,Trade,PlannedHours
+WO-1001,Airframe,9.0
+WO-1001,Avionics,4.0
+WO-1003,Airframe,8.0
+WO-1003,Engine,5.0
+WO-1004,Cabin,12.0
+WO-1006,Airframe,10.0
+WO-1008,Airframe,7.0
+WO-1008,NDT,2.0

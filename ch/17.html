@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Making slicers cross-filter each other</title>
+</head>
+<body data-ch="17">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">17</span><span class="tb-title">Making slicers cross-filter each other</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-17">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 5 . Hard modelling cases</div>
+    <h2 class="chapter-title"><span class="chapter-num">17</span>Making slicers cross-filter each other</h2>
+    <p class="chapter-lede">You asked how to make picking a customer narrow a product list. In Meridian terms: how picking Cascade Air narrows the aircraft registration slicer, and picking MSP narrows the technician slicer. One is free. The other has three answers, one of which does not exist.</p>
+  </div>
+
+  <p>The planner has your page open with four slicers on it. She picks Cascade Air, and the aircraft registration slicer drops obediently to two tails. Then she picks MSP on the station slicer, and the technician list does not move at all. Seven names stay on screen, two of them people who booked no hours anywhere in the quarter. She wants to know which setting you forgot to tick.</p>
+
+  <h3>Slicers are visuals, and that is the whole answer</h3>
+
+  <p class="lead">There is no slicer-to-slicer feature in Power BI. A slicer is a visual that queries a list of distinct values, and the rest of the page filters it under exactly the same rules as a card or a bar chart.</p>
+
+  <p>So the planner is looking at two different situations that happen to look alike. Operator and tail behaved because a filter could travel between them. Station and technician did not, because a filter cannot travel from the table holding the station to the table holding the technician. The fix lives in the model or in a measure, never in the slicer's format pane.</p>
+
+  <p>Here is the rule you can trace with your finger. A slicer on table A narrows a slicer on table B only when a filter on A can reach B through the relationships as configured, in the direction those relationships allow. Two things follow from that. Put both fields on the same table and it always works. Put one hop in the route that runs from the many side to the one side, and the filter stops at that hop. The slicer on B then keeps every member it has.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Before you change any setting, write out the hops from source table to target table and mark the cardinality of each. Cardinality means which side of a relationship holds one row per key and which side holds many. The hop running many to one is your problem. Everything else in this chapter is a decision about getting past that hop, or living with it.</p>
+  </aside>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 700" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="40.0" y="30.0" width="420.0" height="62.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="62" cy="50" r="10" fill="#1B5A68"/><text x="62.0" y="53.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">1</text><text x="82.0" y="55.0" class="d-t" font-size="11.5">Is there any relationship path at all</text><text x="82.0" y="70.0" class="d-s">from the slicer table to the visual table?</text><rect x="520.0" y="30.0" width="340.0" height="62.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="534.0" y="54.0" class="d-s">No path exists. Add a shared dimension, or</text><text x="534.0" y="69.0" class="d-s">accept that the question is not well defined.</text><line x1="460" y1="61" x2="520" y2="61" class="d-line-hot" marker-end="url(#ah)"/><text x="490.0" y="54.0" class="d-lbl" text-anchor="middle" fill="#AE4419">yes</text><line x1="250" y1="92" x2="250" y2="122" class="d-line" marker-end="url(#ahg)"/><text x="262.0" y="112.0" class="d-lbl" fill="#77746B">no</text><rect x="40.0" y="126.0" width="420.0" height="62.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="62" cy="146" r="10" fill="#1B5A68"/><text x="62.0" y="149.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">2</text><text x="82.0" y="151.0" class="d-t" font-size="11.5">Is every relationship on that path active?</text><rect x="520.0" y="126.0" width="340.0" height="62.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="534.0" y="150.0" class="d-s">An inactive relationship filters nothing.</text><text x="534.0" y="165.0" class="d-s">Use USERELATIONSHIP, or make it active.</text><line x1="460" y1="157" x2="520" y2="157" class="d-line-hot" marker-end="url(#ah)"/><text x="490.0" y="150.0" class="d-lbl" text-anchor="middle" fill="#AE4419">yes</text><line x1="250" y1="188" x2="250" y2="218" class="d-line" marker-end="url(#ahg)"/><text x="262.0" y="208.0" class="d-lbl" fill="#77746B">no</text><rect x="40.0" y="222.0" width="420.0" height="62.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="62" cy="242" r="10" fill="#1B5A68"/><text x="62.0" y="245.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">3</text><text x="82.0" y="247.0" class="d-t" font-size="11.5">Does every hop run from the one side</text><text x="82.0" y="262.0" class="d-s">to the many side?</text><rect x="520.0" y="222.0" width="340.0" height="62.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="534.0" y="246.0" class="d-s">The first hop that runs the wrong way is</text><text x="534.0" y="261.0" class="d-s">the answer. See chapters 07 and 08.</text><line x1="460" y1="253" x2="520" y2="253" class="d-line-hot" marker-end="url(#ah)"/><text x="490.0" y="246.0" class="d-lbl" text-anchor="middle" fill="#AE4419">yes</text><line x1="250" y1="284" x2="250" y2="314" class="d-line" marker-end="url(#ahg)"/><text x="262.0" y="304.0" class="d-lbl" fill="#77746B">no</text><rect x="40.0" y="318.0" width="420.0" height="62.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="62" cy="338" r="10" fill="#1B5A68"/><text x="62.0" y="341.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">4</text><text x="82.0" y="343.0" class="d-t" font-size="11.5">Is Edit Interactions set to None between</text><text x="82.0" y="358.0" class="d-s">this slicer and this visual?</text><rect x="520.0" y="318.0" width="340.0" height="62.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="534.0" y="342.0" class="d-s">Most common cause in an inherited report,</text><text x="534.0" y="357.0" class="d-s">and it leaves no trace in the model.</text><line x1="460" y1="349" x2="520" y2="349" class="d-line-hot" marker-end="url(#ah)"/><text x="490.0" y="342.0" class="d-lbl" text-anchor="middle" fill="#AE4419">yes</text><line x1="250" y1="380" x2="250" y2="410" class="d-line" marker-end="url(#ahg)"/><text x="262.0" y="400.0" class="d-lbl" fill="#77746B">no</text><rect x="40.0" y="414.0" width="420.0" height="62.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="62" cy="434" r="10" fill="#1B5A68"/><text x="62.0" y="437.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">5</text><text x="82.0" y="439.0" class="d-t" font-size="11.5">Does the measure remove the filter itself?</text><text x="82.0" y="454.0" class="d-s">Look for ALL, REMOVEFILTERS, ALLEXCEPT.</text><rect x="520.0" y="414.0" width="340.0" height="62.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="534.0" y="438.0" class="d-s">The measure is winning on purpose.</text><text x="534.0" y="453.0" class="d-s">Swap ALL for ALLEXCEPT or KEEPFILTERS.</text><line x1="460" y1="445" x2="520" y2="445" class="d-line-hot" marker-end="url(#ah)"/><text x="490.0" y="438.0" class="d-lbl" text-anchor="middle" fill="#AE4419">yes</text><line x1="250" y1="476" x2="250" y2="506" class="d-line" marker-end="url(#ahg)"/><text x="262.0" y="496.0" class="d-lbl" fill="#77746B">no</text><rect x="40.0" y="510.0" width="420.0" height="62.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="62" cy="530" r="10" fill="#1B5A68"/><text x="62.0" y="533.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">6</text><text x="82.0" y="535.0" class="d-t" font-size="11.5">Do the key values actually match?</text><text x="82.0" y="550.0" class="d-s">Check trailing spaces, case and data type.</text><rect x="520.0" y="510.0" width="340.0" height="62.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="534.0" y="534.0" class="d-s">TECH-04 and TECH-04 with a trailing space</text><text x="534.0" y="549.0" class="d-s">look identical and never join.</text><line x1="460" y1="541" x2="520" y2="541" class="d-line-hot" marker-end="url(#ah)"/><text x="490.0" y="534.0" class="d-lbl" text-anchor="middle" fill="#AE4419">yes</text><rect x="40.0" y="612.0" width="820.0" height="58.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="54.0" y="634.0" class="d-t" fill="#17160F">Still filtering nothing after all six?</text><text x="54.0" y="652.0" class="d-s">Open Performance Analyzer, copy the DAX the visual actually sends, and read its filter arguments. The query never lies about what was applied.</text></svg></div><figcaption><span class="fig-num">Figure 17.1</span>The order to check things in when a slicer refuses to filter a visual.</figcaption></figure>
+
+  <p>Read it top to bottom. Six numbered checks run down the left side. Each check carries a green card to its right with the fix for that check. A grey arrow drops to the next check when this one is not where your filter died. Check 3 asks whether every hop runs from the one side to the many side. That is the check this chapter is about, and its card sends you to chapters 7 and 8. Read check 4 before you touch the model at all, because Edit Interactions set to None leaves no trace anywhere in the relationship list. When all six pass, the grey card at the bottom tells you to open Performance Analyzer and read the filter arguments of the DAX the visual actually sends. One case needs no check at all. Two fields already sitting on one table cascade with nothing configured, and that is where this chapter starts. Everything else arrives at the three fixes below, and for any given pair of tables at most two of the three actually exist.</p>
+
+  <h3>Case 1: operator and tail, same table</h3>
+
+  <p>Start with the half that worked for the planner. Both <code>DimAircraft[Operator]</code> and <code>DimAircraft[ACREG]</code> sit on <span class="dim-tag">Dimension</span> <code>DimAircraft</code>. ACREG is the aircraft registration, the tail number painted on the fin. Selecting Cascade Air filters that table to two of its seven rows. The tail slicer then runs its own query for distinct <code>ACREG</code> values, and that query inherits the two survivors. It shows N771QR and N448LM.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 17.1</span> Selecting an operator narrows the tail slicer with no model change, because both columns live on the same seven-row dimension.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Operator selected</th><th scope="col" class="num">Rows left in DimAircraft</th><th scope="col">Tail slicer then shows</th><th scope="col" class="num">Members</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Cascade Air</td><td class="num">2</td><td class="key">N771QR, N448LM</td><td class="num">2</td></tr>
+          <tr><td>Northwind Regional</td><td class="num">2</td><td class="key">N902TT, N615RB</td><td class="num">2</td></tr>
+          <tr><td>Sierra Charter</td><td class="num">2</td><td class="key">N120CE, N553KD</td><td class="num">2</td></tr>
+          <tr><td>Unknown operator</td><td class="num">1</td><td class="key">N338WA</td><td class="num">1</td></tr>
+          <tr class="row-total"><td>Nothing selected</td><td class="num">7</td><td>all seven tails</td><td class="num">7</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Notice the fourth row. N338WA is the tail recovered from <code>WorkOrders</code>, and its operator reads "Unknown operator". That wording earns its keep. A real value in a real column gets its own slicer entry, so whoever picks it lands on the one aircraft nobody can account for. A blank would have given them an unselectable row.</p>
+
+  <p>No relationship change, no bidirectional flag, no measure. If every cross-filtering question were shaped like this, the chapter would end here.</p>
+
+  <h3>Case 2: station and technician, one on each side of the facts</h3>
+
+  <p>Now the half that failed. Put a slicer on <code>DimStation[StationCode]</code> and another on <code>DimTechnician[TechnicianName]</code>. Select MSP, which is what the planner did. Nothing happens. All seven technicians stay, including J. Prieto and L. Petrov, who booked no hours all quarter.</p>
+
+  <p>Trace the route.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 17.2</span> The three hops from DimStation to DimTechnician. The last one runs the wrong way.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Hop</th><th scope="col">From</th><th scope="col">To</th><th scope="col">Cardinality</th><th scope="col">Direction needed</th><th scope="col">Filter travels?</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="num">1</td><td>DimStation[StationCode]</td><td>FactWorkOrder[StationCode]</td><td>one to many</td><td>one side to many side</td><td class="cell-good">Yes</td></tr>
+          <tr><td class="num">2</td><td>FactWorkOrder[WorkOrderID]</td><td>FactLabor[WorkOrderID]</td><td>one to many</td><td>one side to many side</td><td class="cell-good">Yes</td></tr>
+          <tr class="row-bad"><td class="num">3</td><td>FactLabor[TechnicianID]</td><td>DimTechnician[TechnicianID]</td><td>many to one</td><td>many side to one side</td><td class="cell-bad">No</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Source</div><div class="kv-v">DimStation</div></div>
+    <div class="kv-item"><div class="kv-k">Target</div><div class="kv-v">DimTechnician</div></div>
+    <div class="kv-item"><div class="kv-k">Hops</div><div class="kv-v">3</div></div>
+    <div class="kv-item"><div class="kv-k">Blocking hop</div><div class="kv-v">FactLabor to DimTechnician</div></div>
+    <div class="kv-item"><div class="kv-k">Slicer result</div><div class="kv-v">All 7 technicians stay</div></div>
+  </div>
+
+  <p>Hops 1 and 2 are fine. A station filter reaches <code>FactWorkOrder</code> and flows into <code>FactLabor</code>, which is why the card for MSP labor hours correctly reads 34.5. The measure works. The slicer needs one thing more. The filter has to keep going up the last relationship, from the many side of <code>FactLabor</code> into the one side of <code>DimTechnician</code>. A single direction relationship carries filters one way only, and that way is down.</p>
+
+  <h4>Fix a: set the DimTechnician to FactLabor relationship to Both</h4>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 350" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><line x1="450" y1="14" x2="450" y2="336" stroke="#D2CDC0" stroke-width="1" stroke-dasharray="4 4"/><text x="24.0" y="26.0" class="d-t" fill="#1B5A68">Single, the default</text><text x="474.0" y="26.0" class="d-t" fill="#AE4419">Both, bidirectional</text><rect x="24.0" y="46.0" width="175.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="35.0" y="63.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="24.0" y1="72.0" x2="199.0" y2="72.0" stroke="#1B5A68" stroke-width="1"/><text x="35.0" y="84.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="35.0" y="99.5" class="d-m">EmployeeType</text><rect x="24.0" y="176.0" width="175.0" height="71.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="35.0" y="193.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="24.0" y1="202.0" x2="199.0" y2="202.0" stroke="#AE4419" stroke-width="1"/><text x="35.0" y="214.0" class="d-m">TechnicianID</text><text x="35.0" y="229.5" class="d-m">Hours</text><line x1="112.0" y1="122.0" x2="112.0" y2="176.0" class="d-line-hot" marker-end="url(#ah)"/><text x="103.0" y="140.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="103.0" y="164.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="214.0" y="96.0" class="d-s">A selection on DimTechnician</text><text x="214.0" y="111.0" class="d-s">reaches FactLabor.</text><text x="214.0" y="141.0" class="d-s">A selection on FactLabor</text><text x="214.0" y="156.0" class="d-s">does not reach DimTechnician.</text><rect x="24.0" y="262.0" width="400.0" height="68.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="38.0" y="282.0" class="d-t" fill="#2B6140">One path, one answer</text><text x="38.0" y="300.0" class="d-s">The engine resolves a filter with a lookup. Every measure that</text><text x="38.0" y="314.0" class="d-s">touches these two tables behaves the same way in every visual.</text><rect x="474.0" y="46.0" width="175.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="485.0" y="63.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="474.0" y1="72.0" x2="649.0" y2="72.0" stroke="#1B5A68" stroke-width="1"/><text x="485.0" y="84.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="485.0" y="99.5" class="d-m">EmployeeType</text><rect x="474.0" y="176.0" width="175.0" height="71.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="485.0" y="193.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="474.0" y1="202.0" x2="649.0" y2="202.0" stroke="#AE4419" stroke-width="1"/><text x="485.0" y="214.0" class="d-m">TechnicianID</text><text x="485.0" y="229.5" class="d-m">Hours</text><line x1="562" y1="122" x2="562" y2="176" class="d-line-hot" marker-end="url(#ah)" marker-start="url(#ah)"/><text x="553.0" y="140.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="553.0" y="164.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="664.0" y="96.0" class="d-s">Now a selection on FactLabor</text><text x="664.0" y="111.0" class="d-s">also narrows DimTechnician,</text><text x="664.0" y="141.0" class="d-s">which is what makes a slicer</text><text x="664.0" y="156.0" class="d-s">hide unused technicians.</text><rect x="474.0" y="262.0" width="400.0" height="80.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="488.0" y="282.0" class="d-t" fill="#98281E">Convenient, and the usual source of ambiguity</text><text x="488.0" y="300.0" class="d-s">The engine must now build a set on the one side rather than do a</text><text x="488.0" y="314.0" class="d-s">lookup, and it pays that cost on every query, not only the</text><text x="488.0" y="328.0" class="d-s">ones that actually need it.</text></svg></div><figcaption><span class="fig-num">Figure 17.2</span>What actually changes when a relationship is set to Both.</figcaption></figure>
+
+  <p>You have met these two panels in <a class="xref" href="#ch-08">Chapter 8</a>. Look only at the arrowheads on the link between the dimension and the fact. The left panel is Single, the default. It has one arrowhead, pointing down into <code>FactLabor</code>. The note beside it says a selection on <code>FactLabor</code> does not reach <code>DimTechnician</code>, and that is your station filter arriving at <code>FactLabor</code> with nowhere further to go. The right panel is Both, also called bidirectional. It draws the same two boxes with a second arrowhead pointing back up. Its note states the effect plainly: a selection on <code>FactLabor</code> now narrows <code>DimTechnician</code>, which is what makes a slicer hide unused technicians. That second arrowhead is fix a in its entirety. Everything else in this section is about what else travels along it when you are not watching.</p>
+
+  <p>This works immediately and with no measure. Set the cross filter direction on <code>DimTechnician[TechnicianID]</code> to <code>FactLabor[TechnicianID]</code> to Both, select MSP, and the slicer drops to R. Okafor, M. Halvorsen and D. Sandoval: the three people with labor on an MSP work order.</p>
+
+  <details class="expand" open>
+    <summary>Trace this by hand, row by row</summary>
+    <div class="expand-body">
+      <p>MSP work orders are WO-1001, WO-1002, WO-1006 and WO-1008. The labor rows attached to them are L-501 and L-502 on WO-1001, L-503 on WO-1002, and L-507 on WO-1006. WO-1008 has no labor rows at all, so it contributes nothing.</p>
+      <p>That leaves TECH-02 with 7.5 plus 9.0 equals 16.5 hours, TECH-04 with 6.0 hours, and TECH-01 with 12.0 hours. The three add to 34.5, which is the MSP figure in the answer key, so the trace is consistent.</p>
+      <p>Note what TECH-04 does to the story. D. Sandoval's <code>HomeStation</code> is TUS, and he appears in an MSP-filtered slicer because he booked 6.0 hours there. Bidirectional propagation answers who worked here, not who is based here.</p>
+    </div>
+  </details>
+
+  <p>The cost is the one described in <a class="xref" href="#ch-08">Chapter 8</a>, plus one specific to this model. There is deliberately no relationship from <code>DimStation[StationCode]</code> to <code>DimTechnician[HomeStation]</code>. Such a relationship would hand a station filter two active routes into <code>FactLabor</code>, one through <code>FactWorkOrder</code> and one through <code>DimTechnician</code>. Faced with an ambiguous pair of active paths, the engine rejects the model instead of picking a route on your behalf. That refusal already stands today, with every relationship left single direction. Turning <code>DimTechnician</code> to <code>FactLabor</code> bidirectional makes the block permanent. A slicer somebody uses every day now depends on that edge, and nobody will trade it away later to get home station filtering back.</p>
+
+  <p>Both also lets everything through in that direction. Anything that filters <code>FactLabor</code> now filters the technician list, the date slicer included. Pick February and the list collapses to the two people with a February labor row: R. Okafor on 2025-02-19 and the Unknown technician on 2025-02-05. M. Halvorsen disappears from a list somebody was using to find a name.</p>
+
+  <h4>Fix b: leave the model alone and filter the slicer with a measure</h4>
+
+  <p>Select the technician slicer and add a visual level filter in the Filters pane on a measure, with the condition "is not blank". Leave Show items with no data off, so one mechanism decides membership. The measure is small.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Technician Has Labor</span></div>
+    <pre><code><span class="c">// Returns 1 when the current filter context leaves at</span>
+<span class="c">// least one row in FactLabor, and BLANK when it leaves none.</span>
+Technician Has Labor <span class="op">=</span>
+<span class="k">VAR</span> LaborRows <span class="op">=</span> <span class="k">COUNTROWS</span> ( <span class="t">FactLabor</span> )
+<span class="k">RETURN</span>
+    <span class="k">IF</span> ( LaborRows <span class="op">&gt;</span> <span class="n">0</span>, <span class="n">1</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v">The measure declaration. Nothing is computed on this line, but it settles where the work happens. A measure placed in the Filters pane of a slicer is evaluated once per candidate member. That evaluation runs inside a filter context, which means the set of filters already in force from everything else on the page. With MSP selected, the filter context is station MSP plus one technician.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v"><code>COUNTROWS</code> over <code>FactLabor</code> counts the rows surviving both filters. Station MSP arrives down hops 1 and 2, the technician arrives down the single relationship from <code>DimTechnician</code>, and the two intersect.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v"><code>IF</code> written with two arguments returns BLANK when the test fails, and BLANK is exactly what the condition "is not blank" tests for. The member drops out of the list.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>COUNTROWS</code> and not <code>SUM ( FactLabor[Hours] )</code>. SUM returns 0 for a technician whose hours net to zero, and 0 passes an "is not blank" test. Meridian has no such row today. The first timesheet correction posting a plus and a minus creates one. Existence is the question here, so count rows. <code>COUNTROWS</code> and not <code>DISTINCTCOUNT ( FactLabor[LaborID] )</code>. Same answer in this model, but DISTINCTCOUNT hashes the column values while COUNTROWS reads a count the engine already keeps. And <code>CROSSFILTER</code> inside <code>CALCULATE</code>, the surgical version of fix a, does not help here. It changes propagation for one measure, and a member list is a column query, not a measure.</p>
+  </div>
+
+  <p>With MSP selected this returns the same three names as fix a. The difference is where the decision lives. Fix a lives in the model, and it applies to every report built on the dataset. Fix b lives on one visual, where a colleague can see it sitting in the Filters pane.</p>
+
+  <p>The catch is that "one visual" is literal. If the slicer appears on four pages, you set the filter four times. When someone copies a page and swaps the field, the filter travels with it in a state nobody checks.</p>
+
+  <h4>Fix c: denormalise, which Meridian cannot do</h4>
+
+  <p>The standard third answer is to flatten the problem. Put a Station column on <code>DimTechnician</code> so both slicers sit on one table, back in Case 1. Denormalise means exactly that: copy an attribute onto a table that did not carry it, so a lookup becomes a column. The data at Meridian blocks this one, and the tooling has nothing to do with it.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 17.3</span> Two technicians book time at more than one station in a single quarter, so station is not an attribute of a technician.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Technician</th><th scope="col">HomeStation</th><th scope="col">Stations actually worked</th><th scope="col" class="num">Hours</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">TECH-04 D. Sandoval</td><td>TUS</td><td>MSP 6.0 on WO-1001, TUS 4.5 on WO-1003</td><td class="num">10.5</td></tr>
+          <tr><td class="key">TECH-05 K. Ibrahim</td><td>LAS</td><td>TUS 8.0 on WO-1003, LAS 5.0 on WO-1007</td><td class="num">13.0</td></tr>
+          <tr><td class="key">TECH-01 R. Okafor</td><td>MSP</td><td>MSP 12.0 on WO-1006</td><td class="num">12.0</td></tr>
+          <tr><td class="key">TECH-02 M. Halvorsen</td><td>MSP</td><td>MSP 16.5 on WO-1001 and WO-1002</td><td class="num">16.5</td></tr>
+          <tr class="row-bad"><td class="key">TECH-03, TECH-06</td><td>TUS, MSP</td><td>none in the quarter</td><td class="num">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>A denormalised Station column holds one value per technician. TECH-04 needs two. You could store <code>HomeStation</code> and call it Station. The MSP slicer would then return R. Okafor, M. Halvorsen and L. Petrov, at 12.0 plus 16.5 plus 0, which is 28.5. The card beside it reads 34.5. The 6.0 hour gap is TECH-04, who worked at MSP and is based at TUS.</p>
+
+  <p>Where two dimensions relate many to many through the facts, no flattening preserves the meaning. Either the fact table is the arbiter, or you accept a wrong answer that is easier to build.</p>
+
+  <h4>What to do at Meridian</h4>
+
+  <p>Use fix b. Keep <code>DimTechnician</code> to <code>FactLabor</code> single direction and put the measure filter on the technician slicer. That answers the planner. MSP now gives her R. Okafor, M. Halvorsen and D. Sandoval, and the setting she was hunting for turns out to be a measure.</p>
+
+  <p>The reason is about meaning, and performance has nothing to do with it. The correct technician list is ambiguous in the business as well as in the model. Planning wants technicians based at the station. Shop floor reporting wants technicians who booked hours there. The two lists differ by two names this quarter, L. Petrov in one and D. Sandoval in the other. A per visual filter lets you put both slicers on one page under different labels. Both hard-codes one answer where no reader can see it, and it forecloses the <code>HomeStation</code> relationship for good. Fix a is right when one answer is needed on many pages. Meridian needs two answers on one page.</p>
+
+  <h3>Case 3: three things that look like the same setting</h3>
+
+  <p>The shift supervisor asks for something that sounds simple. Hide the aircraft with no data. You do it, he opens the page, and N615RB has gone from the list. He knows that aircraft. It came in AOG, aircraft on ground, and went out two days later with 1,875 of parts on it. He did not mean that one.</p>
+
+  <p>People conflate three mechanisms, then argue about a slicer that is behaving correctly. Apply each to the aircraft registration slicer.</p>
+
+  <p><strong>Show items with no data</strong> is a per field, per visual setting. It keeps members of that field even where the join produces nothing. On a slicer carrying one column and no measure it does nothing, because there is no join for rows to be dropped from. It earns its keep on a matrix crossing a dimension column with a measure.</p>
+
+  <p><strong>A measure based visual level filter</strong> is the one that actually removes members. It evaluates a measure once per member and tests the result. It is a computation, and it costs what a computation costs.</p>
+
+  <p><strong>A dimension member with no facts</strong> is a third thing entirely, and it is correct data. N120CE and N553KD are Sierra Charter aircraft in the fleet spreadsheet with no work orders at Meridian in Q1. Their absence from the report is a finding.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Two candidate filter measures</span></div>
+    <pre><code>Work Order Count <span class="op">=</span> <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> )
+
+Labor Hours <span class="op">=</span> <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Work Order Count</div><div class="linex-v">Tests whether the aircraft has any work order at all. Filtering the tail slicer on this keeps N615RB, which has WO-1005, and drops only N120CE and N553KD.</div></div>
+    <div class="linex-row"><div class="linex-k">Labor Hours</div><div class="linex-v">Tests whether anyone booked time against the aircraft. This also drops N615RB, whose one work order was an AOG event closed in two days with 1,875 of parts and no timesheet rows.</div></div>
+    <div class="linex-row"><div class="linex-k">SUM, not SUMX</div><div class="linex-v"><code>SUM</code> and not <code>SUMX ( FactLabor, FactLabor[Hours] )</code>, because there is no row by row expression to evaluate. SUMX would build an iterator to read one column that the engine can scan directly.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 17.4</span> What each mechanism does to the seven-member aircraft registration slicer. Work order counts and per tail hours are summed from the fact rows.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Tail</th><th scope="col" class="num">Work orders</th><th scope="col" class="num">Labor hours</th><th scope="col" class="num">Parts cost</th><th scope="col">Default slicer</th><th scope="col">Filter: Work Order Count not blank</th><th scope="col">Filter: Labor Hours not blank</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">N771QR</td><td class="num">3</td><td class="num">23.5</td><td class="num">1,240</td><td>shown</td><td>shown</td><td>shown</td></tr>
+          <tr><td class="key">N448LM</td><td class="num">1</td><td class="num">9.0</td><td class="num">2,450</td><td>shown</td><td>shown</td><td>shown</td></tr>
+          <tr><td class="key">N902TT</td><td class="num">2</td><td class="num">17.5</td><td class="num">12,680</td><td>shown</td><td>shown</td><td>shown</td></tr>
+          <tr class="row-bad"><td class="key">N615RB</td><td class="num">1</td><td class="num">0</td><td class="num">1,875</td><td>shown</td><td>shown</td><td class="cell-bad">hidden</td></tr>
+          <tr><td class="key">N338WA</td><td class="num">1</td><td class="num">12.0</td><td class="num">5,100</td><td>shown</td><td>shown</td><td>shown</td></tr>
+          <tr><td class="key">N120CE</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td>shown</td><td class="cell-bad">hidden</td><td class="cell-bad">hidden</td></tr>
+          <tr><td class="key">N553KD</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td>shown</td><td class="cell-bad">hidden</td><td class="cell-bad">hidden</td></tr>
+          <tr class="row-total"><td>Totals and members visible</td><td class="num">8</td><td class="num">62.0</td><td class="num">23,345</td><td class="num">7</td><td class="num">5</td><td class="num">4</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Read the N615RB row twice. Filtering on Labor Hours removes an aircraft with a genuine AOG event and 1,875 of parts issued, because no technician booked hours against it. That is the aircraft the shift supervisor came to ask about, and Work Order Count is the filter he actually wanted. The parts total reads 23,345 rather than 28,245 because the 4,900 on P-9007 belongs to WO-1009, which reaches no tail.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Building the technician slicer on <code>FactLabor[TechnicianID]</code> instead of on <code>DimTechnician</code>, because a fact column does narrow when you select a station. It looks solved. It is not. That slicer shows only the five technician codes present in labor rows, so J. Prieto and L. Petrov never appear even with nothing selected, and everyone else is listed as a raw code where a name was expected. A slicer belongs on a dimension unless the column is a degenerate key, which means a key that lives on the fact table and has no dimension of its own, like <code>WorkOrderID</code>.</p>
+  </aside>
+
+  <h3>Edit Interactions, per pair, every time</h3>
+
+  <p>The shift supervisor is back. He clicks the station slicer at the top of the page, and the fleet table at the bottom sits there unchanged. He is right about what he is seeing. The relationship list will tell you nothing, because somebody set that pair of visuals to ignore each other.</p>
+
+  <p>Edit Interactions decides what one visual does to another when it acts as a filter source. Turn it on from the Format ribbon and every other visual gets a small control bar. Three states.</p>
+
+  <dl class="defs">
+    <dt>Filter</dt><dd>The target is filtered. Rows that do not match are gone, totals recalculate, and the target's own visual level filters apply on top.</dd>
+    <dt>Highlight</dt><dd>The target keeps its full data and shows the matching portion in solid colour against a dimmed remainder. It exists only on visuals that can draw a partial mark, so columns, bars, lines and maps offer it while cards and slicers do not.</dd>
+    <dt>None</dt><dd>The target ignores the source completely. The selection stays visible on the source, which is what confuses people: the slicer looks active and the visual does not move.</dd>
+  </dl>
+
+  <p>The default depends on the pair. A slicer defaults to Filter on everything on its page. A chart selection defaults to Highlight on another chart, because a chart can draw the matched portion against a dimmed remainder. On a card it falls back to Filter, because a card has one number and nothing to dim. Tables and matrices sit between the two cases and expose both buttons. Check the pair you care about.</p>
+
+  <p>None is right more often than people think. Put the station slicer and the capacity chart in the top half of a page. Put an operator slicer and a fleet table in the bottom half. The two halves have no reason to interfere. Setting each slicer to None against the other section is the honest build. Hoping users only click the slicer nearest what they meant is a wish, and a wish is not a design.</p>
+
+  <p>The trap is the word per. Interactions are stored per source visual per target visual. Three slicers and six visuals is eighteen pairs before chart to chart. Nothing shows you the grid at once, and a visual added later arrives with the defaults rather than your settings. That is how a page ends up with two slicers wired one way and the third not, and how the shift supervisor ends up with a table that ignores him.</p>
+
+  <h3>Sync Slicers, and the two ways it goes wrong</h3>
+
+  <p>The finance manager phones about page 3 of your report. Total labor hours reads 5.0, and he knows the quarter was 62.0. There is no slicer anywhere on that page for him to check. The explanation is two pages back, and this section is how it got there.</p>
+
+  <p>Sync Slicers makes one selection apply on more than one page. Open the Sync slicers pane and you get a row per page with two separate ticks: Sync and Visible. Sync means the selection applies there. Visible means the slicer is drawn there. They are independent, which is both the point of the feature and its second failure mode.</p>
+
+  <p>Membership is by group name. Slicers in one named group share a selection. Power BI derives the default group name from the field, so two slicers on <code>DimStation[StationCode]</code> land in one group when you tick Sync on both. Renaming the group links slicers Power BI would not have linked, deliberately or by accident.</p>
+
+  <p><strong>Failure one: syncing slicers whose field is different on the two pages.</strong> Put <code>DimStation[StationCode]</code> on page 1 and <code>DimTechnician[HomeStation]</code> on page 2 under one group name. It appears to work: both columns hold the text MSP, TUS and LAS, and the selection passes across as a value. Page 2 then filters technicians whose home station is MSP: R. Okafor, M. Halvorsen and L. Petrov, at 12.0 plus 16.5 plus 0, or 28.5 hours. Page 1 reports 34.5. Select PHX and page 2 empties out entirely, because PHX has never been anybody's home station.</p>
+
+  <p><strong>Failure two: forgetting that a hidden synced slicer still filters.</strong> Sync ticked and Visible unticked means the selection applies to a page showing no slicer. Leave LAS selected, walk to page 3, and total labor hours reads 5.0 instead of 62.0 with nothing on screen to explain it. That is the finance manager's page 3, and untick Sync for that page and his number comes back to 62.0. This is the usual cause of "the numbers are wrong on this page", and it survives export to PDF.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>Every slicer runs its own DAX query at page load, alongside the queries for your charts. Six slicers means six extra queries competing for the same capacity. A plain slicer scans distinct values on one column, cheap on a dimension of a few hundred members and expensive on a fact column of hundreds of thousands. A measure based visual filter changes the query shape: the engine groups by the column and evaluates the measure per group. At eight labor rows this is unmeasurable. On a real <code>FactLabor</code> of tens of millions it is one of the slowest things on the page, and it re-runs whenever another slicer changes.</p>
+  </aside>
+
+  <h3>Which slicer type, and what each one costs</h3>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 17.5</span> Slicer types against the Meridian columns they suit.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Type</th><th scope="col">Use it when</th><th scope="col">Meridian example</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>List</td><td>Few members and you want them all visible without a click.</td><td><code>DimWOType[WOType]</code>, three members: Scheduled, AOG, Mod.</td></tr>
+          <tr><td>Dropdown</td><td>Many members, or canvas space matters more than seeing the selection.</td><td><code>DimTechnician[TechnicianName]</code>. Seven here, three hundred in a real shop.</td></tr>
+          <tr><td>Hierarchy</td><td>Two levels on the same table, and you want one control instead of two.</td><td><code>DimAircraft[Operator]</code> then <code>DimAircraft[ACREG]</code>, expandable in place.</td></tr>
+          <tr><td>Between</td><td>A numeric column where the question is a range, not a set of values.</td><td><code>FactWorkOrder[QuotedAmount]</code>, which runs from 900 to 12,500.</td></tr>
+          <tr><td>Relative date</td><td>A live dataset where the question is always relative to today.</td><td>Dangerous here. Meridian ends 2025-03-31, so last 3 months returns nothing.</td></tr>
+          <tr><td>Tile</td><td>Three to five short members that should read as buttons on one row.</td><td><code>DimWOType[WOType]</code> again, when the page has one filter and no space.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The relative date row springs its trap only after handover, which is why it deserves a paragraph of its own. That slicer resolves against the system date, not the data. Point one at Meridian's Q1 2025 extract, open the report any month after June 2025, and every visual goes blank while the model and the measures are correct. Use relative date on data that keeps moving, an explicit range on a fixed extract.</p>
+
+  <h3>The cascade you actually want: operator, then tail, then work order</h3>
+
+  <p>Here is the pattern behind the original question, end to end. Three slicers, each narrowing the next, with the model exactly as the relationship list already has it.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 17.6</span> The three slicer cascade and what each hop depends on. No cross filter direction is changed anywhere.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Slicer</th><th scope="col">Field</th><th scope="col">Table</th><th scope="col">Narrowed by</th><th scope="col">Model requirement</th></tr>
+        </thead>
+        <tbody>
+          <tr class="row-good"><td>1. Operator</td><td class="key">Operator</td><td>DimAircraft <span class="derived-tag">Built</span></td><td>nothing</td><td>none</td></tr>
+          <tr class="row-good"><td>2. Tail</td><td class="key">ACREG</td><td>DimAircraft <span class="derived-tag">Built</span></td><td>slicer 1, same table</td><td>none</td></tr>
+          <tr class="row-good"><td>3. Work order</td><td class="key">WorkOrderID</td><td>FactWorkOrder <span class="fact-tag">Fact</span></td><td>slicers 1 and 2, one to many</td><td>the existing single direction relationship</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Hop one is Case 1, two columns on one table. Hop two is the part people expect to be hard. <code>DimAircraft[ACREG]</code> to <code>FactWorkOrder[ACREG]</code> runs one to many, single direction, from the one side to the many side, which is the direction filters already flow. A slicer on <code>FactWorkOrder[WorkOrderID]</code> is therefore narrowed by the tail slicer with nothing configured. Pick Cascade Air, then N771QR, and it holds WO-1001, WO-1004 and WO-1008. Pick N448LM and it holds WO-1002.</p>
+
+  <p>Make the work order slicer a dropdown, because in production it is the highest cardinality control on the page. Leave all three relationships single direction. To hide work orders with no labor, use the measure filter from fix b and leave the relationship alone.</p>
+
+  <p>The cost is that nothing forces the user down the cascade in order. Power BI has no required-selection state, so on page load the work order slicer sits at full cardinality and queries the whole column. Anyone clicking straight into it gets every work order in the model. That is the honest limit of the pattern, and why the dropdown is a correctness decision as much as a layout choice.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Slicers cross-filter by the same propagation rules as every other visual. Trace the hops, find the one that runs many to one, and fix that.</li>
+      <li>Two fields on the same dimension always cascade for free. Operator to tail needs nothing.</li>
+      <li>Two dimensions either side of a fact need either a bidirectional relationship, which is global and permanent, or a measure based visual filter, which is local and repeated. At Meridian, choose the measure filter.</li>
+      <li>Denormalising is not always available. A technician works at more than one station, so no single Station column on <code>DimTechnician</code> can be correct.</li>
+      <li>Show items with no data, a measure filter, and a dimension member with no facts are three different things. Only the middle one removes members from a slicer.</li>
+      <li>Edit Interactions is stored per source visual per target visual, and a visual added later inherits defaults, not your settings.</li>
+      <li>Sync and Visible are separate. A synced hidden slicer still filters the page, and it is the usual explanation for numbers that look wrong with nothing on screen to blame.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="16.html"><span class="pn-dir">Previous</span><span class="pn-t">Grain mismatch: headers, lines and monthly plans</span></a><a class="pn" href="18.html"><span class="pn-dir">Next</span><span class="pn-t">Diagnosis: my slicer is not filtering my visual</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

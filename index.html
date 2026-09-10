@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="assets/app.css">
+<title>Data Modelling for Power BI</title>
+<meta name="description" content="A working manual on table design, relationship mechanics and filter context in Power BI, built around one small aircraft maintenance dataset.">
+</head>
+<body class="is-index">
+<div id="progress"></div>
+<main class="main">
+<header class="cover">
+  <div class="cover-kicker">A working manual</div>
+  <h1>Data Modelling<br>for Power BI</h1>
+  <p class="cover-sub">Most Power BI problems that look like DAX problems are model problems. This manual works through table structure, relationship mechanics and filter context using one deliberately small aircraft maintenance dataset, small enough that every number in it can be checked by hand.</p>
+  <div class="cover-meta">
+    <div><dt>Chapters</dt><dd>28</dd></div>
+    <div><dt>Words</dt><dd>229,052</dd></div>
+    <div><dt>Source tables</dt><dd>Fourteen, 4 to 8 rows each</dd></div>
+    <div><dt>Works offline</dt><dd>Yes, once installed</dd></div>
+  </div>
+</header>
+
+<section class="panel" id="resumePanel" hidden>
+  <div class="panel-k">Continue where you stopped</div>
+  <a class="resume-card" id="resumeCard" href="#">
+    <span class="rc-n" id="rcNum"></span>
+    <span class="rc-b"><span class="rc-t" id="rcTitle"></span><span class="rc-p" id="rcPct"></span></span>
+  </a>
+</section>
+
+<section class="panel">
+  <div class="panel-row">
+    <div class="panel-k">Your progress</div>
+    <button class="ghost" id="resetProgress">Reset</button>
+  </div>
+  <div class="bigbar"><i id="bigbarFill"></i></div>
+  <p class="panel-note" id="progressNote">Nothing read yet.</p>
+</section>
+
+<section class="panel">
+  <label class="panel-k" for="q">Find a chapter</label>
+  <input id="q" type="search" placeholder="filter, grain, many to many, productivity, CALCULATE" autocomplete="off">
+  <ul id="results" class="results"></ul>
+</section>
+
+<section class="toc">
+  <h2>Contents</h2>
+  <div class="toc-grid"><section class="ct-part"><h3>Part 0 . The domain</h3><ol><li class="ct-row" data-ch="A"><a href="ch/A.html"><span class="ct-n">A</span><span class="ct-body"><span class="ct-t">How an aircraft maintenance shop actually runs</span><span class="ct-meta"><span class="ct-w">7,912 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="B"><a href="ch/B.html"><span class="ct-n">B</span><span class="ct-body"><span class="ct-t">Available, projected and achieved: three numbers that are three facts</span><span class="ct-meta"><span class="ct-w">8,976 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="C"><a href="ch/C.html"><span class="ct-n">C</span><span class="ct-body"><span class="ct-t">The manhour maze: nine words for nine different numbers</span><span class="ct-meta"><span class="ct-w">10,590 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="D"><a href="ch/D.html"><span class="ct-n">D</span><span class="ct-body"><span class="ct-t">Who produces which number, and why two of them disagree</span><span class="ct-meta"><span class="ct-w">7,294 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li></ol></section><section class="ct-part"><h3>Part 1 . Reading the data</h3><ol><li class="ct-row" data-ch="00"><a href="ch/00.html"><span class="ct-n">00</span><span class="ct-body"><span class="ct-t">The shop, the six tables, and how to read this document</span><span class="ct-meta"><span class="ct-w">5,664 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="01"><a href="ch/01.html"><span class="ct-n">01</span><span class="ct-body"><span class="ct-t">Facts, dimensions and the grain test</span><span class="ct-meta"><span class="ct-w">7,563 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="02"><a href="ch/02.html"><span class="ct-n">02</span><span class="ct-body"><span class="ct-t">Why the star schema is the right shape</span><span class="ct-meta"><span class="ct-w">5,443 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="03"><a href="ch/03.html"><span class="ct-n">03</span><span class="ct-body"><span class="ct-t">Building the dimensions your source does not contain</span><span class="ct-meta"><span class="ct-w">15,483 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li></ol></section><section class="ct-part"><h3>Part 2 . Shaping the data</h3><ol><li class="ct-row" data-ch="04"><a href="ch/04.html"><span class="ct-n">04</span><span class="ct-body"><span class="ct-t">Power Query or DAX: deciding where work belongs</span><span class="ct-meta"><span class="ct-w">6,205 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="05"><a href="ch/05.html"><span class="ct-n">05</span><span class="ct-body"><span class="ct-t">Power Query mechanics that matter for modelling</span><span class="ct-meta"><span class="ct-w">9,956 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li></ol></section><section class="ct-part"><h3>Part 3 . Relationships and filter flow</h3><ol><li class="ct-row" data-ch="06"><a href="ch/06.html"><span class="ct-n">06</span><span class="ct-body"><span class="ct-t">Relationship mechanics: cardinality, direction, active and inactive</span><span class="ct-meta"><span class="ct-w">9,526 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="07"><a href="ch/07.html"><span class="ct-n">07</span><span class="ct-body"><span class="ct-t">How a filter actually travels through the model</span><span class="ct-meta"><span class="ct-w">7,179 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="08"><a href="ch/08.html"><span class="ct-n">08</span><span class="ct-body"><span class="ct-t">Single versus bidirectional cross-filtering</span><span class="ct-meta"><span class="ct-w">6,227 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li></ol></section><section class="ct-part"><h3>Part 4 . Evaluation context and DAX</h3><ol><li class="ct-row" data-ch="09"><a href="ch/09.html"><span class="ct-n">09</span><span class="ct-body"><span class="ct-t">Row context and filter context</span><span class="ct-meta"><span class="ct-w">6,485 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="10"><a href="ch/10.html"><span class="ct-n">10</span><span class="ct-body"><span class="ct-t">Calculated column or measure</span><span class="ct-meta"><span class="ct-w">6,545 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="11"><a href="ch/11.html"><span class="ct-n">11</span><span class="ct-body"><span class="ct-t">CALCULATE and every filter modifier you need</span><span class="ct-meta"><span class="ct-w">7,530 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="12"><a href="ch/12.html"><span class="ct-n">12</span><span class="ct-body"><span class="ct-t">USERELATIONSHIP and CROSSFILTER</span><span class="ct-meta"><span class="ct-w">4,801 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li></ol></section><section class="ct-part"><h3>Part 5 . Hard modelling cases</h3><ol><li class="ct-row" data-ch="13"><a href="ch/13.html"><span class="ct-n">13</span><span class="ct-body"><span class="ct-t">Role-playing dimensions: one date table, many dates</span><span class="ct-meta"><span class="ct-w">9,467 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="14"><a href="ch/14.html"><span class="ct-n">14</span><span class="ct-body"><span class="ct-t">Many-to-many, and the total that does not add up</span><span class="ct-meta"><span class="ct-w">6,600 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="15"><a href="ch/15.html"><span class="ct-n">15</span><span class="ct-body"><span class="ct-t">Virtual relationships: TREATAS and friends</span><span class="ct-meta"><span class="ct-w">7,549 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="16"><a href="ch/16.html"><span class="ct-n">16</span><span class="ct-body"><span class="ct-t">Grain mismatch: headers, lines and monthly plans</span><span class="ct-meta"><span class="ct-w">9,253 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="17"><a href="ch/17.html"><span class="ct-n">17</span><span class="ct-body"><span class="ct-t">Making slicers cross-filter each other</span><span class="ct-meta"><span class="ct-w">4,560 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li></ol></section><section class="ct-part"><h3>Part 6 . Diagnosis and reference</h3><ol><li class="ct-row" data-ch="18"><a href="ch/18.html"><span class="ct-n">18</span><span class="ct-body"><span class="ct-t">Diagnosis: my slicer is not filtering my visual</span><span class="ct-meta"><span class="ct-w">5,183 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="19"><a href="ch/19.html"><span class="ct-n">19</span><span class="ct-body"><span class="ct-t">Data quality: orphans, blanks and unknown members</span><span class="ct-meta"><span class="ct-w">10,315 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="20"><a href="ch/20.html"><span class="ct-n">20</span><span class="ct-body"><span class="ct-t">Anti-patterns and how to recognise them</span><span class="ct-meta"><span class="ct-w">5,842 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="21"><a href="ch/21.html"><span class="ct-n">21</span><span class="ct-body"><span class="ct-t">Cheat sheet, measure library and review checklist</span><span class="ct-meta"><span class="ct-w">18,420 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li></ol></section><section class="ct-part"><h3>Appendix</h3><ol><li class="ct-row" data-ch="E"><a href="ch/E.html"><span class="ct-n">E</span><span class="ct-body"><span class="ct-t">Your shop, mapped onto this document</span><span class="ct-meta"><span class="ct-w">7,155 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li><li class="ct-row" data-ch="F"><a href="ch/F.html"><span class="ct-n">F</span><span class="ct-body"><span class="ct-t">Aviation MRO vocabulary for the data analyst</span><span class="ct-meta"><span class="ct-w">11,329 words</span><span class="ct-state"></span></span><span class="ct-bar"><i></i></span></span></a></li></ol></section></div>
+</section>
+
+<section class="panel panel-foot">
+  <div class="panel-k">Also available</div>
+  <p class="panel-note">The whole manual as one file you can download and open without a network:
+  <a href="power-bi-data-modelling-masterclass.html" download>single page version</a>. Useful on a locked down machine.</p>
+  <p class="panel-note">The fifteen sample tables as CSV, ready to load into Power BI with Get Data, Text/CSV:
+  <a href="data/">the Meridian data</a>. Load them without cleaning them, because the defects are the lesson.</p>
+  <p class="panel-note" id="installNote" hidden><button class="ghost" id="installBtn">Install on this device</button> so it opens like an app and works offline.</p>
+</section>
+</main>
+<script src="assets/app.js" defer></script>
+</body>
+</html>

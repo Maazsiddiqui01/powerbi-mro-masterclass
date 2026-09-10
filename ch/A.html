@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>How an aircraft maintenance shop actually runs</title>
+</head>
+<body data-ch="A">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">A</span><span class="tb-title">How an aircraft maintenance shop actually runs</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-A">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 0 . The domain</div>
+    <h2 class="chapter-title"><span class="chapter-num">A</span>How an aircraft maintenance shop actually runs</h2>
+    <p class="chapter-lede">After this chapter you will be able to read a maintenance work order, say which service line produced it, name the stage of the check that wrote each number on it, and say who owns that number. You will also know why the shape of the organisation breaks some of your joins, long before a bad extract gets the blame.</p>
+  </div>
+
+  <p class="lead">The production controller stops at your desk on a Tuesday morning. He wants one number: hours booked this month, split by service line. You have the data, so you build it in ten minutes. He reads it, points at the line maintenance row, and says that figure is wrong, because his shift supervisor had a crew on the ramp all last week. He is right. The rest of this chapter is why.</p>
+
+  <p>A note on one word before we start, because it is on every page from here. A work order is the shop's unit of work: one job, on one aircraft, opened, priced, worked and closed. Meridian has eight of them. Every number in this document hangs off one of those eight.</p>
+
+  <p>You already know how to build a model. What has been missing is the thing the columns describe. This chapter is the operations primer: no Meridian tables yet, and one measure only, because that measure makes no sense until you know the shop.</p>
+
+  <h3>Who does the work, and who decides the work is due</h3>
+
+  <p>MRO stands for Maintenance, Repair and Overhaul: the organisation that physically touches the aircraft, working under a maintenance organisation approval. That approval is EASA Part-145 in Europe, from the European Union Aviation Safety Agency, or 14 CFR Part 145 in the United States, from the Federal Aviation Administration. Some MROs belong to an airline. Others sell hangar capacity to several operators.</p>
+
+  <p>One fact shapes your data more than any other, and nobody says it out loud to a new analyst. The operator decides what maintenance is due, and the MRO performs it on the operator's instruction.</p>
+
+  <p>In Europe the operator carries that duty through a CAMO, a Continuing Airworthiness Management Organisation. The CAMO owns the aircraft maintenance programme. It tracks what is coming due on every aircraft registration, and it raises the demand. Under FAA rules the same duty sits with the operator's own continuing airworthiness function. Either way it is another company on another system. The shop receives an aircraft registration, a check description, a date window and a price basis. The reasoning behind those four things stays with the operator.</p>
+
+  <p>So an MRO source table routinely carries a foreign key to something the shop holds no master list of. The registration belongs to the customer's fleet record, that record is maintained by whoever answers the phone at the service desk, and it is late. A tail can be inducted, worked, invoiced and closed while the shop's own registry has never heard of it.</p>
+
+  <p>The key will not join, and Power BI will not complain. It adds a blank row on the one side and parks the unmatched facts there, where no report label points at them. Handling that is <a class="xref" href="#ch-19">Chapter 19</a>. What you need now is the cause, because the cause changes the fix. A data quality defect gets a ticket. This is a boundary between two companies, it recurs next quarter under a different aircraft registration, and your model has to survive it without you in the room.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Referential integrity is a property of one system under one owner. Your model spans three: the customer's continuing airworthiness function, the shop's regulated maintenance system, and planning workbooks belonging to individual managers. Clean keys would need three organisations to agree on identifiers they were never required to share. So do not chase the key. Build a dimension holding every key the facts actually use, label the recovered members as unknown, and put the count of unknown members on the report. A model that hides its own gaps is worse than one that shows them.</p>
+  </aside>
+
+  <p>Six roles put their names on your columns. The planner builds the work package before arrival and owns the estimated hours. The production controller runs the check day to day and revises the forecast. Technicians book time against task cards, and a task card is one printed instruction for one piece of work. The shift supervisor decides who works which card tonight, and he keeps that on a whiteboard in the crew room. Certifying staff sign the work off, and only they can. Quality performs independent inspection. Stores issues parts and controls tooling.</p>
+
+  <p>Certifying authority is regulated and personal. In Europe it is a licence held under EASA Part-66. B1 covers mechanical work, B2 covers avionics, and C signs off an entire base check. In the United States the same authority sits with the A&amp;P mechanic, meaning Airframe and Powerplant. Those letters end up in your data as a certification column, and they decide which technician rows can legally close which work.</p>
+
+  <h3>The four service lines you support</h3>
+
+  <p>The finance manager wants one number for the month: average hours per check. You divide the quarter's 62.0 booked hours by eight work orders and hand him 7.75. He is happy for a day. Then he asks why a three week C-check and a forty minute ramp defect are averaged together, and the honest answer is that the eight work orders come from four different kinds of work.</p>
+
+  <p>Four lines share one building, one technician pool and one reporting pack. In data they behave so differently that treating them as one population is the fastest route to a wrong number. So learn the four, because the finance manager's average depends on which of them he meant.</p>
+
+  <p>Separate the first two before anything else, because outsiders club them together every time. Line maintenance works the aircraft between flights, out where it parks. Light maintenance is a short planned input, usually in a hangar and usually overnight. Both are quick next to a heavy check, and that is where the resemblance ends. Different crews, different places, different planning behaviour, and in most shops different systems. A shop that runs both reports them separately, and your model should follow the shop.</p>
+
+  <h4>Line maintenance</h4>
+
+  <p>Line maintenance works the aircraft between flights. It happens where the aircraft already is: on the ramp, at the gate, or on a remote stand. Minutes to a shift, and the aircraft is expected to fly again the same day. The content is transit and pre-flight checks, defect rectification, deferred defect clearance, and servicing of oil, oxygen, hydraulics, tyres and brakes. It also covers recovering an AOG. AOG means Aircraft On Ground: an unserviceable aircraft that is stopping a departure. Certifying staff holding the licence category for that task sign it off on the stand.</p>
+
+  <p>Line maintenance is dispatch driven. The next departure sets the clock, and the question a line crew answers all day is whether this aircraft goes out on time. The operations desk sets that priority, a function usually called MOC, Maintenance Operations Control. Heavy maintenance planning has no say in it. Line runs its own crews on its own shift pattern, and very often on its own system. The people who need that data are standing on an apron with a phone.</p>
+
+  <h5 class="micro">What it means for the data</h5>
+
+  <p>Very high row count, very short duration, and frequently no planned manhour figure at all. Nobody built a package a week ahead, because nobody knew the defect existed until the aircraft landed. Meridian has one line work order, WO-1007. It booked 5.0 achieved hours against a quote of 900 and against no pre-input pack whatsoever.</p>
+
+  <p>Then there is the problem the model cannot show you. Where line maintenance books its hours in its own system, those rows may never reach your extract at all. A service line missing from a report looks exactly like a service line that had a quiet quarter. That is what the production controller was pointing at on Tuesday morning. His crew worked the ramp, booked their time in the line system, and your extract never saw a single hour of it.</p>
+
+  <h4>Light maintenance</h4>
+
+  <p>Light maintenance is a short planned input, usually in a hangar and often overnight. Hours to a shift. The slot is booked in advance, and a good part of what gets done inside it is defect clearance nobody knew about when the slot was booked. The content is the daily and weekly service checks, deferred defect clearance, and small scheduled packages that need the aircraft stopped but not opened up. Light has its own bay and its own crew. Certifying staff holding the licence category for that task sign it off.</p>
+
+  <h5 class="micro">What it means for the data</h5>
+
+  <p>High row count, short duration, unplanned. The last word is the one that matters. The work exists because a defect was reported. So frequently no package was built a week earlier, and no planned manhour figure reaches you at all.</p>
+
+  <p>Here is the one place in this chapter where you probably arrive holding the wrong idea, so it is worth stating flatly. A missing planned figure is not a zero, it is an absence, and coalescing the two together buries the difference. Where the pre-input row is absent there is nothing to compare the booked hours against, so the honest result is no number at all. Fill that gap with a zero and what comes back is formatted like an answer and gets read like one. Meridian has two light work orders, WO-1002 and WO-1005, and neither carries a pre-input pack. Add the line work order and three of the eight work orders in the dataset sit in exactly that state.</p>
+
+  <h4>Heavy maintenance, usually called base maintenance</h4>
+
+  <p>It happens in a hangar bay or dock, aircraft out of service, jacked, panels open, for days to several weeks. The content is a C-check or a heavier structural visit, plus whatever the operator bundles in while the aircraft is already down. Base maintenance certifying staff release the whole check, supported by inspection sign-offs along the way.</p>
+
+  <h5 class="micro">What it means for the data</h5>
+
+  <p>Low row count, very long duration, planned months ahead, and dominated by one unknown: what the technicians find once the panels are off. The available, projected and achieved triad lives here, and <a class="xref" href="#ch-B">Chapter B</a> takes it apart. A check opened on 17 February and closed on 19 March exists in two months. So the count for a month depends on which date the slicer is wired to: opened, promised or closed. In Meridian's January the answers are three opened, two closed, two promised. Line work opens and closes inside a day, which is why nobody warns you about this.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Wiring the date table to the opened date, calling it done, then letting finance filter a revenue report with it. Revenue recognises at release, not at induction. The report will look sane and the totals will foot, and every check crossing a month boundary lands in the wrong month, which in heavy maintenance is most of them. The fix is one date table carrying three relationships, one active and two inactive, with a separately named measure per question.</p>
+  </aside>
+
+  <h4>Cabin and in-flight entertainment</h4>
+
+  <p>Cabin work happens in a hangar, as its own input or riding inside a heavy slot because the aircraft is down anyway. Days to weeks for one aircraft, months across a fleet retrofit. The content is seats, monuments (galleys, lavatories and stowages), panels, carpets, IFE (In-Flight Entertainment) head-end and seat-back units, wiring looms, connectivity antennas, placards and livery. Most cabin reconfiguration counts as a modification. It is embodied under an STC (Supplemental Type Certificate) or an OEM (Original Equipment Manufacturer) service bulletin, and released through an EO (Engineering Order). Engineering owns the approval. The paper trail is a design change record, and a task card is the wrong place to look for it.</p>
+
+  <h5 class="micro">What it means for the data</h5>
+
+  <p>Repetition helps and vocabulary hurts. The same work repeats across aircraft, so the learning curve is real and the tenth aircraft takes materially fewer hours than the first. Estimates built on the first two will be wrong by the eighth.</p>
+
+  <p>The vocabulary problem is worse. Cabin work uses trades that airframe work does not, and a trade is simply a skill group, such as airframe, avionics, engine or cabin. So a cabin trade arrives in a planning extract carrying real hours, and the capacity workbook has never heard of it. In Meridian, the Cabin trade carries 12.0 planned hours against zero planned capacity. That is a conformed dimension problem. It is also a planning red flag, and the shop should want it printed on the report, not normalised away by you.</p>
+
+  <p>One more thing about cabin work, because it changes what a total means. The aircraft sits in a bay with its panels off. From across the hangar that looks like heavy maintenance. So many shops club Cabin and IFE in with Heavy and report the pair as base maintenance. Meridian's quarter booked 38.0 achieved hours on heavy and 10.0 on cabin, so base maintenance reads 48.0. Start a retrofit programme and the same customer wants cabin broken out on its own again. Both views are legitimate, and the same person will ask for both in the same week. That is two groupings over one service line dimension, and <a class="xref" href="#ch-E">Chapter E</a> models it.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table A.1</span> The four service lines compared on the attributes that change your model.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Service line</th>
+            <th scope="col">Where it happens</th>
+            <th scope="col">Duration</th>
+            <th scope="col">Planned hours exist?</th>
+            <th scope="col">Dominant data problem</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Line</th>
+            <td>Ramp, gate or remote stand, between flights</td>
+            <td>Minutes to a shift</td>
+            <td class="cell-bad">Frequently none at all</td>
+            <td>Dispatch driven, and often booked in a system your extract never sees</td>
+          </tr>
+          <tr>
+            <th scope="row">Light</th>
+            <td>A hangar, a short planned input, often overnight</td>
+            <td>Hours to a shift</td>
+            <td class="cell-bad">Frequently none at all</td>
+            <td>No baseline to compare the booked hours against, so the ratio has to come back blank</td>
+          </tr>
+          <tr>
+            <th scope="row">Heavy, or base</th>
+            <td>Hangar bay or dock, aircraft jacked and open</td>
+            <td>Days to several weeks</td>
+            <td>Yes, frozen before induction</td>
+            <td>Checks span months, so the date you filter by changes the answer</td>
+          </tr>
+          <tr>
+            <th scope="row">Cabin and IFE</th>
+            <td>Hangar, standalone or inside a heavy slot</td>
+            <td>Days to weeks, months for a fleet programme</td>
+            <td>Yes, and in its own trades</td>
+            <td>Trade codes the capacity source has never heard of</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>That is the finance manager's average answered. Hours per check across four service lines mixes minutes with weeks, so the 7.75 was arithmetic without meaning. The number he actually wanted is hours per check within one service line, and Table A.1 is the reason why.</p>
+
+  <h3>Why a check exists at all</h3>
+
+  <p>The planner puts two aircraft in front of you. Same type, same customer, delivered in the same month. One is due a C-check next spring and the other is due one this quarter. He wants a fleet view showing when each tail comes due, and your first instinct is to sort it by aircraft age.</p>
+
+  <p>Nobody in the shop invents the work. Every operator flies to an approved AMP, an Aircraft Maintenance Programme, written for each type. The AMP derives from the manufacturer's MPD, the Maintenance Planning Document. The MPD in turn derives from the MRB report, the Maintenance Review Board report. That report is agreed between the manufacturer and the authorities when the type is certified.</p>
+
+  <p>Tasks fall due on three counters. Flight hours (FH) count time in the air. Flight cycles (FC) count one takeoff and landing as one cycle. Calendar time counts days whether the aircraft flew or not, which is why a stored aircraft still generates maintenance.</p>
+
+  <p>The first two counters are why two aircraft of the same type reach the same check at very different ages. A short-haul aircraft flying several sectors a day piles up cycles against relatively few hours. A long-haul aircraft flying one long sector does the reverse. Some tasks fall due on cycles and others on hours. So two aircraft of the same type, delivered in the same month and flown on different routes, reach the same check years apart.</p>
+
+  <p>Which settles the planner's fleet view. Maintenance burden tracks flight hours and flight cycles. Age in years tracks neither of them, so sorting his two tails by age puts them in the wrong order and he will spot it in about four seconds. Sort by hours and cycles since the last check instead.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table A.2</span> Check letters as orders of magnitude only. Intervals vary by type, operator, programme and authority approval, so never quote these as facts about a specific fleet.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Check</th><th scope="col">Roughly how often</th><th scope="col">Time out of service</th><th scope="col">Service line</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Transit and pre-flight</th><td>Between flights</td><td>Minutes</td><td>Line</td></tr>
+          <tr><th scope="row">Daily or service check</th><td>Roughly every 24 to 48 hours</td><td>Part of a shift</td><td>Line, or light where the shop takes it into a hangar</td></tr>
+          <tr><th scope="row">Weekly check</th><td>Where the programme still uses one</td><td>Up to a shift</td><td>Light</td></tr>
+          <tr><th scope="row">A-check</th><td>A few hundred to around a thousand flight hours, or a small number of months</td><td>Hours to an overnight</td><td>Varies by shop; Meridian books its A-check as heavy</td></tr>
+          <tr><th scope="row">C-check</th><td>Around one and a half to two years, or a few thousand flight hours</td><td>One to three weeks</td><td>Heavy</td></tr>
+          <tr><th scope="row">D-check, also called HMV or IL</th><td>Around every six to twelve years</td><td>Several weeks</td><td>Heavy</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Two abbreviations in that last row need expanding, and the fact that they do is the lesson. A D-check is a heavy structural check in one shop, an HMV (Heavy Maintenance Visit) in the next, an IL (Intermediate Layover) in a third. One kind of work, three names, and your dimension has to carry whichever one the customer's paperwork uses.</p>
+
+  <p>A larger complication tends to get left out of handovers. Many operators no longer run discrete lettered checks. They run equalised or phased programmes that break C-check content into smaller packages absorbed into shorter visits, keeping the aircraft flying. Under a phased programme the C-check content arrives as a run of smaller inputs spread across what used to be a single interval. Ask the planner to point at the C-check and he will point at a series of visits.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>If a dataset hands you a check type column with clean A, C and D values, somebody upstream made a simplification. Often that is the only way to report across customers running different programmes, so it can be the right call. It was still a decision, it still hid something, and the person who made it still works there. Find out who, ask what the mapping rule was, and write the answer into the model description before you build measures on it.</p>
+  </aside>
+
+  <h3>The lifecycle of a heavy check</h3>
+
+  <p>The finance manager comes back with a harder question. One check, WO-1003, appears on three reports with three different hour figures. He wants to know which one belongs in the month-end pack. The first honest answer is that all three are correct.</p>
+
+  <p>Eight stages, in order. This is the spine every heavy maintenance table hangs off. Once you can name the stage that produced a column, most arguments about that column resolve themselves, including his.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 940 442" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><text x="26.0" y="32.0" class="d-t" fill="#17160F">The spine every heavy maintenance table hangs off. Read the top row left to right, then the bottom row.</text><rect x="26" y="56" width="215" height="128" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.6"/><circle cx="45" cy="76" r="9.5" fill="#9B978C"/><text x="45.0" y="79.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">1</text><text x="61.0" y="80.0" class="d-t" fill="#9B978C" font-size="11.5">Slot booking</text><text x="38.0" y="99.0" class="d-s">Months to years ahead.</text><line x1="26" y1="110" x2="241" y2="110" stroke="#9B978C" stroke-width="1"/><text x="38.0" y="128.0" class="d-m" font-weight="600">Contract, slot dates</text><text x="38.0" y="146.0" class="d-s">and commercial basis</text><path d="M243,120 L254,120" class="d-line" marker-end="url(#ahg)"/><rect x="257" y="56" width="215" height="128" rx="5" fill="#F5F0DC" stroke="#78641F" stroke-width="1.6"/><circle cx="276" cy="76" r="9.5" fill="#78641F"/><text x="276.0" y="79.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">2</text><text x="292.0" y="80.0" class="d-t" fill="#78641F" font-size="11.5">Pre-input planning</text><text x="269.0" y="99.0" class="d-s">Weeks ahead, by the planner.</text><line x1="257" y1="110" x2="472" y2="110" stroke="#78641F" stroke-width="1"/><text x="269.0" y="128.0" class="d-m" font-weight="600">HeavyPreInput</text><text x="269.0" y="146.0" class="d-s">AVAILABLE hours, frozen at input</text><path d="M474,120 L485,120" class="d-line" marker-end="url(#ahg)"/><rect x="488" y="56" width="215" height="128" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><circle cx="507" cy="76" r="9.5" fill="#AE4419"/><text x="507.0" y="79.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">3</text><text x="523.0" y="80.0" class="d-t" fill="#AE4419" font-size="11.5">Induction</text><text x="500.0" y="99.0" class="d-s">The aircraft arrives.</text><line x1="488" y1="110" x2="703" y2="110" stroke="#AE4419" stroke-width="1"/><text x="500.0" y="128.0" class="d-m" font-weight="600">WorkOrders.OpenedDate</text><text x="500.0" y="146.0" class="d-s">turnaround clock starts</text><path d="M705,120 L716,120" class="d-line" marker-end="url(#ahg)"/><rect x="719" y="56" width="215" height="128" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><circle cx="738" cy="76" r="9.5" fill="#AE4419"/><text x="738.0" y="79.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">4</text><text x="754.0" y="80.0" class="d-t" fill="#AE4419" font-size="11.5">Routine work and findings</text><text x="731.0" y="99.0" class="d-s">Technicians book time.</text><line x1="719" y1="110" x2="934" y2="110" stroke="#AE4419" stroke-width="1"/><text x="731.0" y="128.0" class="d-m" font-weight="600">LaborEntries, PartsIssued</text><text x="731.0" y="146.0" class="d-s">ACHIEVED hours, plus non-routine cards</text><rect x="26" y="212" width="215" height="128" rx="5" fill="#F5F0DC" stroke="#78641F" stroke-width="1.6"/><circle cx="45" cy="232" r="9.5" fill="#78641F"/><text x="45.0" y="235.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">5</text><text x="61.0" y="236.0" class="d-t" fill="#78641F" font-size="11.5">Re-forecast</text><text x="38.0" y="255.0" class="d-s">As findings land.</text><line x1="26" y1="266" x2="241" y2="266" stroke="#78641F" stroke-width="1"/><text x="38.0" y="284.0" class="d-m" font-weight="600">ManhourForecast</text><text x="38.0" y="302.0" class="d-s">PROJECTED hours, each rev supersedes</text><path d="M243,276 L254,276" class="d-line" marker-end="url(#ahg)"/><rect x="257" y="212" width="215" height="128" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.6"/><circle cx="276" cy="232" r="9.5" fill="#9B978C"/><text x="276.0" y="235.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">6</text><text x="292.0" y="236.0" class="d-t" fill="#9B978C" font-size="11.5">Closure</text><text x="269.0" y="255.0" class="d-s">Tests and engine runs.</text><line x1="257" y1="266" x2="472" y2="266" stroke="#9B978C" stroke-width="1"/><text x="269.0" y="284.0" class="d-m" font-weight="600">duplicate inspections, RII</text><text x="269.0" y="302.0" class="d-s">sign-off, paperwork completed</text><path d="M474,276 L485,276" class="d-line" marker-end="url(#ahg)"/><rect x="488" y="212" width="215" height="128" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><circle cx="507" cy="232" r="9.5" fill="#AE4419"/><text x="507.0" y="235.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">7</text><text x="523.0" y="236.0" class="d-t" fill="#AE4419" font-size="11.5">Output and release</text><text x="500.0" y="255.0" class="d-s">Certifying staff sign it off.</text><line x1="488" y1="266" x2="703" y2="266" stroke="#AE4419" stroke-width="1"/><text x="500.0" y="284.0" class="d-m" font-weight="600">WorkOrders.ClosedDate, CRS</text><text x="500.0" y="302.0" class="d-s">turnaround clock stops</text><path d="M705,276 L716,276" class="d-line" marker-end="url(#ahg)"/><rect x="719" y="212" width="215" height="128" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.6"/><circle cx="738" cy="232" r="9.5" fill="#9B978C"/><text x="738.0" y="235.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">8</text><text x="754.0" y="236.0" class="d-t" fill="#9B978C" font-size="11.5">Invoice and review</text><text x="731.0" y="255.0" class="d-s">Routine at the quoted price.</text><line x1="719" y1="266" x2="934" y2="266" stroke="#9B978C" stroke-width="1"/><text x="731.0" y="284.0" class="d-m" font-weight="600">non-routine at an agreed rate</text><text x="731.0" y="302.0" class="d-s">estimates fed back to planning</text><path d="M826,184 L826,198 L133,198 L133,209" class="d-line" fill="none" marker-end="url(#ahg)"/><text x="834.5" y="210.0" class="d-lbl" fill="#77746B">continues</text><rect x="26.0" y="364.0" width="888.0" height="62.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="40.0" y="386.0" class="d-t" fill="#2B6140">Read the colours</text><text x="40.0" y="404.0" class="d-s">Terracotta steps produce transaction records: something happened and a row was written. Olive steps produce planning numbers:</text><text x="40.0" y="420.0" class="d-s">somebody made an estimate. Grey steps produce paperwork and money. Only the terracotta rows are facts about the world.</text></svg></div><figcaption><span class="fig-num">Figure A.1</span>The eight stages of a heavy check, and which table each one creates.</figcaption></figure>
+
+  <p>Read the top row of four cards left to right, then the bottom row, and read the colours before the words. The terracotta cards, induction, routine work and findings, and output and release, write transaction records: something happened and a row exists because of it. The olive cards, pre-input planning and re-forecast, produce planning estimates: somebody made a judgement and wrote a number down. The grey cards produce paperwork and money. Only the terracotta stages make facts about the world, and that decides how each number may be aggregated.</p>
+
+  <dl class="defs">
+    <dt>1. Slot booking and contract</dt>
+    <dd>Months to years ahead. The check is usually priced as a fixed price for routine content plus an agreed rate for non-routine work. That pricing makes the routine against non-routine split a commercial number as well as an operational one.</dd>
+    <dt>2. Pre-input planning</dt>
+    <dd>Weeks ahead. The planner builds the package and rolls the task card estimates up by trade. A task card is one printed instruction for one piece of work, and it carries an estimate in hours. This is the heavy pre-input step, and its output is the available manhour baseline.</dd>
+    <dt>3. Input, also called induction</dt>
+    <dd>The aircraft arrives, is towed to the bay, defuelled if required, jacked and opened up. The turnaround clock starts. Planned and actual input dates routinely differ, because aircraft arrive late.</dd>
+    <dt>4. Routine execution and findings</dt>
+    <dd>Technicians work the routine cards and book time. Anything found that no routine card covers becomes a non-routine card.</dd>
+    <dt>5. Re-forecasting</dt>
+    <dd>Production control revises the expected total as findings land. This is the projected manhour figure.</dd>
+    <dt>6. Closure</dt>
+    <dd>Panels closed, systems restored, functional tests, engine runs where required, duplicate inspections, RII (Required Inspection Item) items signed, paperwork completed. Work finished with documents incomplete cannot be released.</dd>
+    <dt>7. Output and release</dt>
+    <dd>Certifying staff issue the CRS, the Certificate of Release to Service. The turnaround clock stops here.</dd>
+    <dt>8. Invoice and review, often called post-check</dt>
+    <dd>Routine content billed at the quoted price, non-routine at the agreed rate, warranty claims raised, and estimates fed back into planning.</dd>
+  </dl>
+
+  <details class="expand" open>
+    <summary>What actually goes into a pre-input work package</summary>
+    <div class="expand-body">
+      <p>The planner assembles the package from sources carrying different levels of obligation. Routine task cards due inside the window. Out-of-phase items, not due yet but worth doing while the aircraft is open. ADs, Airworthiness Directives, issued by the authority and mandatory. SBs, Service Bulletins, the manufacturer's recommendations, mandatory only when an Airworthiness Directive says so or the operator decides to embody them. Engineering Orders and modifications. Deferred defects carried under the MEL (Minimum Equipment List) or CDL (Configuration Deviation List), which permit flight with a named item inoperative, or a named secondary part missing, for a set period. Cabin defects. Customer requests.</p>
+      <p>Each card carries an estimated manhour figure from a standard time or from shop history. The planner rolls those up per trade, and that roll-up is the planned figure. Then it is frozen, because a baseline that moves cannot measure anything.</p>
+    </div>
+  </details>
+
+  <p>Stage 4 deserves more weight than the rest combined. A technician opens a panel and finds corrosion, a crack, a worn bushing, a chafed wiring loom. None of it is on a routine card, because nobody knew it was there. A non-routine card is raised, also called an NRC or a finding, and it becomes new work with its own hours, parts and sign-off.</p>
+
+  <p>This is the central economic fact of heavy maintenance. Routine hours are known before induction. Non-routine hours are not knowable before induction, by definition, because they describe the condition of one airframe nobody has looked inside since the last check. The non-routine share is commonly a large fraction of total hours, and on an older aircraft it can exceed the routine content.</p>
+
+  <p>Resist putting an industry percentage on that. The share varies enormously with age, type, operator, and how well the last shop did its job. Any figure you find quoted is an average over a population that does not contain your customers. Quote your own shop's history, split by type and customer, and say how few checks it covers. A mean over four C-checks is four numbers with an average on the end. Call it a benchmark and somebody will plan a year against it.</p>
+
+  <p>Stage 5 exists only because stage 4 does. If findings were knowable in advance there would be nothing to forecast. Each revision supersedes the one before it. A revision is an estimate of the final total, so adding it to the previous revision adds a guess to the guess it replaced.</p>
+
+  <p>Now the finance manager's three figures have names. Stage 2 wrote the available hours, stage 5 wrote the projected hours, and stage 4 wrote the achieved hours. For a month-end pack he wants achieved, because it is the only one of the three that records something that happened. Tell him which stage the other two came from and the argument about which number is real goes away.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>The gap between projected and available hours is the findings signal, and it is readable before the check closes, which is what makes it worth reporting. Across Meridian's five planned work orders, available is 57.0 hours and projected is 63.5, so findings have added 63.5 minus 57.0, which is 6.5 hours. On the three closed heavy checks it is 44.0 against 36.0, so 8.0 hours. Here is the part a newcomer misses. A projected line that never moves usually means nobody is re-forecasting. The surprise then arrives as an overrun on the final weekend, when a revision on day nine would have warned everybody in time to move people onto it. Put the revision count on the report.</p>
+  </aside>
+
+  <h4>The first measure this breaks</h4>
+
+  <p>Put the service lines and the lifecycle together. Stage 2 produces the planned hours, and line and light maintenance often never get a stage 2 at all. So the most requested measure in an MRO pack has no answer for two of the four service lines. Writing it correctly takes four lines of code. Getting the absent case wrong takes one extra argument.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Performance Factor</span></div>
+<pre><code><span class="c">-- Available divided by achieved. Above 1.00 means the work</span>
+<span class="c">-- took fewer hours than the pre-input pack allowed.</span>
+<span class="k">VAR</span> Available <span class="op">=</span> <span class="k">SUM</span> ( <span class="t">FactPreInput</span><span class="col">[PlannedHours]</span> )
+<span class="k">VAR</span> Achieved  <span class="op">=</span> <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )
+<span class="k">RETURN</span>
+    <span class="k">DIVIDE</span> ( Available, Achieved )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 1 to 2</div><div class="linex-v">State the direction of the ratio inside the measure. Shops disagree about which way up it goes, and this comment is the only place a reader can check.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v">SUM rather than SUMX, because PlannedHours is already stored one row per work order per trade. SUMX would iterate to reach an identical answer, and only earns its place when the value has to be computed per row.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v">Achieved hours sit in another table at another grain, one row per technician per work order per day. Each side is aggregated independently and the model joins them at the visual.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v">RETURN closes the VAR block. Naming the two numbers on lines 3 and 4, then returning one expression, is what lets a reader check the direction of the ratio against the comment at the top.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v">DIVIDE returns blank when Achieved is zero or blank, which is the state of every check on the morning it is inducted. It also hands blank straight back when Available is blank, because DAX carries a blank through a division instead of turning it into a zero. On a line or light work order there are no pre-input rows, Available is blank, and the measure is blank. That is the correct answer.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p>DIVIDE rather than the slash operator, because a check inducted this morning has booked no hours yet. That is day one, not an exception, and the slash treats a zero denominator as an arithmetic error.</p>
+    <p>No third argument on <code>DIVIDE</code>. That argument exists to replace the result when the denominator is zero, and people supply 0 out of habit. Do it here and a check inducted yesterday reads 0.00 in the same column where WO-1003 reads 104.0 percent, and the two look like the same kind of number. Blank says nothing, and nothing is what is true so far. Zero says something false.</p>
+    <p>Do not repair the blank with <code>COALESCE</code> either, and do not test <code>Available = 0</code>. Zero planned hours and no pre-input pack at all are different facts. A pack planning zero hours for a trade is a planning statement somebody made. No pack says this service line does not plan in hours. Turn one into the other and you have hidden the absent case by hand.</p>
+  </div>
+
+  <p>Blank has its own cost, and it is worth naming before you ship this. A blank measure drops its row out of a matrix. So WO-1002, WO-1005 and WO-1007, the three Meridian work orders with no pre-input pack, leave the performance report altogether. Nothing on the page marks the hole they left. A service line that vanishes looks like a service line that behaved. Put a second measure beside the ratio that counts the work orders in the current filter with no pre-input rows, and let three of the eight show on the page where somebody has to read them.</p>
+
+  <h3>HMCC, and why two systems disagree about a date</h3>
+
+  <p>Two reports land on the same desk on the same morning. One says WO-1003 started on 13 January. The other says 14 January. The production controller wants to know which system is lying, and he wants it before his ten o'clock call with the customer.</p>
+
+  <p>HMCC stands for Heavy Maintenance Control Centre, and it needs a caveat of its own. AOG and CRS are universal terms, and you will hear them in any shop in any country. HMCC is a local name. It is what many airlines and MROs call the function that owns and controls the heavy maintenance schedule. Other shops call the identical function production control, maintenance control, or the base maintenance control centre. The line side equivalent is usually MOC, Maintenance Operations Control. Learn what the function owns rather than what it is called.</p>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Owns</div><div class="kv-v">Bay and dock allocation, service line, check type, customer, planned start and finish</div></div>
+    <div class="kv-item"><div class="kv-k">Does not own</div><div class="kv-v">Hours booked, parts issued, the release certificate</div></div>
+    <div class="kv-item"><div class="kv-k">Grain</div><div class="kv-v">One row per work order</div></div>
+    <div class="kv-item"><div class="kv-k">Usual format</div><div class="kv-v">A planning board export, very often a workbook maintained by hand</div></div>
+  </div>
+
+  <p>It also owns the daily control picture: progress against plan, what is blocking, and whether content is added to the package or taken out. The records of what physically happened all sit somewhere else. Hours live in the timesheet system, parts in stores, the certificate with certifying staff. That split is why you join three or four systems to answer one question, and it is why planned dates in the control extract and actual dates in the shop floor extract disagree. The disagreement is expected, and the gap between the two dates is the thing worth measuring.</p>
+
+  <p>Meridian carries a clean example of the cost. One work order has a control centre planned start of 13 January and a shop floor opened date of 14 January, because the aircraft arrived a day late. Turnaround time is the elapsed days from induction to release. Measure it from the opened date and the average across the six closed work orders is 12.0 days. Measure from the planned start and it becomes 12.17 days. One row, one day, and a headline average moves.</p>
+
+  <p>So both systems told the production controller the truth. The control board recorded what the shop intended, the shop floor system recorded what happened, and both entries are correct. Tell him that, then name the two dates separately on the report so the next person does not have to ask.</p>
+
+  <h3>Demand, supply, and two columns with the same name</h3>
+
+  <p>The resource manager sends you a workbook of capacity hours. The planner sends you a workbook of pre-input hours. Both files have a column called PlannedHours, so you put the two on one chart. The chart plots demand against demand, and it looks fine to everybody in the room.</p>
+
+  <p>Planned manhours are a demand on the shop: what the work needs. Capacity is supply: what the shop can provide. Different facts, different grains, different owners. Confusing them is the most common analytical error in an MRO pack, helped along by the fact that both get called planned hours. In Meridian both columns are literally named PlannedHours in two different tables.</p>
+
+  <p>One warning about the word demand itself, because you will meet it again. Central planning publishes its own demand figure, at service line and month grain, and that is a third number with a fourth owner. <a class="xref" href="#ch-C">Chapter C</a> lines all nine of these words up side by side. For this section, demand means the hours the work needs and supply means the hours the shop has.</p>
+
+  <p>Capacity is normally headcount multiplied by shift hours multiplied by an availability factor. That factor removes holiday, sickness, training and indirect time. It is also the number people argue about, because it is the difference between a technician being employed and a technician being able to turn a spanner. The result is split by trade and skill, because ten airframe technicians cannot do an avionics job however good the total looks.</p>
+
+  <p>The second constraint is physical and gets forgotten in spreadsheets: bays, docks and jigs. A shop can have work waiting and technicians idle and still be blocked, because every bay is full and the aircraft in bay one cannot move until its release is signed. Capacity reporting that counts only people will say there is room.</p>
+
+  <p>Capacity usually arrives at station and month grain, labour at day grain. They share a trade dimension and little else. Comparing them needs a conformed trade list, plus a decision about what happens when the grains do not line up. That is <a class="xref" href="#ch-16">Chapter 16</a>. Meridian plans 176 capacity hours across the quarter and books 62.0, which is 35.2 percent utilisation, and those two numbers came from two different people's workbooks.</p>
+
+  <p>The chart that plotted demand against demand is fixable in one step. Rename the two columns for what they hold, capacity hours and pre-input hours, before either of them reaches a visual. Do it in Power Query, where the name sticks, and the resource manager and the planner stop being able to collide.</p>
+
+  <h3>Parts, tools and paperwork</h3>
+
+  <dl class="defs">
+    <dt>Rotable</dt>
+    <dd>A repairable, serialised, high value part that cycles between aircraft and repair shop: a hydraulic pump, a landing gear assembly, an IFE server. It is not consumed, so its cost does not behave like a purchase.</dd>
+    <dt>Consumable and expendable</dt>
+    <dd>Sealant, rivets, filters, o-rings. Used up, not repaired.</dd>
+    <dt>Serialised versus batch</dt>
+    <dd>Serialised parts are tracked individually, with their own life and history. Batch parts are tracked by lot. A serial number is a key you can join on. A batch reference usually is not.</dd>
+    <dt>Exchange, loan and pool</dt>
+    <dd>Three ways of putting a rotable on an aircraft without owning one. The cost landing in your data may be an exchange fee where you expected a part price, and comparing those two produces nonsense.</dd>
+    <dt>Robbery, also called cannibalisation</dt>
+    <dd>Taking a serviceable part off one aircraft to fix another. It is controlled and recorded, and it distorts consumption analysis: the receiving aircraft consumed a part stores never issued, and the donor now needs one no defect asked for.</dd>
+    <dt>Tooling and GSE (Ground Support Equipment)</dt>
+    <dd>Special tooling is often the hidden constraint on a check. A task can be planned, staffed and stocked and still not start, because the tool is calibrated out of date or sitting in another bay.</dd>
+  </dl>
+
+  <p>Recognise the document set by name even though you will rarely join to it: the AMM (Aircraft Maintenance Manual), the IPC (Illustrated Parts Catalogue), the SRM (Structural Repair Manual), the CMM (Component Maintenance Manual), the TSM or FIM (troubleshooting and fault isolation manuals), and the task card, which is what a technician books time against.</p>
+
+  <p>Aircraft systems are numbered under iSpec 2200, the specification published by the Air Transport Association, now Airlines for America, which is why everyone still says ATA chapter. Almost every defect, task card and finding carries an ATA chapter, which makes it the natural dimension for findings analysis.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table A.3</span> ATA chapters you will meet most often in a shop covering all four service lines.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Chapter</th><th scope="col">System</th><th scope="col">Where it shows up</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">ATA 21</td><td>Air conditioning</td><td>Heavy, and cabin comfort complaints</td></tr>
+          <tr><td class="key">ATA 23</td><td>Communications</td><td>Avionics trade, line and heavy</td></tr>
+          <tr><td class="key">ATA 24</td><td>Electrical power</td><td>Everything, including cabin retrofits</td></tr>
+          <tr><td class="key">ATA 25</td><td>Equipment and furnishings</td><td>Seats and monuments, the core of cabin work</td></tr>
+          <tr><td class="key">ATA 27</td><td>Flight controls</td><td>Heavy, structural and rigging tasks</td></tr>
+          <tr><td class="key">ATA 28</td><td>Fuel</td><td>Heavy checks, and defect rectification on the line</td></tr>
+          <tr><td class="key">ATA 32</td><td>Landing gear</td><td>Heavy checks, and where a gear assembly appears as a rotable</td></tr>
+          <tr><td class="key">ATA 33</td><td>Lights</td><td>Line defects, cabin lighting retrofits</td></tr>
+          <tr><td class="key">ATA 38</td><td>Water and waste</td><td>Cabin work, and deferred defects carried on the line</td></tr>
+          <tr><td class="key">ATA 44</td><td>Cabin systems</td><td>In-flight entertainment and connectivity</td></tr>
+          <tr><td class="key">ATA 45</td><td>Central maintenance system</td><td>The aircraft's own fault reporting</td></tr>
+          <tr><td class="key">ATA 49</td><td>Auxiliary power unit</td><td>Line defect rectification and heavy checks</td></tr>
+          <tr><td class="key">ATA 52</td><td>Doors</td><td>Heavy inspection content</td></tr>
+          <tr><td class="key">ATA 53</td><td>Fuselage</td><td>Structural findings, corrosion, repairs</td></tr>
+          <tr><td class="key">ATA 57</td><td>Wings</td><td>Structural findings on heavier checks</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>One work order almost always touches several chapters, and one chapter appears on many work orders. That is a genuine many to many relationship, and the shop's paperwork means it. Picking a primary chapter to tidy the model loses information. If somebody upstream already picked for you, that is the same conversation as the check type column.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>Findings analysis by ATA chapter needs a bridge table, and the temptation is to make that relationship filter in both directions so slicers behave the way users expect. It works, and it is not free. A bidirectional filter makes the engine build a set on the one side instead of resolving a lookup. It pays that cost on every query touching those tables, including the queries that never needed the reverse filter. On a few thousand findings you will not notice. On three years of task card lines, you will.</p>
+  </aside>
+
+  <h3>What the shop reports, and where the numbers fight</h3>
+
+  <p>The finance manager reads the utilisation figure in your pack and concludes the shop is running hot. The production controller reads the same pack, sees turnaround slipping, and concludes the shop is short of people. Both of them are quoting true numbers off your report. They will spend the whole meeting disagreeing, and the report is the reason.</p>
+
+  <p>The metric set is small and stable across shops. What varies is the definition underneath each name.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table A.4</span> The standard MRO metric set, with the thing each one conceals.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Metric</th><th scope="col">What it measures</th><th scope="col">What it hides</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">TAT, turnaround time</th><td>Input to output, days for heavy, hours for line</td><td>Which input date, planned or actual, and whether waiting on the customer counts</td></tr>
+          <tr><th scope="row">OTD, on-time delivery</th><td>Share of checks released on or before the promised date</td><td>Whether the promised date was revised, and by whom</td></tr>
+          <tr><th scope="row">Utilisation</th><td>Hours booked against capacity available</td><td>The availability factor buried in the capacity number</td></tr>
+          <tr><th scope="row">Performance factor</th><td>Planned against actual, direction defined locally</td><td>The direction itself, and the work orders with no plan at all</td></tr>
+          <tr><th scope="row">Non-routine ratio</th><td>Non-routine hours as a share of total hours</td><td>Whether reworked routine content was reclassified as a finding</td></tr>
+          <tr><th scope="row">Findings per check</th><td>Count of non-routine cards raised</td><td>Card-raising policy, which varies by shop and by inspector</td></tr>
+          <tr><th scope="row">Average hours per finding</th><td>A severity proxy</td><td>A skewed distribution where three findings carry most of the hours</td></tr>
+          <tr><th scope="row">Cost per check</th><td>Labour plus material against quote</td><td>Whether rotable exchange fees sit in material or in another ledger</td></tr>
+          <tr><th scope="row">Schedule adherence</th><td>Whether the check is where the plan says, day by day</td><td>Plans revised mid-check to match reality</td></tr>
+          <tr><th scope="row">AOG response time</th><td>Line side, defect reported to aircraft serviceable</td><td>Time waiting on a part, which is not the shop's to control</td></tr>
+          <tr><th scope="row">Rework and quality escapes</th><td>Work redone after sign-off</td><td>Almost everything, because nobody enjoys recording it</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Two of those pull against each other structurally. Turnaround time improves when the shop has slack: a spare technician, a free bay, a trade not fully committed. With slack in the building, a bad finding on day four gets somebody moved onto it that afternoon. Utilisation improves when there is no slack at all. A shop that keeps every technician busy every hour has, by construction, nobody to redeploy, and its turnaround suffers for reasons that never appear in the turnaround report.</p>
+
+  <p>That is the meeting from the start of this section explained. High utilisation and slipping turnaround are one fact seen twice, and the finance manager and the production controller are both quoting it correctly. The report that prints the two side by side with no word between them is the thing at fault. Put the relationship in the pack, even in one sentence.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Publishing a performance factor before anybody has agreed in writing which way up it goes. Available divided by achieved gives a number above one when the work took fewer hours than planned, which most people read as good. Plenty of shops invert it and read below one as good. Both conventions are defended by people who have used them for years, and they produce mirror-image trend lines from identical data. Get the definition agreed by production control and put it in the measure description, and accept that this takes longer than writing the DAX did.</p>
+  </aside>
+
+  <h3>Where the data actually comes from</h3>
+
+  <p>You ask the planner where the pre-input hours come from. He opens a folder on a shared drive, scrolls past a column of files, and opens the one with his own initials in the name. That file is a source system in your model, and nobody in the shop thinks of it that way.</p>
+
+  <p>Real shops run maintenance and engineering on a specialist M&amp;E system, and only a handful of them hold most of the market. Larger operators often end up running two of them after a merger. That is a common and unglamorous reason for the same aircraft appearing under two key formats in one warehouse.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table A.5</span> Where each kind of extract comes from, and what it tends to do to your model.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Extract</th><th scope="col">Real world owner</th><th scope="col">Typical format</th><th scope="col">What tends to break</th></tr>
+        </thead>
+        <tbody>
+          <tr class="row-good"><td class="key">Work order header</td><td>The M&amp;E system</td><td>Database export</td><td>Little. This is the regulated core</td></tr>
+          <tr class="row-good"><td class="key">Labour bookings</td><td>Time and attendance, or the M&amp;E labour module</td><td>Database export</td><td>Key hygiene where technicians are keyed by hand</td></tr>
+          <tr class="row-good"><td class="key">Parts issued</td><td>Stores and inventory</td><td>Database export</td><td>Header keys to work orders raised in another system</td></tr>
+          <tr><td class="key">Technician register</td><td>HR, plus a separate licence and authorisation register</td><td>Two exports that disagree</td><td>Multi-value certification columns, stale authorisations</td></tr>
+          <tr class="row-bad"><td class="key">Control centre board</td><td>Heavy maintenance control centre</td><td>Often a workbook kept by hand</td><td>Blank customers, blank bays, planned dates that disagree with actuals</td></tr>
+          <tr class="row-bad"><td class="key">Pre-input work package</td><td>Planning</td><td>Planning module, or a planner's own workbook</td><td>Trade values that exist nowhere else</td></tr>
+          <tr class="row-bad"><td class="key">Manhour forecast</td><td>Production control</td><td>Almost always a spreadsheet, one tab per check</td><td>Revisions that must never be summed</td></tr>
+          <tr class="row-bad"><td class="key">Fleet registry</td><td>Customer service desk, or the customer itself</td><td>A shared spreadsheet</td><td>Missing aircraft registrations the facts already use</td></tr>
+          <tr class="row-bad"><td class="key">Capacity plan</td><td>Resource manager</td><td>A monthly workbook</td><td>Trades as column headers, month grain, stations with no activity</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Read that table top to bottom and the pattern names itself. The further a table sits from the regulated core, the more likely it is a spreadsheet, and the more likely it is the one that breaks your model. The cause is structural. Regulated systems have referential integrity enforced by an authority that can suspend the shop's approval. Planning workbooks have it enforced by whoever last saved the file. The planner's workbook with his initials in the filename is one of those five bottom rows.</p>
+
+  <p>Here is the inconvenient part, better heard now than later. Most of the difficulty in this work sits in those five rows, and very little of it is DAX. Fixing them means walking to production control, asking what a column means, and writing the answer somewhere that survives you leaving. Nobody will schedule that. It will appear on no plan. The model cannot be correct without it.</p>
+
+  <h3>The mapping you will use for the rest of this document</h3>
+
+  <p>Everything above becomes a column somewhere. Come back to this table whenever a later chapter introduces a table without re-explaining what it represents.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table A.6</span> MRO concepts mapped onto the Meridian tables and columns used through the rest of this document.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">MRO concept</th><th scope="col">What it is</th><th scope="col">Where it lives in Meridian</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Work order</th><td>The unit of work the shop opens, prices and closes</td><td><code>WorkOrders</code>, becoming <span class="fact-tag">Fact</span> <code>FactWorkOrder</code></td></tr>
+          <tr><th scope="row">Service line</th><td>Line, light, heavy, or cabin and IFE</td><td><code>HMCCSchedule[ServiceLine]</code>, merged into the work order fact</td></tr>
+          <tr><th scope="row">Check type</th><td>The maintenance package the customer bought</td><td><code>HMCCSchedule[CheckType]</code>, <span class="dim-tag">Dimension</span> <code>DimCheckType</code></td></tr>
+          <tr><th scope="row">Customer, the operator</th><td>The airline carrying the airworthiness responsibility</td><td><code>HMCCSchedule[Customer]</code>, <code>AircraftRegistry[Operator]</code></td></tr>
+          <tr><th scope="row">Aircraft registration</th><td>The individual aircraft, by registration</td><td><code>WorkOrders[ACREG]</code>, <span class="derived-tag">Built</span> <code>DimAircraft</code></td></tr>
+          <tr><th scope="row">Bay or dock</th><td>The physical slot the aircraft occupies</td><td><code>HMCCSchedule[Bay]</code></td></tr>
+          <tr><th scope="row">Station</th><td>The site the work is performed at</td><td><code>WorkOrders[StationCode]</code>, <span class="derived-tag">Built</span> <code>DimStation</code></td></tr>
+          <tr><th scope="row">Planned input and output</th><td>What the control centre intended</td><td><code>HMCCSchedule[PlannedStart]</code>, <code>[PlannedFinish]</code></td></tr>
+          <tr><th scope="row">Induction and release</th><td>When the aircraft actually arrived and was released</td><td><code>WorkOrders[OpenedDate]</code>, <code>[ClosedDate]</code></td></tr>
+          <tr><th scope="row">Promised date</th><td>The contractual delivery commitment</td><td><code>WorkOrders[PromisedDate]</code></td></tr>
+          <tr><th scope="row">Available manhours</th><td>The frozen pre-input baseline: the hours the work was expected to need</td><td><code>HeavyPreInput[PlannedHours]</code>, <code>FactPreInput</code></td></tr>
+          <tr><th scope="row">Projected manhours</th><td>The current forecast of the final total</td><td><code>ManhourForecast[ProjectedHours]</code>, <code>FactForecast</code></td></tr>
+          <tr><th scope="row">Revision</th><td>Which forecast supersedes which</td><td><code>ManhourForecast[Revision]</code>, <code>[RevisionDate]</code></td></tr>
+          <tr><th scope="row">Achieved manhours</th><td>Hours technicians actually booked</td><td><code>LaborEntries[Hours]</code>, <span class="fact-tag">Fact</span> <code>FactLabor</code></td></tr>
+          <tr><th scope="row">Trade</th><td>Airframe, avionics, engine, NDT (non-destructive testing), cabin</td><td><span class="derived-tag">Built</span> <code>DimTrade</code>, conformed from two sources</td></tr>
+          <tr><th scope="row">Capacity</th><td>Supply of hours by station, month and trade</td><td><code>ShopCapacity</code>, unpivoted into <code>FactCapacity</code></td></tr>
+          <tr><th scope="row">Certification</th><td>What a technician is authorised to sign</td><td><span class="bridge-tag">Bridge</span> <code>BridgeTechCert</code>, <code>DimCertification</code></td></tr>
+          <tr><th scope="row">Rotable versus consumable</th><td>Repairable serialised part against consumed item</td><td><span class="derived-tag">Built</span> <code>DimPart</code>, derived from the part number prefix</td></tr>
+          <tr><th scope="row">Material issue</th><td>Stores releasing a part against a work order</td><td><code>PartsIssued</code>, <span class="fact-tag">Fact</span> <code>FactParts</code></td></tr>
+          <tr><th scope="row">AOG event</th><td>Unplanned work on a grounded aircraft</td><td><code>WorkOrders[WOType]</code> value AOG, <code>DimWOType</code></td></tr>
+          <tr><th scope="row">Modification</th><td>Work embodied under an STC or engineering order</td><td><code>WorkOrders[WOType]</code> value Mod</td></tr>
+          <tr><th scope="row">Turnaround time</th><td>Induction to release, in elapsed days</td><td>Derived from the date columns on <code>FactWorkOrder</code></td></tr>
+          <tr><th scope="row">Contract price</th><td>What the customer was quoted for the visit</td><td><code>WorkOrders[QuotedAmount]</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>The operator, through its CAMO or equivalent, decides what maintenance is due, and the Part-145 shop performs it. Broken foreign keys are that boundary showing up in your data, and they recur.</li>
+      <li>The shop runs four service lines: Line, Light, Heavy, and Cabin and IFE. Line and Light are separate lines with separate crews, and only outsiders club them together.</li>
+      <li>Line and light maintenance frequently arrive with no pre-input pack and therefore no planned manhour figure, which is the case for WO-1002, WO-1005 and WO-1007 in Meridian. A planned against actual measure comes back blank for them, which is correct and also invisible, so publish the count of work orders with no pre-input pack next to the ratio.</li>
+      <li>Cabin and IFE is reported inside base maintenance in some months and broken out on its own in others. Both are groupings over the one service line dimension, and <a class="xref" href="#ch-E">Chapter E</a> builds it.</li>
+      <li>Heavy checks span months, so the month a work order belongs to depends on which date column the slicer filters. Name a measure per question.</li>
+      <li>Available is frozen at pre-input. Projected is re-forecast as findings land and each revision supersedes the last, so it is never summed. Achieved is the only transaction record of the three.</li>
+      <li>Non-routine work is why forecasting exists, and its share varies enormously. Quote your own shop's history, and say how few checks it covers.</li>
+      <li>HMCC is a local name. Other shops say production control or base maintenance control, and the line equivalent is usually MOC. Learn what the function owns.</li>
+      <li>Capacity is supply, planned hours are demand, and turnaround time and utilisation pull against each other by construction. Report both without saying so and the monthly review becomes an argument.</li>
+      <li>The further a table sits from the regulated core, the more likely it is a spreadsheet, and the more likely it is the one that breaks your model.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="../index.html"><span class="pn-dir">Back</span><span class="pn-t">Contents</span></a><a class="pn" href="B.html"><span class="pn-dir">Next</span><span class="pn-t">Available, projected and achieved: three numbers that are three facts</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

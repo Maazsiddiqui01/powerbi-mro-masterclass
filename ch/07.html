@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>How a filter actually travels through the model</title>
+</head>
+<body data-ch="07">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">07</span><span class="tb-title">How a filter actually travels through the model</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-07">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 3 . Relationships and filter flow</div>
+    <h2 class="chapter-title"><span class="chapter-num">07</span>How a filter actually travels through the model</h2>
+    <p class="chapter-lede">After this chapter you will be able to point at any number in any visual and say which rows of which tables survived, in what order the engine eliminated the rest, and why a slicer that looks connected sometimes does nothing at all.</p>
+  </div>
+
+  <p>The production controller wants labor hours by aircraft type before the morning meeting. You build the matrix in about thirty seconds. E175 comes back 17.5 hours, and he asks the one question that matters: which jobs is that? Nothing in the measure mentions aircraft. Nothing in the labor table mentions aircraft either. This chapter answers him, row by row.</p>
+
+  <p class="lead">A filter is a set of surviving rows.</p>
+
+  <p>You almost certainly learned filtering in Excel. A condition sits on a column, rows that fail it get hidden, and everything else stays visible. That picture holds up fine when you have one table. It stops working the moment you have twelve tables and a measure that reads from one of them while the slicer sits on another. Keep the Excel picture and filter propagation will feel like a rule you memorised. Replace the picture and it becomes something you can work out from first principles.</p>
+
+  <p>Here is the replacement. In the tabular engine, a filter context is a set of surviving rows on <em>every</em> table in the model at the same time. Twelve tables, twelve row sets, all decided at once. Before a single measure runs, the engine has already worked out for each table exactly which rows are in play. <code>DimAircraft</code> <span class="dim-tag">Dimension</span> might be down to two rows out of seven while <code>DimStation</code> still holds all five. A dimension table is a list of the things you describe work by, one row each, so <code>DimAircraft</code> holds one row per aircraft. <code>FactLabor</code> <span class="fact-tag">Fact</span> might be down to three rows out of eight. A fact table holds events, and one <code>FactLabor</code> row is one booking of hours by one technician against one work order. That whole collection of row sets, one per table, is the filter context. Only then does the measure evaluate, and it evaluates against those sets.</p>
+
+  <p>Every cell in a visual gets its own filter context, built from scratch. A matrix with four visible rows evaluates the measure four times for the body and once more for the total. Five separate contexts, five separate sets. Nothing carries over between cells. The only thing they share is the model itself.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>When a number surprises you, do not ask "why is this measure wrong". Ask "which rows survived". The measure is almost never the problem. The set it was handed usually is.</p>
+  </aside>
+
+  <h3>The order of operations inside one cell</h3>
+
+  <p>Three things happen, always in this order, and the order is why propagation behaves the way it does.</p>
+
+  <ol class="steps">
+    <li>The engine collects every filter that applies to this cell and applies each one directly to the table that owns the column being filtered.</li>
+    <li>The engine follows relationships outward from those tables, narrowing other tables as it goes, until nothing more can be narrowed.</li>
+    <li>The measure runs, reading only the rows that survived on whichever table it aggregates.</li>
+  </ol>
+
+  <p>Step two is propagation. It is a graph walk, and the rule for whether a hop is legal is short: you may cross a relationship from the one side to the many side. Crossing the other way is not allowed unless you explicitly enable it. Everything else in this chapter follows from that single restriction.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="28.0" y="120.0" width="190.0" height="84.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="39.0" y="137.0" class="d-t" fill="#1B5A68">DimAircraft</text><line x1="28.0" y1="146.0" x2="218.0" y2="146.0" stroke="#1B5A68" stroke-width="1"/><text x="39.0" y="158.0" class="d-m" font-weight="600" fill="#1B5A68">ACREG</text><text x="39.0" y="173.5" class="d-m">AircraftType</text><text x="39.0" y="190.0" class="d-s" font-style="italic">filtered to E175</text><rect x="300.0" y="116.0" width="194.0" height="86.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="311.0" y="133.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="300.0" y1="142.0" x2="494.0" y2="142.0" stroke="#AE4419" stroke-width="1"/><text x="311.0" y="154.0" class="d-m" font-weight="600" fill="#AE4419">WorkOrderID</text><text x="311.0" y="169.5" class="d-m">ACREG</text><text x="311.0" y="185.0" class="d-m">StationCode</text><rect x="586.0" y="116.0" width="194.0" height="86.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="597.0" y="133.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="586.0" y1="142.0" x2="780.0" y2="142.0" stroke="#AE4419" stroke-width="1"/><text x="597.0" y="154.0" class="d-m" font-weight="600" fill="#AE4419">LaborID</text><text x="597.0" y="169.5" class="d-m">WorkOrderID</text><text x="597.0" y="185.0" class="d-m">Hours</text><line x1="218.0" y1="152.0" x2="300.0" y2="152.0" class="d-line-hot" marker-end="url(#ah)"/><text x="233.0" y="164.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="285.0" y="164.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="494.0" y1="152.0" x2="586.0" y2="152.0" class="d-line-hot" marker-end="url(#ah)"/><text x="509.0" y="164.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="571.0" y="164.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><rect x="28.0" y="232.0" width="194.0" height="68.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="44.0" cy="248.0" r="9" fill="#AE4419"/><text x="44.0" y="251.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">1</text><text x="60.0" y="252.0" class="d-t" font-size="10.5">survives on DimAircraft</text><text x="42.0" y="272.0" class="d-m">N902TT</text><text x="42.0" y="287.0" class="d-m">N553KD</text><rect x="300.0" y="232.0" width="194.0" height="68.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="316.0" cy="248.0" r="9" fill="#AE4419"/><text x="316.0" y="251.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">2</text><text x="332.0" y="252.0" class="d-t" font-size="10.5">survives on FactWorkOrder</text><text x="314.0" y="272.0" class="d-m">WO-1003</text><text x="314.0" y="287.0" class="d-m">WO-1007</text><rect x="586.0" y="232.0" width="194.0" height="83.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><circle cx="602.0" cy="248.0" r="9" fill="#AE4419"/><text x="602.0" y="251.5" class="d-lbl" text-anchor="middle" fill="#FFFFFF">3</text><text x="618.0" y="252.0" class="d-t" font-size="10.5">survives on FactLabor</text><text x="600.0" y="272.0" class="d-m">L-504  8.0</text><text x="600.0" y="287.0" class="d-m">L-505  4.5</text><text x="600.0" y="302.0" class="d-m">L-508  5.0</text><line x1="222.0" y1="268.0" x2="300.0" y2="268.0" class="d-line-hot" marker-end="url(#ah)"/><line x1="494.0" y1="268.0" x2="586.0" y2="268.0" class="d-line-hot" marker-end="url(#ah)"/><rect x="586.0" y="340.0" width="194.0" height="40.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="600.0" y="358.0" class="d-s">SUM of Hours</text><text x="600.0" y="373.0" class="d-t" fill="#2B6140">8.0 + 4.5 + 5.0 = 17.5</text><text x="28.0" y="358.0" class="d-s" fill="#77746B">A filter is a set of surviving rows, not a condition.</text><text x="28.0" y="374.0" class="d-s" fill="#77746B">Each hop shrinks the set. The measure runs last, on what is left.</text></svg></div><figcaption><span class="fig-num">Figure 7.1</span>A filter is a set of surviving rows. Selecting E175 shrinks that set at every hop.</figcaption></figure>
+
+  <p>Read the top row of boxes left to right and look at where the arrowheads sit. Both arrows point the same way. Each is marked 1 at the end it leaves and * at the end it arrives, so every hop runs from the one side to the many side. Only the first arrow leaves a dimension. The second leaves <code>FactWorkOrder</code> and lands on <code>FactLabor</code>, header to line, and it is legal for the same reason: one work order row, many labor rows. Nothing points back the other way. That is the constraint the engine enforces, drawn, and it means the reachable set from any starting table is fixed and knowable before you run anything.</p>
+
+  <p>The three numbered cards underneath sit directly below the box each one belongs to, and they hold the whole idea. Card 1 is what survives on <code>DimAircraft</code> once the diagram's E175 filter lands, two aircraft registrations. Card 2 is what is left on <code>FactWorkOrder</code> after the first hop, two work orders. Card 3 is what is left on <code>FactLabor</code> after the second hop, three labor rows with their hours printed beside them. The green card on the right adds those three hours to 17.5. Each card is a set of surviving rows, never a condition, and the measure only appears at the end, on whatever the last card still contains.</p>
+
+  <h3>Hand trace: Labor Hours for the E175 row</h3>
+
+  <p>Build a matrix. Put <code>DimAircraft[AircraftType]</code> on rows and one measure in values.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Hours</span></div>
+    <pre><code>Labor Hours <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 1</div><div class="linex-v">The measure name. It aggregates <code>FactLabor</code>, and nothing in its definition mentions aircraft. That matters: the connection to <code>DimAircraft</code> lives entirely in the model, not in the code.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>SUM</code> adds one stored column across whatever rows survive. Nothing here needs a row by row expression, so <code>SUMX</code> would only add an iterator the engine has to unwind. Use <code>SUM</code> when you are adding a single physical column and save <code>SUMX</code> for the cases where you are multiplying two columns together.</div></div>
+  </div>
+
+  <p>Now trace the E175 row in full. The three cards in the diagram above give you the shape and the answer; what follows is every row at every stage, so you can see what was dropped as well as what was kept. Four steps, because the measure evaluating is a step in its own right, and at each one the only question is which rows are still standing.</p>
+
+  <h4>Step 1. The visual filters DimAircraft</h4>
+
+  <p>The row header is a filter on <code>DimAircraft[AircraftType]</code> with the value E175. That column lives on <code>DimAircraft</code>, so the filter lands there first, before any propagation happens at all.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 7.1</span> DimAircraft after the row header is applied. Two rows survive out of seven.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">ACREG</th><th scope="col">AircraftType</th><th scope="col">Status</th></tr></thead>
+        <tbody>
+          <tr class="muted"><td class="key">N771QR</td><td>A320-200</td><td>dropped</td></tr>
+          <tr class="muted"><td class="key">N448LM</td><td>B737-800</td><td>dropped</td></tr>
+          <tr><td class="key">N902TT</td><td>E175</td><td>survives</td></tr>
+          <tr class="muted"><td class="key">N615RB</td><td>A320-200</td><td>dropped</td></tr>
+          <tr class="muted"><td class="key">N120CE</td><td>B737-800</td><td>dropped</td></tr>
+          <tr><td class="key">N553KD</td><td>E175</td><td>survives</td></tr>
+          <tr class="muted"><td class="key">N338WA</td><td>Unknown type</td><td>dropped</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The surviving set is exactly two aircraft registrations, N902TT and N553KD. Note that N553KD survives even though it has never had a work order. Nothing about the dimension knows or cares about that yet.</p>
+
+  <h4>Step 2. DimAircraft propagates to FactWorkOrder</h4>
+
+  <p>There is one relationship out of <code>DimAircraft</code>, from <code>DimAircraft[ACREG]</code> to <code>FactWorkOrder[ACREG]</code>, and it runs from the one side to the many side. Legal hop. The engine keeps the <code>FactWorkOrder</code> rows whose <code>ACREG</code> is in the surviving set from step 1.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 7.2</span> FactWorkOrder after propagation from DimAircraft. Two rows survive out of eight.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">WorkOrderID</th><th scope="col">ACREG</th><th scope="col">StationCode</th><th scope="col">Status</th></tr></thead>
+        <tbody>
+          <tr class="muted"><td class="key">WO-1001</td><td>N771QR</td><td>MSP</td><td>dropped</td></tr>
+          <tr class="muted"><td class="key">WO-1002</td><td>N448LM</td><td>MSP</td><td>dropped</td></tr>
+          <tr><td class="key">WO-1003</td><td>N902TT</td><td>TUS</td><td>survives</td></tr>
+          <tr class="muted"><td class="key">WO-1004</td><td>N771QR</td><td>TUS</td><td>dropped</td></tr>
+          <tr class="muted"><td class="key">WO-1005</td><td>N615RB</td><td>UNASSIGNED</td><td>dropped</td></tr>
+          <tr class="muted"><td class="key">WO-1006</td><td>N338WA</td><td>MSP</td><td>dropped</td></tr>
+          <tr><td class="key">WO-1007</td><td>N902TT</td><td>LAS</td><td>survives</td></tr>
+          <tr class="muted"><td class="key">WO-1008</td><td>N771QR</td><td>MSP</td><td>dropped</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>N553KD contributed nothing, because no work order references it. The set from step 1 had two members and the set here has two members, but that is coincidence: one tail supplied both.</p>
+
+  <h4>Step 3. FactWorkOrder propagates to FactLabor</h4>
+
+  <p>The header to line relationship runs from <code>FactWorkOrder[WorkOrderID]</code> to <code>FactLabor[WorkOrderID]</code>, one side to many side. Legal hop again. <code>FactLabor</code> keeps the rows whose work order is in the surviving set from step 2.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 7.3</span> FactLabor after propagation from FactWorkOrder. Three rows survive out of eight.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">LaborID</th><th scope="col">WorkOrderID</th><th scope="col">TechnicianID</th><th scope="col" class="num">Hours</th><th scope="col">Status</th></tr></thead>
+        <tbody>
+          <tr class="muted"><td class="key">L-501</td><td>WO-1001</td><td>TECH-02</td><td class="num">7.5</td><td>dropped</td></tr>
+          <tr class="muted"><td class="key">L-502</td><td>WO-1001</td><td>TECH-04</td><td class="num">6.0</td><td>dropped</td></tr>
+          <tr class="muted"><td class="key">L-503</td><td>WO-1002</td><td>TECH-02</td><td class="num">9.0</td><td>dropped</td></tr>
+          <tr><td class="key">L-504</td><td>WO-1003</td><td>TECH-05</td><td class="num">8.0</td><td>survives</td></tr>
+          <tr><td class="key">L-505</td><td>WO-1003</td><td>TECH-04</td><td class="num">4.5</td><td>survives</td></tr>
+          <tr class="muted"><td class="key">L-506</td><td>WO-1004</td><td>TECH-07</td><td class="num">10.0</td><td>dropped</td></tr>
+          <tr class="muted"><td class="key">L-507</td><td>WO-1006</td><td>TECH-01</td><td class="num">12.0</td><td>dropped</td></tr>
+          <tr><td class="key">L-508</td><td>WO-1007</td><td>TECH-05</td><td class="num">5.0</td><td>survives</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h4>Step 4. The measure runs</h4>
+
+  <p><code>SUM</code> over <code>FactLabor[Hours]</code> sees exactly three rows: 8.0 plus 4.5 plus 5.0 equals 17.5. That is the number in the E175 cell. Every step that produced it was a set operation, and the only arithmetic happened at the very end. It is also the production controller's answer. Two work orders, WO-1003 and WO-1007, three labor bookings between them.</p>
+
+  <p>Now look at what else the engine did on the way. People skip this part and find it confusing later. The filter context for that one cell is a state of the entire model, and the E175 selection is only the piece of it you asked for.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 7.4</span> The complete filter context for the E175 cell, every table in the model.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Table</th><th scope="col" class="num">Rows surviving</th><th scope="col">Narrowed by</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">DimAircraft</th><td class="num">2 of 7</td><td>the visual row header, directly</td></tr>
+          <tr><th scope="row">FactWorkOrder</th><td class="num">2 of 8</td><td>propagation from DimAircraft</td></tr>
+          <tr><th scope="row">FactLabor</th><td class="num">3 of 8</td><td>propagation from FactWorkOrder</td></tr>
+          <tr><th scope="row">FactParts</th><td class="num">2 of 7</td><td>propagation from FactWorkOrder</td></tr>
+          <tr><th scope="row">DimStation</th><td class="num">5 of 5</td><td>nothing, wrong direction</td></tr>
+          <tr><th scope="row">DimWOType</th><td class="num">3 of 3</td><td>nothing, wrong direction</td></tr>
+          <tr><th scope="row">DimTechnician</th><td class="num">7 of 7</td><td>nothing, wrong direction</td></tr>
+          <tr><th scope="row">DimDate</th><td class="num">90 of 90</td><td>nothing, wrong direction</td></tr>
+          <tr><th scope="row">DimPart</th><td class="num">4 of 4</td><td>nothing, wrong direction</td></tr>
+          <tr><th scope="row">FactCapacity</th><td class="num">28 of 28</td><td>nothing reached it</td></tr>
+          <tr><th scope="row">BridgeTechCert</th><td class="num">10 of 10</td><td>nothing reached it</td></tr>
+          <tr><th scope="row">DimCertification</th><td class="num">4 of 4</td><td>nothing reached it</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Two things in that table are worth stopping on. First, <code>FactParts</code> narrowed to two rows without anyone asking, because it hangs off <code>FactWorkOrder</code> exactly the way <code>FactLabor</code> does. Drop a Parts Cost measure into the same matrix and the E175 row returns 10,200 plus 2,480, which is 12,680. You did no extra work to get it. Second, the dimensions listed lower down the table still have every row. Nothing touched them, because reaching them would mean walking a relationship backwards.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 7.5</span> The finished matrix. Every row is a separate trace of the same four steps.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">AircraftType</th><th scope="col" class="num">Labor Hours</th><th scope="col">Work orders behind it</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">A320-200</th><td class="num">23.5</td><td>WO-1001 13.5 plus WO-1004 10.0</td></tr>
+          <tr><th scope="row">B737-800</th><td class="num">9.0</td><td>WO-1002</td></tr>
+          <tr><th scope="row">E175</th><td class="num">17.5</td><td>WO-1003 12.5 plus WO-1007 5.0</td></tr>
+          <tr><th scope="row">Unknown type</th><td class="num">12.0</td><td>WO-1006, the recovered N338WA</td></tr>
+          <tr class="row-total"><td>Total</td><td class="num">62.0</td><td>all eight work orders</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The total row is the same measure evaluated one more time, with no filter on <code>DimAircraft</code> at all. Nobody adds the four rows up. The total agrees with their sum here because every labor row belongs to exactly one aircraft, and that agreement is a property of this data. Hold onto the distinction. It breaks in the bridge table chapter, and it breaks again later in this one.</p>
+
+  <h3>The expanded table, and why it is the abstraction that matters</h3>
+
+  <p>The planner points at a slicer on part category and asks whether it changes labor hours. You could trace it: filter the part table, walk every relationship out of it, write down what survives. That is twenty minutes with a pen. There is a way to answer her in about ten seconds, and this is it.</p>
+
+  <p>Doing that trace by hand every time would be exhausting. There is a shortcut, and once you hold it most propagation questions become something you can settle in your head.</p>
+
+  <p>Conceptually, every table in the model is <em>expanded</em> to include the columns of every table you can reach from it by following many to one relationships. Many to one only, in the direction a fact row points at its dimension row. So the expanded version of <code>FactLabor</code> carries its own six columns (<code>LaborID</code>, <code>WorkOrderID</code>, <code>TechnicianID</code>, <code>WorkDate</code>, <code>Hours</code> and <code>HourlyRate</code>). On top of those it carries the columns of <code>FactWorkOrder</code>, plus <code>DimAircraft</code>, <code>DimStation</code>, <code>DimWOType</code>, <code>DimTechnician</code> and <code>DimDate</code>. All of them, as if they had been joined into one very wide table.</p>
+
+  <p>Now restate propagation using it. A filter on <code>DimAircraft[AircraftType]</code> is a filter on a column of the expanded <code>FactLabor</code>, so it filters <code>FactLabor</code>. A filter on <code>DimTechnician[EmployeeType]</code> is also a column of expanded <code>FactLabor</code>, so it filters <code>FactLabor</code> too. A filter on <code>DimPart[Category]</code> is <em>not</em> a column of expanded <code>FactLabor</code>, because <code>DimPart</code> sits outside every many to one hop that leaves <code>FactLabor</code>. So it does nothing to labor hours, however prominently the slicer sits on the page. That answers the planner, and it took one look at the expansion list.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Expanded tables also explain why <code>CALCULATE</code> filter arguments work the way they do. When you write a filter on a dimension column inside a measure that aggregates a fact, you are filtering a column of the fact's expanded table directly. As far as that filter is concerned, the dimension is already part of the fact. So the filter arrives whether or not the dimension appears anywhere in the visual, and the direction of the relationship decides what is reachable. Your intuition about which table should reach which gets no vote.</p>
+  </aside>
+
+  <p>Write out the expansion for your own model once, on paper, and keep it. For Meridian it takes ten minutes and it answers roughly eighty percent of the "why doesn't this slicer work" questions you will ever be asked.</p>
+
+  <h3>Why filters only travel one way</h3>
+
+  <p>The shift supervisor asks this one first, and then everybody else asks it. Why does the slicer work in one direction and sit there in the other? The stock reply, that this is just how Power BI works, gives you nothing to use the next time the model surprises you. Here is the mechanism.</p>
+
+  <p>Going from the many side to the one side is deterministic. Take <code>FactWorkOrder</code> row WO-1003. Its <code>ACREG</code> is N902TT, and <code>DimAircraft[ACREG]</code> is unique, so that row points at exactly one dimension row. Always one. The lookup is a single hash probe and the answer is a scalar. Every fact row in the model behaves this way, which is what makes the expanded table well defined in the first place.</p>
+
+  <p>Going the other way loses that guarantee. Take <code>DimAircraft</code> row N771QR. It is referenced by WO-1001, WO-1004 and WO-1008, three rows. A different tail would give a different count. So propagating from the one side to the many side returns a set, and the engine has to build that set before it can apply it. That is more work, and the work scales with how many distinct keys survive.</p>
+
+  <p>The second problem is worse than the cost. Sets can arrive by more than one route. Suppose both directions were open by default. A filter on <code>DimStation</code> could then reach <code>FactLabor</code> through <code>FactWorkOrder</code>. Had somebody built the relationship, it could reach the same table through <code>DimTechnician[HomeStation]</code> as well. Those two routes give different answers to the same question. The Meridian model leaves out <code>DimStation[StationCode]</code> to <code>DimTechnician[HomeStation]</code> for exactly this reason. With one direction, the reachable set from any table is unique, and the model has exactly one interpretation.</p>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Many to one</div><div class="kv-v">One row, always</div></div>
+    <div class="kv-item"><div class="kv-k">One to many</div><div class="kv-v">A set, size varies</div></div>
+    <div class="kv-item"><div class="kv-k">Default direction</div><div class="kv-v">One side to many side</div></div>
+    <div class="kv-item"><div class="kv-k">What it buys you</div><div class="kv-v">Exactly one answer</div></div>
+  </div>
+
+  <h3>Five ways to make a filter go the other way</h3>
+
+  <p>The production controller who staffs the LAS line wants hours by the technician's home station. He is asking what his own people booked, wherever the aircraft happened to be sitting. The model holds a work order station and a technician home station, with no relationship between them. He has asked a filter to travel in the one direction this model refuses to send it.</p>
+
+  <p>Sometimes you genuinely need the flow reversed. There are five options and they are not equal. They are listed here in the order you should consider them, which is not the order most people try them in.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 7.6</span> Reversing filter flow, ranked, with the cost each one actually charges you.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col" class="num">#</th><th scope="col">Approach</th><th scope="col">Scope</th><th scope="col">When it is right</th><th scope="col">What it costs</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="num">1</td><th scope="row">Re-point the model at a shared dimension</th><td>Model</td>
+            <td>Right when both facts already share a real dimension and you were simply filtering from the wrong table.</td>
+            <td>A modelling conversation, and sometimes a dimension that does not exist yet.</td>
+          </tr>
+          <tr>
+            <td class="num">2</td><th scope="row"><code>CROSSFILTER</code> inside one measure</th><td>One measure</td>
+            <td>Right when exactly one measure needs the reverse flow and every other measure must keep behaving as it does today.</td>
+            <td>The behaviour is invisible in the model diagram, so the next person has to read your DAX to find it.</td>
+          </tr>
+          <tr>
+            <td class="num">3</td><th scope="row"><code>TREATAS</code> inside one measure</th><td>One measure</td>
+            <td>Right when there is no relationship and you do not want one, usually because creating it would introduce a second path.</td>
+            <td>Same invisibility problem, plus the filter is applied by value matching, so mismatched data types or untrimmed keys fail silently.</td>
+          </tr>
+          <tr>
+            <td class="num">4</td><th scope="row">A bidirectional relationship</th><td>Model, global</td>
+            <td>Right when a bridge table genuinely requires it and the key has low cardinality.</td>
+            <td>Every measure changes at once, and the model will refuse a later relationship that creates ambiguity.</td>
+          </tr>
+          <tr>
+            <td class="num">5</td><th scope="row">Denormalise the attribute onto the fact in Power Query</th><td>Load</td>
+            <td>Right when the attribute is stable, the join is cheap upstream, and you would otherwise be reaching across three tables on every query.</td>
+            <td>Storage, refresh time, and a second copy of a value that now has to stay in sync with the first.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Option 1 is the one people skip, and it is usually correct. Before reaching for anything clever, check whether the filter could come from a dimension both facts already touch. Labor hours and planned capacity share <code>DimStation</code> and <code>DimDate</code>. You do not need any reverse flow between them, and the utilisation trace at the end of this chapter shows why.</p>
+
+  <p>Option 3 has a concrete home in this model. Meridian deliberately refuses to relate <code>DimStation</code> to <code>DimTechnician[HomeStation]</code>, because that would give a filter on <code>DimStation</code> two routes to <code>FactLabor</code>. But "how many hours did technicians based at MSP book, wherever they booked them" is a fair question. <code>TREATAS</code> answers it without a relationship.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Hours by Home Station</span></div>
+    <pre><code>Labor Hours by Home Station <span class="op">=</span>
+<span class="k">VAR</span> SelectedStations <span class="op">=</span>
+    <span class="k">VALUES</span> ( <span class="t">DimStation</span><span class="col">[StationCode]</span> )
+<span class="k">RETURN</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Labor Hours]</span>,
+        <span class="k">REMOVEFILTERS</span> ( <span class="t">DimStation</span> ),
+        <span class="k">TREATAS</span> (
+            SelectedStations,
+            <span class="t">DimTechnician</span><span class="col">[HomeStation]</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2 to 3</div><div class="linex-v">Capture the station codes currently visible. <code>VALUES</code> rather than <code>DISTINCT</code>: <code>VALUES</code> includes the blank row the engine adds for unmatched keys. When you hand a set to a virtual relationship, you want that blank travelling with it. <code>DISTINCT</code> leaves it behind.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v"><code>CALCULATE</code> is the only function that can modify a filter context. A bare <code>FILTER</code> would build a table, but it cannot change what the surrounding measure sees, so it is not an alternative here.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 7</div><div class="linex-v"><code>REMOVEFILTERS</code> on <code>DimStation</code> stops the original station filter from also propagating through <code>FactWorkOrder</code>. Without it you get the intersection of two different definitions of station. <code>ALL</code> would do the same job, but it reads as a table function and this is a modifier, so <code>REMOVEFILTERS</code> states the intent.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 8 to 11</div><div class="linex-v"><code>TREATAS</code> takes the captured values and applies them as a filter on <code>DimTechnician[HomeStation]</code>, a column with no relationship to <code>DimStation</code> at all. That filter then propagates normally down to <code>FactLabor</code>.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>TREATAS</code> rather than a physical relationship, because a physical relationship here is the exact thing this model was built to avoid. <code>TREATAS</code> and not <code>CROSSFILTER</code>: <code>CROSSFILTER</code> can only change the direction of a relationship that already exists, and here there is none. <code>TREATAS</code> and not <code>INTERSECT</code> on the technician table, because <code>INTERSECT</code> hands you a table to compare against, where what you need is a filter the engine will propagate. The trade is that nothing in the model diagram hints this measure exists.</p>
+  </div>
+
+  <p>Run it and the answers differ from the station route, which is the point. Technician home station and work order station are two different facts about the same hours.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 7.7</span> The same 62.0 hours split two different ways. Neither column is wrong, they answer different questions.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Station</th><th scope="col" class="num">Hours by work order station</th><th scope="col" class="num">Hours by technician home station</th><th scope="col">Arithmetic for the home station figure</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">MSP</th><td class="num">34.5</td><td class="num">28.5</td><td>TECH-01 12.0 plus TECH-02 16.5 plus TECH-06 0</td></tr>
+          <tr><th scope="row">TUS</th><td class="num">22.5</td><td class="num">10.5</td><td>TECH-03 0 plus TECH-04 10.5</td></tr>
+          <tr><th scope="row">LAS</th><td class="num">5.0</td><td class="num">13.0</td><td>TECH-05 13.0</td></tr>
+          <tr><th scope="row">UNASSIGNED</th><td class="num">0</td><td class="num">10.0</td><td>TECH-07, the unknown member, 10.0</td></tr>
+          <tr><th scope="row">PHX</th><td class="num">0</td><td class="num">0</td><td>no technicians, no work orders</td></tr>
+          <tr class="row-total"><td>Total</td><td class="num">62.0</td><td class="num">62.0</td><td>28.5 plus 10.5 plus 13.0 plus 10.0 equals 62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>LAS is the interesting cell, and it is the production controller's answer. Five hours of work happened at LAS. K. Ibrahim is based there and booked thirteen hours in total, most of them on a Tucson work order. Both figures describe his line. Put the two columns on one page without labelling them clearly and somebody will build a staffing plan on the wrong one.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>Reversing filter direction has a price, and the price tracks the number of distinct keys that survive. Table size barely comes into it. Making <code>FactWorkOrder</code> to <code>FactLabor</code> bidirectional on eight rows costs nothing you could measure. Do it on a work order table with four million keys and the engine materialises a key set of up to four million values, then hands it across on every query that touches both tables. This is why a bidirectional relationship on a small bridge, where the key is a certification code with four values, is usually fine. It is also why a bidirectional relationship on a transaction identifier is usually what you find at the bottom of a slow report.</p>
+  </aside>
+
+  <h3>When there is no path at all</h3>
+
+  <p>The finance manager wants parts cost split by employee type. Staff against contract, one figure each, on the Friday pack. It sounds like a five minute job, and the model already holds every column the question names.</p>
+
+  <p>Put a slicer on <code>DimTechnician[EmployeeType]</code> with Staff and Contract on it. Put a card next to it showing Parts Cost, defined as follows.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Parts Cost</span></div>
+    <pre><code>Parts Cost <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="t">FactParts</span>,
+        <span class="t">FactParts</span><span class="col">[Qty]</span> <span class="op">*</span> <span class="t">FactParts</span><span class="col">[UnitCost]</span>
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>SUMX</code> and not <code>SUM</code>, because there is no stored extended cost column on <code>FactParts</code> and <code>SUM</code> cannot multiply two columns. A calculated column would also work and would let you use <code>SUM</code>, but it materialises a value into the model that you only ever need at query time.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 3 to 4</div><div class="linex-v">The iterator walks whatever rows of <code>FactParts</code> survive the filter context, multiplying quantity by unit cost for each and adding the results.</div></div>
+  </div>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>The slicer works. Buttons highlight, the selection sticks, the other visuals on the page respond. The Parts Cost card reads 28,245 with Staff selected, 28,245 with Contract selected, and 28,245 with nothing selected. It never moves.</p>
+  </div>
+
+  <p>Explain it as a graph walk and the reason is immediate. From <code>DimTechnician</code> the engine can hop to <code>FactLabor</code>, because that relationship runs one side to many side. From <code>FactLabor</code> the only relationship that leads anywhere new is <code>FactWorkOrder</code> to <code>FactLabor</code>, and taking it would mean walking from the many side to the one side. Not allowed by default. The other two relationships touching <code>FactLabor</code> come in from <code>DimDate</code> and <code>DimTechnician</code>, and they point the wrong way as well. The walk stops there. <code>FactParts</code> is never reached, all seven rows survive, and the measure returns the same 28,245 every time. Said the other way: <code>DimTechnician</code> is not in the expanded table of <code>FactParts</code>, so it cannot filter it.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Assuming a slicer that visibly reacts is a slicer that is doing something. Slicer interactivity is a property of the slicer visual. Whether the selection reaches your measure is a property of the model. They are unrelated, and a slicer that filters nothing looks exactly like a slicer that filters everything.</p>
+  </aside>
+
+  <p>Three fixes get proposed whenever this comes up. One of them can be built against this data. One cannot be built here at all. The third is the correct answer, and it is the one that almost never gets built.</p>
+
+  <h4>Fix A. Push the filter through with CROSSFILTER</h4>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Parts Cost Pushed Through Labor</span></div>
+    <pre><code>Parts Cost Pushed Through Labor <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="col">[Parts Cost]</span>,
+        <span class="k">CROSSFILTER</span> (
+            <span class="t">FactWorkOrder</span><span class="col">[WorkOrderID]</span>,
+            <span class="t">FactLabor</span><span class="col">[WorkOrderID]</span>,
+            <span class="k">BOTH</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>CALCULATE</code> again, because the relationship direction is part of the filter context and only <code>CALCULATE</code> can alter it.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 4 to 8</div><div class="linex-v"><code>CROSSFILTER</code> names the two columns of an existing relationship and sets its direction to <code>BOTH</code> for this evaluation only. <code>USERELATIONSHIP</code> is the function people reach for first. It wakes an inactive relationship, and this relationship is active already, so it does not apply here. Setting the relationship bidirectional in the model view would work too, and it would change every measure in the file, which is exactly what you are trying to avoid.</div></div>
+  </div>
+
+  <p>Now the filter reaches. <code>DimTechnician</code> narrows <code>FactLabor</code>, <code>FactLabor</code> narrows <code>FactWorkOrder</code> because the direction is temporarily open, and <code>FactWorkOrder</code> narrows <code>FactParts</code> as usual. You get numbers. Read them carefully.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 7.8</span> Parts cost by employee type once the filter is forced through. The rows do not add up to the total, in either direction.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">EmployeeType</th><th scope="col">Work orders reached</th><th scope="col" class="num">Parts Cost</th><th scope="col">Arithmetic</th></tr></thead>
+        <tbody>
+          <tr class="row-bad"><th scope="row">Staff</th><td>WO-1001, WO-1002, WO-1003, WO-1006, WO-1007</td><td class="num">21,470</td><td>1,240 plus 2,450 plus 12,680 plus 5,100 plus 0</td></tr>
+          <tr class="row-bad"><th scope="row">Contract</th><td>WO-1001, WO-1003</td><td class="num">13,920</td><td>1,240 plus 12,680</td></tr>
+          <tr><th scope="row">Unknown</th><td>WO-1004</td><td class="num">0</td><td>WO-1004 has no parts issued</td></tr>
+          <tr class="row-total"><td>Sum of the rows</td><td>WO-1001 and WO-1003 counted twice</td><td class="num">35,390</td><td>21,470 plus 13,920 plus 0</td></tr>
+          <tr class="row-total"><td>Total row shown by the matrix</td><td>every part line including the orphan</td><td class="num">28,245</td><td>the measure with no technician filter</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Two independent errors are stacked in that table and both are structural. WO-1001 was worked by TECH-02, who is Staff, and TECH-04, who is Contract, so its 1,240 of brake parts appears in both rows. WO-1003 does the same with 12,680. That is 13,920 counted twice. Meanwhile the rows are missing 1,875 from WO-1005, which has parts but no labor at all, and 4,900 from P-9007, whose work order WO-1009 does not exist in <code>FactWorkOrder</code>. Those two add to 6,775, which is exactly the gap between 28,245 and the 21,470 the rows actually cover. Double count 13,920, omit 6,775, and you land 7,145 above the correct grand total.</p>
+
+  <h4>Fix B. Denormalise the technician onto the parts fact</h4>
+
+  <p>Add a <code>TechnicianID</code> column to <code>FactParts</code> in Power Query and relate it to <code>DimTechnician</code>. This is option 5 from the ranked list, and in many situations it is the best answer available. Here it is not available at all, because the source has no such column. PartsIssued arrives with <code>IssueID</code>, <code>WorkOrderID</code>, <code>PartNumber</code>, <code>Qty</code>, <code>UnitCost</code> and <code>IssueDate</code>. There is no technician anywhere in it. You could allocate parts cost to technicians in proportion to hours booked, and that is a legitimate thing to build, but be honest about what it is: an assumption you invented, not a fact you loaded.</p>
+
+  <h4>Fix C. Change the question</h4>
+
+  <p>This is the correct answer, and it is the inconvenient one. The stores log records that a part left the shelf against a work order. Nobody wrote down who fitted it, and no amount of relationship configuration will conjure a fact that was never captured. So a part issue in this data belongs to a work order and to nothing else. "Parts cost by employee type" is a question with no defined answer, given these six source tables. The obstacle sits in the source data, and Power BI will hand you a number for it anyway if you ask. Building a model that returns one is worse than returning nothing, because the number looks authoritative.</p>
+
+  <p>What you can answer, precisely, is "parts cost on work orders that contract technicians booked time to". That is 13,920, and Fix A computes it correctly. Two rules come with it. You may show it as a single filtered figure. You may never put it in a matrix with a total row, because the moment two employee types appear side by side the shared work orders get counted twice. Rename the measure to say so. A measure called Parts Cost On Work Orders Touched will get questioned by the person reading it. A measure called Parts Cost will sail through. That is the honest version of the finance manager's Friday number, and part of the job is telling him why the other version does not exist.</p>
+
+  <h3>How the filters stack</h3>
+
+  <p>The shift supervisor says the report is wrong. His whiteboard shows more MSP work on the A320s this month than your matrix does. He has been counting jobs and the matrix has been adding hours, and neither of you has noticed that yet. There are three filters on that page, and he can see two of them.</p>
+
+  <p>One cell usually has more than one filter arriving at it. The sources are report level filters, page level filters, visual level filters, every slicer on the page, the row, column, legend and small multiple fields of the visual itself, cross highlighting from a selection in another visual, row level security if it is configured, and any filter the measure applies with <code>CALCULATE</code>. All of them contribute.</p>
+
+  <p>They combine by intersection. Each filter produces a set of surviving rows, and the engine keeps the rows that survive all of them, which is logical AND. There is one exception worth knowing. A filter argument inside <code>CALCULATE</code> overwrites any existing filter on the same column. Everything arriving from outside the measure intersects.</p>
+
+  <p>Work an example on the A320-200 row. Three filters, from three different places, landing on three different tables.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 7.9</span> Three filter sources intersecting on FactWorkOrder, for one cell of one matrix.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Filter source</th><th scope="col">Lands on</th><th scope="col">FactWorkOrder rows it leaves</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Visual row header, AircraftType is A320-200</th><td>DimAircraft, then propagates</td><td>WO-1001, WO-1004, WO-1005, WO-1008</td></tr>
+          <tr><th scope="row">Slicer, StationCode is MSP</th><td>DimStation, then propagates</td><td>WO-1001, WO-1002, WO-1006, WO-1008</td></tr>
+          <tr><th scope="row">Page filter, WOType is Scheduled</th><td>DimWOType, then propagates</td><td>WO-1001, WO-1003, WO-1006, WO-1008</td></tr>
+          <tr class="row-good"><th scope="row">Intersection of all three</th><td>FactWorkOrder</td><td>WO-1001, WO-1008</td></tr>
+          <tr class="row-total"><td>Labor Hours for that cell</td><td>FactLabor keeps L-501 and L-502</td><td class="num">7.5 plus 6.0 equals 13.5</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>WO-1008 survives all three filters and still contributes nothing, because it has no labor rows yet. That is the difference between a work order sitting in the filter context and a work order having something to add. Both are true here, and only one of them shows up in the number. That answers the shift supervisor. He counted two jobs, the matrix added the hours on one of them, and both of you were right.</p>
+
+  <p>One habit will save you a great deal of time. When a number looks wrong, start with the visual and leave the DAX alone for a minute. Strip the visual back to one row and one measure, then add the filter sources back one at a time and watch where the number changes. You are looking for the filter that removed a row you expected to keep. The formula is rarely where the trouble lives.</p>
+
+  <details class="expand" open>
+    <summary>Trace this by hand, row by row: Utilisation at MSP in January</summary>
+    <div class="expand-body">
+
+      <p>The first trace had a single chain. This one has two branches that converge, which is the more common shape and the one worth practising. The measures:</p>
+
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Planned Hours and Utilisation</span></div>
+        <pre><code>Planned Hours <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactCapacity</span><span class="col">[PlannedHours]</span> )
+
+<span class="c">// Utilisation compares booked hours to planned hours</span>
+Utilisation <span class="op">=</span>
+    <span class="k">DIVIDE</span> ( <span class="col">[Labor Hours]</span>, <span class="col">[Planned Hours]</span> )</code></pre>
+      </div>
+
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>SUM</code> over the unpivoted capacity fact. The trade columns became rows during the unpivot, so a station month now has four rows and adding them is a plain column sum.</div></div>
+        <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v"><code>DIVIDE</code> and not the division operator. LAS has no capacity row for January, so <code>[Planned Hours]</code> is blank there, and <code>DIVIDE</code> returns blank rather than raising an error. The operator would fail on the same cell, and a visual that errors on one cell shows nothing at all.</div></div>
+      </div>
+
+      <p>Put <code>DimStation[StationCode]</code> on rows, <code>DimDate[MonthName]</code> on columns, and read the cell at MSP and January. Two filters land, and neither one touches <code>FactLabor</code> or <code>FactCapacity</code> directly.</p>
+
+      <h5 class="micro">Branch one, the station filter</h5>
+
+      <p><code>DimStation</code> is filtered to the single row MSP. It has two relationships out, both one side to many side, so both propagate.</p>
+
+      <ul class="list">
+        <li><code>DimStation</code> to <code>FactWorkOrder</code> leaves WO-1001, WO-1002, WO-1006 and WO-1008.</li>
+        <li><code>DimStation</code> to <code>FactCapacity</code> leaves the twelve rows that belong to MSP, four trades in each of three months.</li>
+      </ul>
+
+      <p>The work order set then propagates one more hop to <code>FactLabor</code>, leaving L-501, L-502, L-503 and L-507.</p>
+
+      <h5 class="micro">Branch two, the date filter</h5>
+
+      <p><code>DimDate</code> is filtered to the thirty-one January dates. It also has more than one relationship out.</p>
+
+      <ul class="list">
+        <li><code>DimDate[Date]</code> to <code>FactLabor[WorkDate]</code> leaves L-501, L-502, L-503, L-504 and L-505.</li>
+        <li><code>DimDate[MonthStart]</code> to <code>FactCapacity[MonthStart]</code> leaves every row whose MonthStart is 2025-01-01, which is MSP January, TUS January, and no others.</li>
+      </ul>
+
+      <h5 class="micro">Where the branches meet</h5>
+
+      <figure class="tbl">
+        <figcaption><span class="tbl-num">Table 7.10</span> FactLabor after both branches intersect. Three rows survive.</figcaption>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th scope="col">LaborID</th><th scope="col">In the station branch</th><th scope="col">In the date branch</th><th scope="col" class="num">Hours</th></tr></thead>
+            <tbody>
+              <tr><td class="key">L-501</td><td class="cell-good">yes, WO-1001 is MSP</td><td class="cell-good">yes, 2025-01-07</td><td class="num">7.5</td></tr>
+              <tr><td class="key">L-502</td><td class="cell-good">yes, WO-1001 is MSP</td><td class="cell-good">yes, 2025-01-09</td><td class="num">6.0</td></tr>
+              <tr><td class="key">L-503</td><td class="cell-good">yes, WO-1002 is MSP</td><td class="cell-good">yes, 2025-01-09</td><td class="num">9.0</td></tr>
+              <tr class="muted"><td class="key">L-504</td><td>no, WO-1003 is TUS</td><td>yes, 2025-01-20</td><td class="num">8.0</td></tr>
+              <tr class="muted"><td class="key">L-505</td><td>no, WO-1003 is TUS</td><td>yes, 2025-01-22</td><td class="num">4.5</td></tr>
+              <tr class="muted"><td class="key">L-507</td><td>yes, WO-1006 is MSP</td><td>no, 2025-02-19</td><td class="num">12.0</td></tr>
+              <tr class="row-total"><td>Surviving total</td><td>L-501, L-502, L-503</td><td>intersection of both</td><td class="num">22.5</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+
+      <p>L-506 and L-508 are omitted from that table because they fail both branches. Labor Hours for the cell is 7.5 plus 6.0 plus 9.0, which is 22.5.</p>
+
+      <figure class="tbl">
+        <figcaption><span class="tbl-num">Table 7.11</span> FactCapacity after both branches intersect. Four rows survive, one per trade.</figcaption>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th scope="col">StationCode</th><th scope="col">MonthStart</th><th scope="col">Trade</th><th scope="col" class="num">PlannedHours</th></tr></thead>
+            <tbody>
+              <tr><td class="key">MSP</td><td>2025-01-01</td><td>Airframe</td><td class="num">14</td></tr>
+              <tr><td class="key">MSP</td><td>2025-01-01</td><td>Avionics</td><td class="num">8</td></tr>
+              <tr><td class="key">MSP</td><td>2025-01-01</td><td>Engine</td><td class="num">6</td></tr>
+              <tr><td class="key">MSP</td><td>2025-01-01</td><td>NDT</td><td class="num">2</td></tr>
+              <tr class="row-total"><td>Planned Hours</td><td>MSP January</td><td>four trades</td><td class="num">30</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+
+      <p>Twelve MSP rows from the station branch, intersected with the eight January rows from the date branch (four trades at MSP and four at TUS), leaves four. They add to 14 plus 8 plus 6 plus 2, which is 30. <code>DIVIDE</code> then returns 22.5 divided by 30, which is 0.75, shown as 75.0 percent.</p>
+
+      <p>Two things about this trace are worth carrying forward. First, the capacity relationship is on <code>MonthStart</code>, not on <code>Date</code>, so it only matches when the date filter includes the first of the month. Filter the page to January and it works, because 2025-01-01 is in the set. Filter the page to 2025-01-15 alone and <code>FactCapacity</code> keeps nothing. <code>[Planned Hours]</code> goes blank, and <code>DIVIDE</code> returns blank. A blank cell is easier to question than a percentage computed against nothing. That is the grain mismatch behaving as designed, and it is the reason the measure was written with <code>DIVIDE</code> in the first place.</p>
+
+      <p>Second, <code>DimDate</code> can reach <code>FactLabor</code> two ways in this model: directly through <code>FactLabor[WorkDate]</code>, and indirectly through the active <code>FactWorkOrder[OpenedDate]</code> relationship followed by the header to line hop. For MSP in January both routes land on the same three rows, so 22.5 is correct either way. In a model where labor is booked in a different month from the one the work order opened in, they would not agree. Before you trust a date slicer against a header and line pair, filter to a single day and check that the number is what you expect. If it comes back blank, you have found this.</p>
+
+    </div>
+  </details>
+
+  <h3>Working the ranked list</h3>
+
+  <p>Four requests have landed on your desk this month, one from nearly everybody in this chapter. The planner wants planned hours beside booked hours. The production controller wants hours by home station. Somebody in the training office wants hours by certification, which here means A&amp;P, Avionics, NDT and Engine Run. A&amp;P is the Airframe and Powerplant licence a mechanic holds. The finance manager still wants parts cost by employee type. Four requests, one list, and four different answers.</p>
+
+  <p>A ranked list is only useful if you can watch someone climb it and reject rungs out loud. Here are those four requirements. Three of them land on a different rung each, and the fourth never reaches a rung at all.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 7.12</span> The ranked list applied to four Meridian requirements. The winning rung is different every time.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Requirement</th><th scope="col">Rungs ruled out, and why</th><th scope="col">Rung that wins</th><th scope="col">The number it produces</th></tr></thead>
+        <tbody>
+          <tr class="row-good"><th scope="row">Planned hours beside labor hours, by station and month</th><td>None. Nothing has to reverse once you notice both facts already hang off the same two dimensions.</td><td>1, re-point at <code>DimStation</code> and <code>DimDate</code></td><td>MSP January 22.5 over 30, which is 75.0 percent. All stations all months 62.0 over 176, which is 35.2 percent.</td></tr>
+          <tr class="row-good"><th scope="row">Hours by certification</th><td>1 has nothing to re-point at. 2 and 3 both work, and both have to be repeated in every measure that asks a certification question.</td><td>4, bidirectional on <code>DimTechnician</code> to <code>BridgeTechCert</code></td><td>A&amp;P 39.0. The four certification rows sum to 85.0 against a true total of 62.0.</td></tr>
+          <tr class="row-good"><th scope="row">Hours by technician home station</th><td>1 would mean relating <code>DimStation</code> to <code>DimTechnician[HomeStation]</code>, which is the second path this model exists to avoid. 2 has no relationship to flip.</td><td>3, <code>TREATAS</code></td><td>MSP 28.5, against 34.5 by work order station.</td></tr>
+          <tr class="row-bad"><th scope="row">Parts cost by employee type</th><td>2 computes happily and returns 35,390 against a true 28,245. 5 cannot be built at all, because PartsIssued carries no technician column.</td><td>None. Change the question.</td><td>13,920 as a single filtered figure, and never in a matrix with a total row.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The second row is the one worth climbing in full, because four of the five rungs are technically available and only one of them is right.</p>
+
+  <p><strong>Rung 1, re-point at a shared dimension.</strong> Is there a table that both <code>DimCertification</code> and <code>FactLabor</code> already touch? No. <code>DimCertification</code> has exactly one relationship, out to <code>BridgeTechCert</code>. A bridge table is a small table of pairs that joins two tables which cannot relate to each other directly, and this one holds ten rows, one per technician and certification pair. The bridge holds no measures. There is nothing to re-point, and no dimension you could build would change that, because a certification describes a technician and never a labor row. Rung 1 does not apply here at all, and cost never enters into it.</p>
+
+  <p><strong>Rung 2, <code>CROSSFILTER</code> inside one measure.</strong> This works. Wrap the hours measure in <code>CALCULATE</code> with <code>CROSSFILTER</code> over <code>BridgeTechCert[TechnicianID]</code> and <code>DimTechnician[TechnicianID]</code> set to <code>BOTH</code>, and A&amp;P returns 39.0. The arithmetic is fine. The objection is to the premise of rung 2, which is false in this case. Rung 2 is right when one or two measures need the hop. Hours by certification, cost by certification, headcount by certification and average hours per certified technician all need it. Every one of them then carries its own copy of the modifier, which is four places for the next person to keep in step, and a fifth measure that will be written without it.</p>
+
+  <p><strong>Rung 3, <code>TREATAS</code>.</strong> Also works, and the next chapter writes it out in full: capture <code>VALUES ( BridgeTechCert[TechnicianID] )</code> in the outer filter context and restamp it onto <code>DimTechnician[TechnicianID]</code>. Same 39.0. It has the same repetition problem as rung 2, and one extra risk on top, because <code>TREATAS</code> matches by value with no stored relationship behind it. Had the build left the keys untrimmed, the <code>"TECH-04 "</code> on L-505 would fail to match. A&amp;P would come back 34.5, and nothing in the visual would say that 4.5 hours had gone missing.</p>
+
+  <p><strong>Rung 4, a bidirectional relationship.</strong> Set <code>DimTechnician</code> to <code>BridgeTechCert</code> to Both and every measure gets the hop without asking for it. The joining key has four distinct values, so the reverse materialisation the engine has to perform is four rows wide. This is the answer. It is the documented exception to the general preference for measure scope over model scope. When every query needs the hop, pay for it once in the model. The alternative is paying for it in four measures and forgetting the fifth.</p>
+
+  <p><strong>Rung 5, denormalise the certification onto <code>FactLabor</code>.</strong> This looks like the cheapest option on the list and it is the only one that damages the data. A labor row has to be repeated once per certification the technician holds. TECH-04 holds three, so L-502 becomes three rows and L-505 becomes three. TECH-01 holds two, so L-507 becomes two. TECH-07 holds none, so L-506 and its ten hours disappear from the fact table altogether. Eight labor rows become twelve. Total labor hours become 7.5 plus 18.0 plus 9.0 plus 8.0 plus 13.5 plus 24.0 plus 5.0, which is 85.0. That figure is then stored, permanently, for every measure and every user in the file. Rung 4 leaves <code>FactLabor</code> at 62.0 and confines the double count to the certification slice, where you can label it. Rung 5 makes 85.0 the truth.</p>
+
+  <p>One last thing about the order. It is a sequence of consideration, and the ranking says nothing about quality. Rung 4 beats rung 2 for the bridge, and rung 2 beats rung 4 for a one off requirement on a wide fact. The list is ordered the way it is because the early rungs are the cheapest to undo. A re-pointed model is a conversation. A modifier inside one measure is one delete. A bidirectional relationship is a property that half a dozen reports have quietly come to depend on by the time anybody thinks to question it.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>A filter context is a set of surviving rows on every table in the model at once. The measure runs last, against whatever survived.</li>
+      <li>Propagation is a graph walk in which every hop must go from the one side to the many side. If no such walk exists between two tables, the slicer does nothing and looks perfectly functional while doing it.</li>
+      <li>Every table is conceptually expanded to include the columns of everything reachable by many to one hops. <code>FactLabor</code> expanded carries <code>FactWorkOrder</code>, <code>DimAircraft</code>, <code>DimStation</code>, <code>DimWOType</code>, <code>DimTechnician</code> and <code>DimDate</code>. Learn this and most surprises stop.</li>
+      <li>One direction is the default because many to one always returns exactly one row, while one to many returns a set that can arrive by more than one route. Single direction is what makes the model unambiguous.</li>
+      <li>To reverse the flow, try re-pointing the model first, then <code>CROSSFILTER</code>, then <code>TREATAS</code>, then a bidirectional relationship, then denormalisation. Most people try them in the opposite order.</li>
+      <li>The ranking is an order of consideration. Different Meridian requirements land on different rungs: utilisation on rung 1, hours by certification on rung 4, hours by home station on rung 3. What the order buys you is that the early rungs are the cheapest to undo.</li>
+      <li>Rung 5 is the one to watch. Denormalising certification onto <code>FactLabor</code> turns eight labor rows into twelve, drops TECH-07 entirely, and makes 85.0 the stored total for everybody, where rung 4 leaves the fact at 62.0.</li>
+      <li>Filters from slicers, page filters, visual filters and the visual's own fields intersect with logical AND. A filter argument inside <code>CALCULATE</code> is the exception: it overwrites any filter already on that column.</li>
+      <li>Some questions have no answer in the data you loaded. Parts cost by employee type is one of them, and forcing a number out of it produces 35,390 against a true total of 28,245.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="06.html"><span class="pn-dir">Previous</span><span class="pn-t">Relationship mechanics: cardinality, direction, active and inactive</span></a><a class="pn" href="08.html"><span class="pn-dir">Next</span><span class="pn-t">Single versus bidirectional cross-filtering</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

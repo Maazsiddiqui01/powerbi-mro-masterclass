@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Anti-patterns and how to recognise them</title>
+</head>
+<body data-ch="20">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">20</span><span class="tb-title">Anti-patterns and how to recognise them</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-20">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 6 . Diagnosis and reference</div>
+    <h2 class="chapter-title"><span class="chapter-num">20</span>Anti-patterns and how to recognise them</h2>
+    <p class="chapter-lede">After this chapter you will be able to open a model you did not build, name what is wrong with it inside ten minutes, and say which of the fourteen failures you are looking at and what it will cost the report.</p>
+  </div>
+
+  <p class="lead">The finance manager forwards you a file at nine in the morning. Last month the quoted value of the quarter's work read 38,100. This morning the same page reads 53,600. Nobody has touched the source data, and he wants to know which of the two numbers goes in the board pack. You have never opened this file before.</p>
+
+  <p>You can answer him in about four minutes. Reviewing a model is pattern matching. You do not open every measure. You look for a small number of shapes that reliably mean trouble. Each shape leaves a signal you can see in model view or in the field list within a minute of opening the file.</p>
+
+  <p>What follows is fourteen of them, each with the same three parts: the signal you can see, the mechanism that makes it hurt, and the fix. Where Meridian shows the failure with real numbers, the numbers are here. Read it as reference material. You will come back to it when someone hands you a file and asks why the totals moved.</p>
+
+  <p>One caution before you start. Several of these are sometimes the right call. You may be working under a constraint you do not control, or at a scale where the cost stays theoretical, and the entries say so where that applies. Treat an anti-pattern as a default that is usually wrong. The reviewer who calls every snowflake a defect loses credibility with the person who snowflaked on purpose.</p>
+
+  <h3>Anti-patterns 1 to 5: the shape of the model</h3>
+
+  <h4>1. The one big flat table</h4>
+  <p>You open model view and there is one table. Sixty columns, a name like <code>Master</code> or <code>Data</code>, and <code>QuotedAmount</code> sitting three columns away from <code>Hours</code> and two away from <code>UnitCost</code>. Those come from three systems at three grains. There are no relationship lines because there is nothing to relate.</p>
+  <p>The mechanism is repetition. Joining the work order header to its labor lines repeats the header values once per line, so any additive measure over a header column counts that header more than once. Compression suffers separately. The wide table stores every column at the finest grain in the join. The high cardinality columns carried along for the ride, <code>LaborID</code>, <code>IssueID</code> and three separate dates, then dominate the dictionary.</p>
+  <p>The fix is to split the wide table by grain. Grain is what one row of a table means, said out loud in a sentence: one row per work order, or one row per technician per work order per day. Give each event its own <span class="fact-tag">Fact</span> table at its own grain. Then share the descriptive tables between them. A <span class="dim-tag">Dimension</span> is one of those descriptive tables, the list of things you group and slice by: stations, aircraft, technicians, dates.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 340" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><text x="40.0" y="26.0" class="d-t" fill="#AE4419">One flat table at labor line grain</text><rect x="40" y="44" width="792" height="162" rx="5" fill="#FFFFFF" stroke="#AE4419" stroke-width="1.6"/><rect x="41" y="45" width="790" height="26" fill="#FBEEE7"/><text x="50.0" y="62.0" class="d-m" fill="#AE4419" font-weight="600">WorkOrderID</text><text x="182.0" y="62.0" class="d-m" fill="#AE4419" font-weight="600">QuotedAmount</text><text x="314.0" y="62.0" class="d-m" fill="#AE4419" font-weight="600">ACREG</text><text x="446.0" y="62.0" class="d-m" fill="#AE4419" font-weight="600">AircraftType</text><text x="578.0" y="62.0" class="d-m" fill="#AE4419" font-weight="600">TechnicianID</text><text x="710.0" y="62.0" class="d-m" fill="#AE4419" font-weight="600">Hours</text><line x1="40" y1="71" x2="832" y2="71" stroke="#AE4419" stroke-width="1"/><text x="50.0" y="89.0" class="d-m" fill="#17160F">WO-1001</text><rect x="174" y="73" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="182.0" y="89.0" class="d-m" fill="#98281E">3000</text><rect x="306" y="73" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="314.0" y="89.0" class="d-m" fill="#98281E">N771QR</text><rect x="438" y="73" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="446.0" y="89.0" class="d-m" fill="#98281E">A320-200</text><text x="578.0" y="89.0" class="d-m" fill="#17160F">TECH-02</text><text x="710.0" y="89.0" class="d-m" fill="#17160F">7.5</text><line x1="40" y1="98" x2="832" y2="98" stroke="#EDE9DF" stroke-width=".7"/><text x="50.0" y="116.0" class="d-m" fill="#17160F">WO-1001</text><rect x="174" y="100" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="182.0" y="116.0" class="d-m" fill="#98281E">3000</text><rect x="306" y="100" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="314.0" y="116.0" class="d-m" fill="#98281E">N771QR</text><rect x="438" y="100" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="446.0" y="116.0" class="d-m" fill="#98281E">A320-200</text><text x="578.0" y="116.0" class="d-m" fill="#17160F">TECH-04</text><text x="710.0" y="116.0" class="d-m" fill="#17160F">6.0</text><line x1="40" y1="125" x2="832" y2="125" stroke="#EDE9DF" stroke-width=".7"/><text x="50.0" y="143.0" class="d-m" fill="#17160F">WO-1002</text><text x="182.0" y="143.0" class="d-m" fill="#17160F">3200</text><text x="314.0" y="143.0" class="d-m" fill="#17160F">N448LM</text><text x="446.0" y="143.0" class="d-m" fill="#17160F">B737-800</text><text x="578.0" y="143.0" class="d-m" fill="#17160F">TECH-02</text><text x="710.0" y="143.0" class="d-m" fill="#17160F">9.0</text><line x1="40" y1="152" x2="832" y2="152" stroke="#EDE9DF" stroke-width=".7"/><text x="50.0" y="170.0" class="d-m" fill="#17160F">WO-1003</text><rect x="174" y="154" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="182.0" y="170.0" class="d-m" fill="#98281E">12500</text><rect x="306" y="154" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="314.0" y="170.0" class="d-m" fill="#98281E">N902TT</text><rect x="438" y="154" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="446.0" y="170.0" class="d-m" fill="#98281E">E175</text><text x="578.0" y="170.0" class="d-m" fill="#17160F">TECH-05</text><text x="710.0" y="170.0" class="d-m" fill="#17160F">8.0</text><line x1="40" y1="179" x2="832" y2="179" stroke="#EDE9DF" stroke-width=".7"/><text x="50.0" y="197.0" class="d-m" fill="#17160F">WO-1003</text><rect x="174" y="181" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="182.0" y="197.0" class="d-m" fill="#98281E">12500</text><rect x="306" y="181" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="314.0" y="197.0" class="d-m" fill="#98281E">N902TT</text><rect x="438" y="181" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="446.0" y="197.0" class="d-m" fill="#98281E">E175</text><text x="578.0" y="197.0" class="d-m" fill="#17160F">TECH-04</text><text x="710.0" y="197.0" class="d-m" fill="#17160F">4.5</text><rect x="40.0" y="240.0" width="380.0" height="74.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="54.0" y="262.0" class="d-t" fill="#98281E">SUM of QuotedAmount = 34,200</text><text x="54.0" y="280.0" class="d-s">3000 and 12500 are each counted twice because</text><text x="54.0" y="294.0" class="d-s">their work order has two labor lines. True total is 38,100,</text><text x="54.0" y="308.0" class="d-s">and this extract is only part of the table.</text><rect x="444.0" y="240.0" width="380.0" height="74.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="458.0" y="262.0" class="d-t" fill="#77746B">AircraftType repeats on every row</text><text x="458.0" y="280.0" class="d-s">At eight rows this costs nothing. At eighty million it</text><text x="458.0" y="294.0" class="d-s">costs a dictionary entry per distinct value and destroys</text><text x="458.0" y="308.0" class="d-s">the run length encoding the engine relies on.</text></svg></div><figcaption><span class="fig-num">Figure 20.1</span>One flat table at labor line grain, and the two separate things it breaks.</figcaption></figure>
+
+  <p>You met this table in <a class="xref" href="#ch-02">Chapter 2</a>, where it was the argument. Here it is the signal. Read the columns downward and the repetition jumps out. Five labor lines, six columns, and the repeated cells in <code>QuotedAmount</code>, <code>ACREG</code> and <code>AircraftType</code> are tinted so you can watch the header value arrive once per labor line beneath it. 3,000 appears twice for a work order that was quoted once. 12,500 does the same. The tint belongs to the diagram. In the real table there is no tint, and nothing marks which of the two rows is the copy. The red card sums the drawn column to 34,200 and names the true total of 38,100. It also says plainly that these five rows are only an extract, which is why the full count below comes to a larger number. The grey card beside it is the second failure, <code>AircraftType</code> repeating on every row. The threshold is attached to it: nothing at eight rows, a dictionary entry per distinct value and the loss of run length encoding at eighty million.</p>
+
+  <details class="expand" open>
+    <summary>Trace the quoted amount by hand, row by row</summary>
+    <div class="expand-body">
+      <p>Join the eight work orders to their labor rows with a left join, so work orders with no labor survive. WO-1001 and WO-1003 have two labor rows each, WO-1005 and WO-1008 have none, the rest have one.</p>
+      <figure class="tbl">
+        <figcaption><span class="tbl-num">Table 20.1</span> Quoted amount after flattening work orders onto labor rows. The two shaded rows repeat their header value.</figcaption>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th scope="col">Work order</th><th scope="col" class="num">Labor rows</th><th scope="col" class="num">Quoted</th><th scope="col" class="num">Sum in the flat table</th></tr></thead>
+            <tbody>
+              <tr class="row-bad"><td class="key">WO-1001</td><td class="num">2</td><td class="num">3,000</td><td class="num">6,000</td></tr>
+              <tr><td class="key">WO-1002</td><td class="num">1</td><td class="num">3,200</td><td class="num">3,200</td></tr>
+              <tr class="row-bad"><td class="key">WO-1003</td><td class="num">2</td><td class="num">12,500</td><td class="num">25,000</td></tr>
+              <tr><td class="key">WO-1004</td><td class="num">1</td><td class="num">4,000</td><td class="num">4,000</td></tr>
+              <tr><td class="key">WO-1005</td><td class="num">0</td><td class="num">2,000</td><td class="num">2,000</td></tr>
+              <tr><td class="key">WO-1006</td><td class="num">1</td><td class="num">7,500</td><td class="num">7,500</td></tr>
+              <tr><td class="key">WO-1007</td><td class="num">1</td><td class="num">900</td><td class="num">900</td></tr>
+              <tr><td class="key">WO-1008</td><td class="num">0</td><td class="num">5,000</td><td class="num">5,000</td></tr>
+              <tr class="row-total"><td>Total</td><td class="num">8</td><td class="num">38,100</td><td class="num">53,600</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+      <p>The true total quoted is 38,100. The flat table returns 53,600, an overstatement of 15,500, and every one of those dollars comes from two work orders that happened to have a second technician on them. Nobody looking at 53,600 has any way to know which two.</p>
+      <p>That is the finance manager's file, and that is his answer. The number for the board pack is 38,100. The page reads 53,600 because somebody joined the work order header onto the labor lines, and the shape that did it was visible in model view before you read a single measure.</p>
+    </div>
+  </details>
+
+  <h4>2. Bidirectional everywhere</h4>
+  <p>Every relationship line in model view has an arrowhead at both ends. Almost always this is residue. Someone wanted a slicer to filter something it would not filter, flipped the setting until the visual changed, and moved on.</p>
+  <p>Two things go wrong. The first is ambiguity. Once filters travel both ways, one dimension can reach a fact by more than one route, and the engine has to pick a route without telling anybody. Meridian sits one flip away from that. Filters already run from <code>DimStation</code> to <code>FactLabor</code> through <code>FactWorkOrder</code>. Relate <code>DimStation[StationCode]</code> to <code>DimTechnician[HomeStation]</code> as well and a second route opens, <code>DimStation</code> to <code>DimTechnician</code> to <code>FactLabor</code>. That is exactly why the relationship is deliberately absent from the model. Bidirectional filtering produces the same condition without anyone adding a relationship. Set <code>DimTechnician</code> to <code>FactLabor</code> to filter both ways, and a station selection now travels backwards into <code>DimTechnician</code> through <code>FactWorkOrder</code> and <code>FactLabor</code>. The technician list then changes for a reason nobody wrote down. Power BI refuses to activate some of these configurations and resolves others by an internal path preference you should not build a report on. The second problem is cost. The engine may have to propagate filters both ways on every query that touches the relationship. Where row level security is in place, bidirectional filtering needs an explicit opt in and changes what a restricted user is allowed to see.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 350" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><line x1="450" y1="14" x2="450" y2="336" stroke="#D2CDC0" stroke-width="1" stroke-dasharray="4 4"/><text x="24.0" y="26.0" class="d-t" fill="#1B5A68">Single, the default</text><text x="474.0" y="26.0" class="d-t" fill="#AE4419">Both, bidirectional</text><rect x="24.0" y="46.0" width="175.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="35.0" y="63.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="24.0" y1="72.0" x2="199.0" y2="72.0" stroke="#1B5A68" stroke-width="1"/><text x="35.0" y="84.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="35.0" y="99.5" class="d-m">EmployeeType</text><rect x="24.0" y="176.0" width="175.0" height="71.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="35.0" y="193.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="24.0" y1="202.0" x2="199.0" y2="202.0" stroke="#AE4419" stroke-width="1"/><text x="35.0" y="214.0" class="d-m">TechnicianID</text><text x="35.0" y="229.5" class="d-m">Hours</text><line x1="112.0" y1="122.0" x2="112.0" y2="176.0" class="d-line-hot" marker-end="url(#ah)"/><text x="103.0" y="140.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="103.0" y="164.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="214.0" y="96.0" class="d-s">A selection on DimTechnician</text><text x="214.0" y="111.0" class="d-s">reaches FactLabor.</text><text x="214.0" y="141.0" class="d-s">A selection on FactLabor</text><text x="214.0" y="156.0" class="d-s">does not reach DimTechnician.</text><rect x="24.0" y="262.0" width="400.0" height="68.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="38.0" y="282.0" class="d-t" fill="#2B6140">One path, one answer</text><text x="38.0" y="300.0" class="d-s">The engine resolves a filter with a lookup. Every measure that</text><text x="38.0" y="314.0" class="d-s">touches these two tables behaves the same way in every visual.</text><rect x="474.0" y="46.0" width="175.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="485.0" y="63.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="474.0" y1="72.0" x2="649.0" y2="72.0" stroke="#1B5A68" stroke-width="1"/><text x="485.0" y="84.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="485.0" y="99.5" class="d-m">EmployeeType</text><rect x="474.0" y="176.0" width="175.0" height="71.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="485.0" y="193.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="474.0" y1="202.0" x2="649.0" y2="202.0" stroke="#AE4419" stroke-width="1"/><text x="485.0" y="214.0" class="d-m">TechnicianID</text><text x="485.0" y="229.5" class="d-m">Hours</text><line x1="562" y1="122" x2="562" y2="176" class="d-line-hot" marker-end="url(#ah)" marker-start="url(#ah)"/><text x="553.0" y="140.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="553.0" y="164.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="664.0" y="96.0" class="d-s">Now a selection on FactLabor</text><text x="664.0" y="111.0" class="d-s">also narrows DimTechnician,</text><text x="664.0" y="141.0" class="d-s">which is what makes a slicer</text><text x="664.0" y="156.0" class="d-s">hide unused technicians.</text><rect x="474.0" y="262.0" width="400.0" height="80.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="488.0" y="282.0" class="d-t" fill="#98281E">Convenient, and the usual source of ambiguity</text><text x="488.0" y="300.0" class="d-s">The engine must now build a set on the one side rather than do a</text><text x="488.0" y="314.0" class="d-s">lookup, and it pays that cost on every query, not only the</text><text x="488.0" y="328.0" class="d-s">ones that actually need it.</text></svg></div><figcaption><span class="fig-num">Figure 20.2</span>What actually changes when a relationship is set to Both.</figcaption></figure>
+
+  <p>These are the two panels from <a class="xref" href="#ch-08">Chapter 8</a>, and for a review you need only the arrowheads on them. The left panel, headed Single, the default, joins <code>DimTechnician</code> down to <code>FactLabor</code> with a single downward arrow, and the note beside it says a selection on <code>FactLabor</code> does not reach <code>DimTechnician</code>. The green card underneath calls that one path, one answer. The right panel, headed Both, bidirectional, draws the same two boxes with an arrowhead at each end. Its red card names both halves of the trade. Convenient, and the usual source of ambiguity, because the engine must now build a set on the one side where a lookup would have been enough. It pays that cost on every query. In an inherited file you are scanning model view for that second arrowhead line after line, and for any sign that somebody wrote down why it is there.</p>
+
+  <p>Default to single direction. Where one measure genuinely needs the reverse flow, use <code>CROSSFILTER</code> as a modifier inside a <code>CALCULATE</code> in that measure. Leave the model setting alone. <code>CROSSFILTER</code> is only legal inside <code>CALCULATE</code>, and that restriction is the point: the change is scoped to one calculation, and every other query in the file keeps a single filter path.</p>
+
+  <h4>3. Dimensions built with DISTINCT from a single fact</h4>
+  <p>The signal is arithmetic. The dimension row count is exactly equal to the distinct key count in one fact table. Look at <code>DimStation</code>. Three rows, and the non blank stations in <code>FactWorkOrder</code> are MSP, TUS and LAS. Somebody built the dimension out of the fact. A <code>DimAircraft</code> with five rows against five distinct tails in <code>WorkOrders</code> came from the same place.</p>
+  <p>The mechanism is coverage. A dimension built from one fact covers that fact completely and covers every other fact by luck, so it breaks the moment a second fact uses the same key. PHX is the Meridian case. It exists only in <code>ShopCapacity</code>, never on a work order. A station list derived from <code>WorkOrders</code> therefore has no PHX row, and the station slicer never offers PHX. The 16 planned hours for PHX in March no longer match a dimension row. They land in the blank member, the unlabelled line the engine adds for keys it cannot match, and authors routinely filter that line away. Select the three named stations and planned capacity drops from 176 to 160. Utilisation moves from 62.0 divided by 176, which is 35.2%, to 62.0 divided by 160, which is 38.75%. The model looks busier because a station disappeared.</p>
+  <p>Build the key list by appending every source that carries it, then deduplicate and add the <code>UNASSIGNED</code> member. Meridian's <span class="derived-tag">Built</span> <code>DimStation</code> has five rows for that reason. Sometimes you are forced to derive the list in DAX, the formula language Power BI uses for measures and calculated columns. Use <code>DISTINCT</code> there. <code>VALUES</code> returns the blank member the engine adds for unmatched keys, so it would hand you a dimension with a phantom empty row sitting in it.</p>
+
+  <h4>4. Date columns with no date table</h4>
+  <p>Open the field list. Every date column has a small hierarchy under it offering Year, Quarter, Month, Day. That is the auto date/time feature, and it means there is no real date table.</p>
+  <p>Power BI creates one hidden date table per date column. Meridian has five date columns across the facts: <code>OpenedDate</code>, <code>PromisedDate</code>, <code>ClosedDate</code>, <code>WorkDate</code> and <code>IssueDate</code>. That is five hidden tables, each spanning the full calendar years covered by its own column, each with its own hierarchy, all stored and all refreshed. The bloat is annoying. The blocking problem is that each hidden table is attached to exactly one column. Nothing can put labor by <code>WorkDate</code> and work orders by <code>ClosedDate</code> on the same axis, and no time intelligence calculation can span them.</p>
+  <p>Turn it off explicitly. File, Options and settings, Options, Data Load, then clear Auto date/time under Time intelligence. Do it for the current file and for the global setting. Then build <code>DimDate</code> as 90 rows covering 2025-01-01 to 2025-03-31, and mark it as a date table. One active relationship on <code>OpenedDate</code>, two inactive ones for the other two roles.</p>
+
+  <h4>5. Snowflaking everything because it looks normalised</h4>
+  <p>Count the hops from a fact to a description. Does <code>FactLabor</code> reach a station name through <code>DimTechnician</code> to <code>DimStation</code> to <code>DimRegion</code> to <code>DimCountry</code>? Has <code>DimAircraft</code> been split so that operator and engine type each sit in a table of their own? Either one means the same thing. You are looking at a transactional schema copied into a reporting model without being reshaped.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 330" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="600.0" y="100.0" width="186.0" height="86.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="611.0" y="117.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="600.0" y1="126.0" x2="786.0" y2="126.0" stroke="#AE4419" stroke-width="1"/><text x="611.0" y="138.0" class="d-m" font-weight="600" fill="#AE4419">WorkOrderID</text><text x="611.0" y="153.5" class="d-m">ACREG</text><text x="611.0" y="169.0" class="d-m">QuotedAmount</text><rect x="350.0" y="96.0" width="176.0" height="102.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="361.0" y="113.0" class="d-t" fill="#1B5A68">DimAircraft</text><line x1="350.0" y1="122.0" x2="526.0" y2="122.0" stroke="#1B5A68" stroke-width="1"/><text x="361.0" y="134.0" class="d-m" font-weight="600" fill="#1B5A68">ACREG</text><text x="361.0" y="149.5" class="d-m">AircraftType</text><text x="361.0" y="165.0" class="d-m">OperatorID</text><text x="361.0" y="180.5" class="d-m">EngineID</text><rect x="60.0" y="24.0" width="176.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="71.0" y="41.0" class="d-t" fill="#1B5A68">DimOperator</text><line x1="60.0" y1="50.0" x2="236.0" y2="50.0" stroke="#1B5A68" stroke-width="1"/><text x="71.0" y="62.0" class="d-m" font-weight="600" fill="#1B5A68">OperatorID</text><text x="71.0" y="77.5" class="d-m">OperatorName</text><rect x="60.0" y="158.0" width="176.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="71.0" y="175.0" class="d-t" fill="#1B5A68">DimEngineType</text><line x1="60.0" y1="184.0" x2="236.0" y2="184.0" stroke="#1B5A68" stroke-width="1"/><text x="71.0" y="196.0" class="d-m" font-weight="600" fill="#1B5A68">EngineID</text><text x="71.0" y="211.5" class="d-m">EngineType</text><line x1="526.0" y1="140.0" x2="600.0" y2="140.0" class="d-line"/><text x="541.0" y="152.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="585.0" y="152.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="236.0" y1="56.0" x2="350.0" y2="130.0" class="d-line"/><text x="243.7" y="75.2" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="332.5" y="132.9" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="236.0" y1="190.0" x2="350.0" y2="160.0" class="d-line"/><text x="252.8" y="198.4" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="337.8" y="176.0" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="60.0" y="258.0" class="d-s" fill="#77746B">Two extra hops to reach an operator name from a work order.</text><text x="60.0" y="274.0" class="d-s" fill="#77746B">The engine resolves them, but the field list now hides Operator inside</text><text x="60.0" y="290.0" class="d-s" fill="#77746B">a table nobody thinks to open. Worth it only when the outer table is</text><text x="60.0" y="306.0" class="d-s" fill="#77746B">large or genuinely shared by several dimensions. In Meridian it is neither.</text></svg></div><figcaption><span class="fig-num">Figure 20.3</span>The same aircraft dimension, snowflaked into operator and engine type.</figcaption></figure>
+
+  <p><a class="xref" href="#ch-02">Chapter 2</a> used this one to price the trade. Read it from the left again. Last time you chose this shape. This time you have found it in a file somebody handed you. <code>DimOperator</code> and <code>DimEngineType</code> both feed <code>DimAircraft</code>. Only <code>DimAircraft</code> touches <code>FactWorkOrder</code>. The three lines between the four boxes each carry a 1 at the outer end and a star at the inner end. An operator name is no longer an attribute of the aircraft. It sits out past <code>DimAircraft</code>, which holds only <code>OperatorID</code> to point at it, and the note underneath counts the extra hops that costs and says when they are worth paying.</p>
+
+  <p>Each hop is a relationship the engine resolves at query time, so cost grows with the chain. The larger cost is human. A model snowflaked throughout shows eight tables in the field list where three would do. No analyst can tell you whether <code>Operator</code> lives on the aircraft table or on the operator table without opening both. That is the confusion the two key columns in the figure create in miniature. Authors then drag the first field whose name matches, which is how two visuals end up grouping by different things.</p>
+  <p>Flatten to one dimension per business entity. <code>DimAircraft</code> holds <code>AircraftType</code>, <code>Operator</code>, <code>EngineType</code> and <code>YearBuilt</code> as plain attributes across seven rows. The honest exception: a sub dimension that is large and maintained separately upstream can justify its own table. Seven rows never does.</p>
+
+  <h3>Anti-patterns 6 to 9: calculation in the wrong place</h3>
+
+  <p>The production controller has a page filtered to Scheduled work. The labor cost card reads 1,295.00. He moves the slicer to AOG, which stands for aircraft on ground and means the aircraft cannot fly until the work is finished, and the card reads 1,295.00 again. He moves it back twice more to be sure, then calls you. Nothing on the page tells him that the slicer was never in charge of that number.</p>
+
+  <h4>6. Calculated columns doing the work of measures</h4>
+  <p>Two things in a model can hold a calculation. A calculated column is worked out once for every row when the model refreshes, and the answer is stored on the row. A measure is worked out when a visual asks for it, against whatever the user has filtered to. Now scan the fact tables for columns named <code>TotalSales</code>, <code>Rank</code>, <code>PercentOfTotal</code> or <code>ShareOfHours</code>. The name is the tell. A total, a rank and a share are all statements about a set of rows, and a column can only describe one row.</p>
+  <p>A calculated column is evaluated once at refresh, in row context. Row context means the engine can see the one row it is standing on and nothing else. No report filter is applied anywhere at that moment. By the time the slicer exists, the value is already stored. So a column holding a share of total hours keeps showing that share when the user filters to January. It adds to 100% while every visible number on the page contradicts it. It costs memory too, since a computed share has near unique values and compresses badly.</p>
+  <p>The nuance worth keeping: a row level product is a legitimate column. <code>Hours</code> times <code>HourlyRate</code> describes one timesheet line and nothing else. Even then, prefer the measure form, and see <a class="xref" href="#ch-10">Chapter 10</a> for the full decision.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Cost without a stored column</span></div>
+    <pre><code><span class="k">Labor Cost</span> <span class="op">:=</span>
+<span class="k">SUMX</span> ( <span class="t">FactLabor</span>, <span class="t">FactLabor</span><span class="col">[Hours]</span> <span class="op">*</span> <span class="t">FactLabor</span><span class="col">[HourlyRate]</span> )</code></pre>
+  </div>
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>SUMX</code> here. <code>SUM</code> takes exactly one stored column, and the product of two columns is stored nowhere. Storing it as a calculated column just to let <code>SUM</code> work is the anti-pattern itself. <code>SUMX</code> iterates <code>FactLabor</code> in row context, multiplies, and adds, returning 6,326.50 across the eight rows.</div></div>
+  </div>
+
+  <h4>7. Measures that hard code a filter a slicer should control</h4>
+  <p>Search the measure list for a literal string, then check whether the same column appears on a slicer. <code>CALCULATE</code> with <code>FactWorkOrder[WOType] = "AOG"</code> on a page that also has a work order type slicer is the classic pairing. This is the production controller's page.</p>
+  <p>The mechanism is filter replacement. A predicate inside <code>CALCULATE</code> does not narrow the filter that is already on that column, it replaces it. So when the user moves the slicer to Scheduled, the measure overrides him and keeps returning the AOG figure. In Meridian the AOG work orders are WO-1002, WO-1005 and WO-1007. Their labor costs are 855.00, nothing at all, and 440.00. The measure therefore returns 855.00 plus 440.00, which is 1,295.00, wherever the slicer sits. That is the 1,295.00 the production controller could not shift, and it is why the same figure survived every move he made.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">AOG Labor Cost, fighting the slicer and not</span></div>
+    <pre><code><span class="c">// The measure wins and the user loses</span>
+<span class="k">AOG Labor Cost</span> <span class="op">:=</span>
+<span class="k">CALCULATE</span> ( <span class="col">[Labor Cost]</span>, <span class="t">FactWorkOrder</span><span class="col">[WOType]</span> <span class="op">=</span> <span class="s">"AOG"</span> )
+
+<span class="c">// The measure and the slicer agree</span>
+<span class="k">AOG Labor Cost</span> <span class="op">:=</span>
+<span class="k">CALCULATE</span> (
+    <span class="col">[Labor Cost]</span>,
+    <span class="k">KEEPFILTERS</span> ( <span class="t">FactWorkOrder</span><span class="col">[WOType]</span> <span class="op">=</span> <span class="s">"AOG"</span> )
+)</code></pre>
+  </div>
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v">The predicate is expanded into a table of <code>WOType</code> values and applied as a replacement, so any slicer selection on that column is discarded.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 9</div><div class="linex-v"><code>KEEPFILTERS</code> here. A bare predicate overwrites the slicer. <code>KEEPFILTERS</code> intersects the new filter with whatever is already there, so the slicer on Scheduled now gives blank. That is the honest answer, and it is the one the production controller was owed.</div></div>
+    <div class="linex-row"><div class="linex-k">Better</div><div class="linex-v">Delete the measure. If the page has a type slicer, <code>[Labor Cost]</code> alone answers the question and the user controls the filter.</div></div>
+  </div>
+
+  <h4>8. ALL used where REMOVEFILTERS or ALLEXCEPT was meant</h4>
+  <p>The symptom shows in the report before it shows in the code. A percent of total column whose values do not add to 100% inside a filtered page, or a total row that stays fixed while the page filter changes, points straight at a filter removal that was too broad.</p>
+  <p>Removing filters from an entire fact table removes the dimension filters with them. A table modifier acts on the expanded table, and the expanded table carries every column on the one side of its relationships. Put a page filter on January and ask for each station's share of labor hours. January hours are MSP 22.5 plus TUS 12.5, which is 35.0, so MSP should read 22.5 divided by 35.0, or 64.3%. Clearing the whole of <code>FactLabor</code> makes the denominator the full quarter, 62.0, and MSP reads 22.5 divided by 62.0, or 36.3%. Both numbers are plausible. Only one answers the question on the page.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Three ways to build a denominator</span></div>
+    <pre><code><span class="c">// Too broad: the page filter on January is cleared too</span>
+<span class="k">Station Share Wrong</span> <span class="op">:=</span>
+<span class="k">DIVIDE</span> (
+    <span class="col">[Labor Hours]</span>,
+    <span class="k">CALCULATE</span> ( <span class="col">[Labor Hours]</span>, <span class="k">ALL</span> ( <span class="t">FactLabor</span> ) )
+)
+
+<span class="c">// Clears the station only, keeps the date</span>
+<span class="k">Station Share</span> <span class="op">:=</span>
+<span class="k">DIVIDE</span> (
+    <span class="col">[Labor Hours]</span>,
+    <span class="k">CALCULATE</span> ( <span class="col">[Labor Hours]</span>, <span class="k">REMOVEFILTERS</span> ( <span class="t">DimStation</span> ) )
+)
+
+<span class="c">// Keeps the station, clears trade and month</span>
+<span class="k">Station Planned Hours</span> <span class="op">:=</span>
+<span class="k">CALCULATE</span> (
+    <span class="k">SUM</span> ( <span class="t">FactCapacity</span><span class="col">[PlannedHours]</span> ),
+    <span class="k">ALLEXCEPT</span> ( <span class="t">FactCapacity</span>, <span class="t">DimStation</span><span class="col">[StationCode]</span> )
+)</code></pre>
+  </div>
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v"><code>ALL</code> over a table applies to that table expanded, meaning its own columns plus the columns of every table on the one side of its relationships. Clearing <code>FactLabor</code> therefore also clears <code>DimDate</code> and <code>DimStation</code>, so the denominator becomes the whole quarter, 62.0. This is the defect.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 12</div><div class="linex-v">Naming the dimension restricts the removal to station. The date filter still arrives through <code>DimDate</code>, so the denominator stays inside January at 35.0.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 18</div><div class="linex-v"><code>SUM</code> here. <code>PlannedHours</code> is a single stored column with no row level expression to evaluate, so <code>SUMX</code> would add a scan and return the same number.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 19</div><div class="linex-v"><code>ALLEXCEPT</code> states what survives, and everything it fails to name is cleared. Note the column it names. It is <code>DimStation[StationCode]</code>. The visual groups on the dimension, and that is where the filter actually sits. Name <code>FactCapacity[StationCode]</code> instead and you preserve a filter that was never there, handing every station the full 176. As written, every trade row for MSP shares one denominator, MSP's 90 planned hours, whatever the trade and month in the row.</div></div>
+  </div>
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p>Reach for <code>REMOVEFILTERS</code>. As a <code>CALCULATE</code> modifier it behaves identically to <code>ALL</code>. The difference is what a reader can tell at a glance. <code>ALL</code> also works as a table function, so the line alone leaves your reader guessing whether you meant to return rows or to clear filters. <code>REMOVEFILTERS</code> carries one meaning. Reach for <code>ALLEXCEPT</code> in place of a list of <code>REMOVEFILTERS</code> calls. The exception list keeps working when someone adds a column to the table, while a removal list silently stops covering the new column. Use <code>DIVIDE</code> for the ratio itself. The denominator here can legitimately be zero or blank. A page filtered to a week with no timesheet lines gives no labor hours at all, and PHX and <code>UNASSIGNED</code> carry no labor rows in the whole quarter. <code>DIVIDE</code> returns blank in both cases. The slash operator returns Infinity when the numerator is not zero, and NaN when both sides are zero, and the visual prints those words where a percentage should be. There is a third option worth knowing. If you want the percentage to follow the slicer instead of the whole dimension, <code>ALLSELECTED</code> restores the filter context from outside the visual, which is what a share of the visible total actually means.</p>
+  </div>
+
+  <h4>9. Using LOOKUPVALUE instead of a relationship</h4>
+  <p>Find <code>LOOKUPVALUE</code> in a calculated column, then look at model view. If the table it points at has no line connecting it, you have found the pattern. They rarely appear alone: once one column has been fetched this way, the next request gets a second copy.</p>
+  <p>It works, which is why it survives. It is also slower. Every row runs a filtered match over the target column pair, and it has to handle the case where two rows match, while a relationship is resolved through an index the engine builds once. The worse problem is documentation. The model diagram shows two unconnected tables. The next analyst reads that as no path between parts and aircraft, and builds a second workaround of their own. The relationship still never gets created.</p>
+  <p>Meridian invites this. <code>FactParts</code> has no <code>ACREG</code>, so slicing parts cost by aircraft needs the work order in between. Create the header to line relationship instead, and in most cases you then need no column at all, because filters propagate from <code>DimAircraft</code> through <code>FactWorkOrder</code> into <code>FactParts</code> on their own.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Aircraft registration on FactParts, two ways</span></div>
+    <pre><code><span class="c">// The anti-pattern: a calculated column on FactParts</span>
+<span class="k">Aircraft Registration</span> <span class="op">=</span>
+<span class="k">LOOKUPVALUE</span> (
+    <span class="t">FactWorkOrder</span><span class="col">[ACREG]</span>,
+    <span class="t">FactWorkOrder</span><span class="col">[WorkOrderID]</span>,
+    <span class="t">FactParts</span><span class="col">[WorkOrderID]</span>
+)
+
+<span class="c">// With the header to line relationship in place</span>
+<span class="k">Aircraft Registration</span> <span class="op">=</span> <span class="k">RELATED</span> ( <span class="t">FactWorkOrder</span><span class="col">[ACREG]</span> )</code></pre>
+  </div>
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 3 to 7</div><div class="linex-v">Three arguments, a scan per row, and nothing in the model diagram to show it happened. P-9007 points at WO-1009, which does not exist, so the result is blank and its 4,900 of hydraulic cost is untraceable to any aircraft.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 10</div><div class="linex-v"><code>RELATED</code> here. It will not compile unless the relationship exists, so the dependency becomes visible in the diagram to everyone who opens the file. <code>LOOKUPVALUE</code> leaves no such trace. The orphan still returns blank, but now it lands in the blank member and shows as a row in the visual, which is how 28,245 and 23,345 differ in the first place.</div></div>
+    <div class="linex-row"><div class="linex-k">Caveat</div><div class="linex-v"><code>LOOKUPVALUE</code> earns its place when the match needs two or more columns and you are unwilling to build a concatenated key. That case is real. Keep the exception that narrow.</div></div>
+  </div>
+
+  <h3>Anti-patterns 10 to 14: relationships, storage and intent</h3>
+
+  <p>The shift supervisor at MSP keeps a whiteboard. It says his station did 34.5 hours of labour this quarter. The station report on the wall says 28.5. He has decided the report is broken, and he has said so to the production controller. Both numbers came out of the same model, from the same measure, and both of them are right.</p>
+
+  <h4>10. Fact to fact relationships without a shared dimension</h4>
+  <p>Look for a relationship line drawn directly between two tables that both hold events. A join from <code>FactCapacity[StationCode]</code> to <code>FactWorkOrder[StationCode]</code> qualifies, because station repeats in both. So does <code>FactLabor</code> to <code>FactParts</code> on <code>WorkOrderID</code>.</p>
+  <p>Since neither side is unique, the relationship has to be many to many, and Power BI marks it as a weak relationship. No blank member is created on either side. Keys present in one table and missing from the other therefore never show up as a blank row. They are dropped when the filter crosses. Totals taken through the relationship then disagree with totals taken straight from the same table, and no row anywhere in the report accounts for the difference.</p>
+  <p>Route through the shared dimension instead. Station belongs to <code>DimStation</code>, which filters both facts as a proper one to many on each side.</p>
+
+  <aside class="callout insight"><div class="callout-label">Interview-level insight</div><p>Two of Meridian's relationships connect two fact tables and both are correct: <code>FactWorkOrder[WorkOrderID]</code> to <code>FactLabor[WorkOrderID]</code> and to <code>FactParts[WorkOrderID]</code>. What makes those two correct is uniqueness. <code>WorkOrderID</code> appears once and only once across the eight rows of <code>FactWorkOrder</code>, so the relationship is one to many and the header behaves as a dimension for its own lines. The word fact in a table name decides nothing. Header to line is a grain relationship. Fact to fact on a shared attribute is a missing dimension. Ask which side is unique and the answer falls out.</p></aside>
+
+  <h4>11. Hiding columns instead of removing them</h4>
+  <p>The signal is size. A model whose sources amount to a few dozen rows takes 40 MB and two minutes to refresh. Open a metadata tool and you find columns with large dictionaries that no measure, relationship or sort property references.</p>
+  <p>Hidden means hidden from the field list and nothing else. The column is still pulled from the source, still stored in memory, still refreshed on every load. A free text remarks field or a system GUID is expensive precisely because its values are nearly unique, and hiding it saves not one byte.</p>
+  <p>Remove unneeded columns in Power Query, and prefer choosing the columns you want over removing the ones you do not, because a chosen list is a whitelist that ignores whatever new column the source adds next quarter. Meridian does this with <code>Technicians[Certifications]</code>: once the delimited string is split into <code>BridgeTechCert</code>, the original column is dropped rather than hidden. Hiding stays right for columns the model needs but the user should not see, such as keys and sort order columns, so do not read this as an instruction to delete everything hidden.</p>
+
+  <h4>12. Storing the same attribute on both the fact and the dimension</h4>
+  <p>Type a word into the field list search box. If "Station" returns <code>FactWorkOrder[StationCode]</code>, <code>DimStation[StationCode]</code>, <code>FactCapacity[StationCode]</code> and <code>DimTechnician[HomeStation]</code>, the model offers four ways to group by station and no guidance about which one is meant.</p>
+  <p>Two of those give genuinely different answers. Group labor hours by the station on the work order and MSP is 34.5 hours. Group the same measure by the technician's home station and MSP is 12.0 for TECH-01 plus 16.5 for TECH-02, which is 28.5. Both totals reconcile to 62.0. Both are correct answers to different questions, and neither field name says which question it answers.</p>
+
+  <p>That is the shift supervisor's argument in one sentence. His whiteboard counts work done at MSP. The report counts hours booked by technicians whose home station is MSP. The 6.0 hour gap is made of hours worked at MSP by people posted somewhere else, or posted nowhere the data knows about. The <code>UNASSIGNED</code> row in the table below carries 10.0 hours of exactly that kind.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 20.2</span> The same measure, two station attributes, two defensible answers.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Station</th><th scope="col" class="num">Hours by work order station</th><th scope="col" class="num">Hours by technician home station</th></tr></thead>
+        <tbody>
+          <tr><th scope="row" class="key">MSP</th><td class="num">34.5</td><td class="num">28.5</td></tr>
+          <tr><th scope="row" class="key">TUS</th><td class="num">22.5</td><td class="num">10.5</td></tr>
+          <tr><th scope="row" class="key">LAS</th><td class="num">5.0</td><td class="num">13.0</td></tr>
+          <tr><th scope="row" class="key">PHX</th><td class="num">0.0</td><td class="num">0.0</td></tr>
+          <tr><th scope="row" class="key">UNASSIGNED</th><td class="num">0.0</td><td class="num">10.0</td></tr>
+          <tr class="row-total"><td>Total</td><td class="num">62.0</td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Keep the groupable attribute on exactly one table. Hide the key on the fact so nobody can drag it onto a chart. Rename anything that survives so the name carries the question: "Work station" on <code>DimStation</code>, "Technician home station" on <code>DimTechnician</code>. Do that and the shift supervisor and the report are arguing about two named things instead of one word. One duplicate stays safe, and that is the key itself. A key on the fact side exists to join, and joining is all it does.</p>
+
+  <h4>13. Text keys where an integer key was available</h4>
+  <p>Look at what each relationship is built on. Long text values, concatenated composites such as <code>"WO-1001|BRK-2210"</code>, or a 36 character GUID stored as text, all mean the join carries more bytes than it needs to.</p>
+  <p>A relationship column gets a dictionary and a join structure. Text is held in a hash dictionary and compared by dictionary position, while integers in a bounded range can be value encoded and packed into fewer bits per row. The difference shows in storage engine time on scans and joins, and in dictionary memory, both scaling with row count.</p>
+  <p>The threshold matters more than the principle. Meridian's largest fact table is <code>FactCapacity</code> at 28 rows, and its largest table of any kind is <code>DimDate</code> at 90, and <code>"BRK-2210"</code> as a key costs nothing measurable there. Converting to surrogate integers would add a merge per fact in Power Query and buy an improvement nobody could detect. Change keys when a fact reaches several million rows, when the key text is long, or when profiling names the relationship as the cost.</p>
+
+  <aside class="callout perf"><div class="callout-label">Performance note</div><p>Do not reach for surrogate keys as a first response to a slow report. On models under a few million rows the usual causes are elsewhere: a measure iterating a large table row by row, a bidirectional relationship expanding a filter, a calculated column materialising millions of distinct values, or a visual asking for a matrix with tens of thousands of cells. Measure first with the performance analyser and a query trace, then change the key if the trace still points there. Rebuilding keys is the most disruptive change on this list and the one least likely to be the cause.</p></aside>
+
+  <h4>14. Modelling the report instead of the business</h4>
+  <p>Read the table names. <code>ExecSummaryData</code>, <code>StationTab</code> and <code>Page3</code> are the names of report pages. Confirm it by looking inside. The columns are already aggregated, and often generically named, because the table was shaped to fill one visual.</p>
+  <p>A table built to answer a page answers that page and stops. The aggregation destroys the grain the page did not need, so the next question cannot be answered by drilling. It needs another table, another refresh path, and another chance for two summaries of the same thing to disagree.</p>
+  <p>Meridian shows it cleanly. A table called <code>UtilisationPage</code> holding station, month, hours and planned hours reports 35.2% for the quarter and cannot be asked about trades at all, because <code>Airframe</code>, <code>Avionics</code>, <code>Engine</code> and <code>NDT</code> were summed away before the model saw them. The unpivoted <code>FactCapacity</code>, 28 rows at station, month and trade, answers the utilisation question and the trade question and the ones after that. Model the entities and the events, and let the pages ask.</p>
+
+  <h3>The ten minute model review</h3>
+  <p>Run these against any file you inherit. Every question is answerable from model view, the field list and a text search over the measures, and a yes is the healthy answer in each case. Thirteen of the fourteen anti-patterns have a question here. Text keys, number 13, do not, because whether they cost anything depends on row count and on what a trace says, so a yes or no question about them produces false alarms on every small model you will ever review.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 20.3</span> Fifteen questions. A no sends you to the numbered anti-pattern in the last column.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col" class="num">#</th><th scope="col">Question</th><th scope="col" class="num">If no</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td>Is every table named after a business entity or an event rather than a report page or a source file?</td><td class="num">14</td></tr>
+          <tr><td class="num">2</td><td>Can you state the grain of each fact table in one sentence, and does its row count agree with that sentence?</td><td class="num">1</td></tr>
+          <tr><td class="num">3</td><td>Is auto date/time off, with exactly one table marked as a date table?</td><td class="num">4</td></tr>
+          <tr><td class="num">4</td><td>Does each fact with more than one date column have one active date relationship and inactive ones for the rest?</td><td class="num">4</td></tr>
+          <tr><td class="num">5</td><td>Is the count of bidirectional relationships zero, or is each one written down with its reason?</td><td class="num">2</td></tr>
+          <tr><td class="num">6</td><td>Is every relationship either one to many from a dimension, or header to line from a key that is unique on the header?</td><td class="num">10</td></tr>
+          <tr><td class="num">7</td><td>For each dimension, is its row count at least the distinct key count in every fact that uses it?</td><td class="num">3</td></tr>
+          <tr><td class="num">8</td><td>Does every dimension carry an explicit Unknown or Unassigned member?</td><td class="num">3</td></tr>
+          <tr><td class="num">9</td><td>Is every attribute a report author needs within two relationship hops of the fact it describes?</td><td class="num">5</td></tr>
+          <tr><td class="num">10</td><td>Are all calculated columns row level facts or attributes, with no totals, ranks or shares among them?</td><td class="num">6</td></tr>
+          <tr><td class="num">11</td><td>Is every literal filter inside a measure either absent from the slicers on its pages, or wrapped in <code>KEEPFILTERS</code>?</td><td class="num">7</td></tr>
+          <tr><td class="num">12</td><td>Does each percent of total measure name the specific table or columns whose filters it clears?</td><td class="num">8</td></tr>
+          <tr><td class="num">13</td><td>Is <code>LOOKUPVALUE</code> absent, or is each use justified by a match no single relationship can express?</td><td class="num">9</td></tr>
+          <tr><td class="num">14</td><td>Is every hidden column referenced by a relationship, a measure, or a sort by column property?</td><td class="num">11</td></tr>
+          <tr><td class="num">15</td><td>Does each groupable attribute name appear on exactly one table?</td><td class="num">12</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The checklist has a real limitation, and you should say so when you hand the results to whoever owns the model. It tests structure. Meaning stays outside its reach. A model can pass all fifteen and still measure the wrong thing, because nothing here checks whether turn time was defined as closed minus opened or as closed minus promised, or whether hours by certification should have been 62.0 rather than the 85.0 a bridge produces. Structure is what you can audit in ten minutes. Definitions take a conversation with the person who runs the shop.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Anti-patterns are recognised by signals you can see in a minute: a table named <code>Master</code>, arrowheads on both ends, a date hierarchy under every date column, a dimension whose row count exactly matches one fact.</li>
+      <li>Flattening repeats header values onto line rows. Meridian's quoted total goes from 38,100 to 53,600 the moment work orders are joined to labor.</li>
+      <li>A dimension built from one fact is complete for one fact. PHX drops into an unlabelled blank row, planned hours fall from 176 to 160 once anyone selects the named stations, and utilisation reads 38.75% instead of 35.2%.</li>
+      <li>Filter removal has to be narrow. Clearing a whole fact table takes the page filter with it, turning a 64.3% station share into 36.3%.</li>
+      <li>Header to line between two facts is correct when the header key is unique. Fact to fact on a shared attribute is a missing dimension.</li>
+      <li>A hidden column is still loaded, still stored and still refreshed. Text keys only matter at scale. Remove the column every time. Change the key only when a trace tells you to.</li>
+      <li>The fifteen question review audits structure. It cannot tell you whether the business definitions underneath are right.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="19.html"><span class="pn-dir">Previous</span><span class="pn-t">Data quality: orphans, blanks and unknown members</span></a><a class="pn" href="21.html"><span class="pn-dir">Next</span><span class="pn-t">Cheat sheet, measure library and review checklist</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

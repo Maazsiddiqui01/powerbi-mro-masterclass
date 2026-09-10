@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Row context and filter context</title>
+</head>
+<body data-ch="09">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">09</span><span class="tb-title">Row context and filter context</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-09">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 4 . Evaluation context and DAX</div>
+    <h2 class="chapter-title"><span class="chapter-num">09</span>Row context and filter context</h2>
+    <p class="chapter-lede">After this chapter you will be able to look at any DAX expression in the Meridian model and say which context it is running in. You will be able to say what the engine did to produce that context, and why two expressions that look almost identical return 62.0 and 52.0.</p>
+  </div>
+
+  <p class="lead">The production controller wants a technician scorecard for the quarter. One row per technician, hours booked, sorted. You build it, and the total under the column reads 52.0. On the same page, a card showing total labor hours reads 62.0. Both numbers come out of the same eight labor rows, and you wrote both of them yourself.</p>
+
+  <p>Most DAX that returns a wrong number is not doing wrong arithmetic. It is doing correct arithmetic over the wrong set of rows. Everything in this chapter exists to let you predict, before you press enter, exactly which rows the engine will hand your aggregation. By the end of it you will know where those ten hours went, and you will be able to say whether 52.0 or 62.0 is the number the production controller actually asked for.</p>
+
+  <p>There are two independent mechanisms at work, and the whole of DAX rests on telling them apart. Once you can, a result that looked arbitrary becomes one you can derive on paper before the engine ever runs it.</p>
+
+  <h3>Two different questions</h3>
+
+  <dl class="defs">
+    <dt>Filter context</dt>
+    <dd>The set of rows currently visible on every table in the model. It is created by slicers, by report and page filters, by the rows and columns of a visual, and by <code>CALCULATE</code>. A slicer is the on-page control a user clicks to choose values. The filter context is what a measure sees, and a measure is a calculation the engine runs once for every cell of a visual. A filter context always exists, even if it is empty, and an empty filter context means every row of every table is visible.</dd>
+    <dt>Row context</dt>
+    <dd>A pointer to one specific row of one specific table. It is created by a calculated column and by any iterator function. An iterator is a function that walks a table one row at a time. A row context leaves every row of the table visible. Its only job is to say which row the words <code>FactLabor[Hours]</code> refer to right now.</dd>
+  </dl>
+
+  <p>Here is the sentence to write on the whiteboard. <strong>A row context knows which row you are on. A filter context knows which rows exist.</strong> Those are different questions. DAX keeps them separate on purpose, because collapsing them would make it impossible to write an expression that compares one row against the whole table.</p>
+
+  <p>A row context leaves an aggregation free to see everything. This is the part that gets missed on a first read, so say it out loud: being positioned on row L-505 still lets <code>SUM ( FactLabor[Hours] )</code> return 62.0. Position and visibility stay unrelated until you deliberately connect them, and connecting them is what the second half of this chapter is about.</p>
+
+  <h3>Filter context, seen on the Meridian report</h3>
+
+  <p>The finance manager wants one number for the month. Hours booked at MSP in January, and he does not care how you get it. You give him a matrix so he can see the other months too.</p>
+
+  <p>Put <span class="dim-tag">Dimension</span> <code>DimStation[StationCode]</code> on the rows of that matrix, put <code>DimDate[MonthName]</code> on the columns, and drop a Labor Hours measure into the values. The MSP and January cell returns 22.5. Trace where that came from. The visual applies two filters, one from each axis. <code>DimStation</code> is cut to the single row MSP. <code>DimDate</code> is cut to the 31 rows of January. Those filters then travel along the relationships in the direction the arrows allow: <code>DimStation</code> to <span class="fact-tag">Fact</span> <code>FactWorkOrder</code>, which leaves WO-1001, WO-1002, WO-1006 and WO-1008; then <code>FactWorkOrder</code> to <code>FactLabor</code> along the header to line relationship; and separately <code>DimDate</code> straight into <code>FactLabor[WorkDate]</code>.</p>
+
+  <p>What survives both filters is three labor rows: L-501 at 7.5 hours, L-502 at 6.0 and L-503 at 9.0. That is 7.5 plus 6.0 plus 9.0, which is 22.5. The finance manager has his number. The measure asked what was left, summed it, and returned. Filter context did all of that work on its own.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Every number in a visual is one measure evaluated once per cell, in a filter context assembled fresh for that cell. If you cannot list the filters in a cell, you cannot debug the number in it. Write them down before you write DAX.</p>
+  </aside>
+
+  <h3>Row context, seen on the same rows</h3>
+
+  <p>Now add a calculated column to <code>FactLabor</code>. A calculated column is worked out once per row when the model refreshes, and the answer is stored in the model like any other column.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">LineCost, calculated column on FactLabor</span></div>
+    <pre><code><span class="c">// Evaluated once per row at refresh time.</span>
+LineCost <span class="op">=</span>
+    <span class="t">FactLabor</span><span class="col">[Hours]</span> <span class="op">*</span> <span class="t">FactLabor</span><span class="col">[HourlyRate]</span></code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v">Two bare column references with no aggregation around them. In a measure this would fail. Here it works, because a calculated column is given a row context automatically, once for every row of the table it sits on.</div></div>
+    <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">On L-501 the row context points at 7.5 and 95, so the column stores 712.50. On L-507 it points at 12.0 and 120, so it stores 1,440.00. Eight rows, eight independent evaluations, and the column total is 6,326.50, the same figure the <code>Labor Cost</code> measure returns.</div></div>
+    <div class="linex-row"><div class="linex-k">Name</div><div class="linex-v"><code>LineCost</code> and not <code>Labor Cost</code>. The model already carries a measure called <code>Labor Cost</code>, and a column may not share a name with a measure in the same table. <a class="xref" href="#ch-04">Chapter 4</a> and <a class="xref" href="#ch-10">Chapter 10</a> weigh up whether to store this column at all. The point here is only that the expression compiles as a column and would not compile as a measure.</div></div>
+  </div>
+
+  <p>Look at what the calculated column actually did. It resolved two column names against a row pointer and multiplied. There was no slicer to consult, because slicers do not exist at refresh time. The rest of the model still saw all eight rows of <code>FactLabor</code> throughout. That is the entire behaviour of a row context.</p>
+
+  <h3>A measure begins with no row context at all</h3>
+
+  <p>This is the cleanest proof that the two mechanisms are separate.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">One works, one cannot</span></div>
+    <pre><code><span class="c">// Works. SUM walks the visible rows itself.</span>
+Labor Hours <span class="op">=</span> <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )
+
+<span class="c">// Fails. No row context exists, so DAX cannot decide</span>
+<span class="c">// which of the eight values of Hours you meant.</span>
+Broken Hours <span class="op">=</span> <span class="t">FactLabor</span><span class="col">[Hours]</span></code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>SUM</code> is an aggregator that opens its own internal row context over the column you hand it, walks every visible row, and folds the values together. That internal context lives and dies inside the function.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v">A measure is evaluated once per cell, not once per row. With eight visible rows of <code>FactLabor</code> and no pointer to any of them, the engine refuses. It reports that a single value for column Hours in table FactLabor cannot be determined. That error message is the engine telling you, in its own words, that there is no row context.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>SUM</code> here, because the expression to be summed is a plain column with nothing computed per row. <code>SUMX</code> would give the same 62.0, but it would open a row context you do not need and evaluate an expression eight times instead of scanning one column. On a real fact table that costs. Reach for <code>SUMX</code> only when the thing you are summing has to be worked out row by row, such as <code>Hours</code> multiplied by <code>HourlyRate</code>.</p>
+  </div>
+
+  <h3>Where row context comes from</h3>
+
+  <p>Two sources, and only two. Calculated columns get one for free. Iterators create one over whatever table you pass as their first argument, and they create it fresh for every row of that table. These are the iterators you will actually meet in this model.</p>
+
+  <dl class="defs">
+    <dt>SUMX</dt>
+    <dd>Sums an expression evaluated per row. Chosen over <code>SUM</code> whenever the per row expression involves more than one column, because <code>SUM</code> accepts a single column reference and nothing else.</dd>
+    <dt>AVERAGEX</dt>
+    <dd>Same shape, averaging instead. Chosen over <code>AVERAGE</code> for the same reason, and also because <code>AVERAGE</code> would average the eight <code>Hours</code> values instead of the eight computed costs.</dd>
+    <dt>FILTER</dt>
+    <dd>Returns a table, keeping the rows where a condition evaluated in row context is true. Chosen over a plain boolean predicate inside <code>CALCULATE</code> when the condition compares two columns of the same table, or calls a measure, neither of which a simple predicate can express.</dd>
+    <dt>ADDCOLUMNS</dt>
+    <dd>Returns the source table plus new evaluated columns. Chosen over <code>SELECTCOLUMNS</code> when you want to keep everything you already had and add to it, because <code>SELECTCOLUMNS</code> discards any column you do not list.</dd>
+    <dt>RANKX</dt>
+    <dd>Ranks each row of a table by an expression. Chosen over the newer <code>RANK</code> window function when you are writing a calculated column or a measure outside a query with a defined window, since <code>RANK</code> expects an ordering and partition supplied by the surrounding query shape.</dd>
+    <dt>MAXX</dt>
+    <dd>Largest value of an expression across rows. Chosen over <code>MAX</code> when the value has to be computed for each row, because <code>MAX</code> takes a column or two scalars and cannot take an expression over a table.</dd>
+    <dt>GENERATE</dt>
+    <dd>For each row of the first table, evaluates the second table in that row context and joins the results. Chosen over <code>CROSSJOIN</code> when the second table must depend on the current row, which <code>CROSSJOIN</code> cannot do because it evaluates both sides once.</dd>
+  </dl>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><text x="24.0" y="24.0" class="d-t" fill="#17160F">Row context</text><text x="24.0" y="40.0" class="d-s">You are standing on one row. Nothing is filtered.</text><rect x="24.0" y="54.0" width="300.0" height="164.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.4"/><text x="36.0" y="72.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="24" y1="80" x2="324" y2="80" stroke="#AE4419" stroke-width="1"/><text x="36.0" y="98.0" class="d-m" fill="#17160F">L-501</text><text x="124.0" y="98.0" class="d-m" fill="#17160F">TECH-02</text><text x="308.0" y="98.0" class="d-m" text-anchor="end" fill="#17160F">7.5</text><text x="36.0" y="124.0" class="d-m" fill="#17160F">L-502</text><text x="124.0" y="124.0" class="d-m" fill="#17160F">TECH-04</text><text x="308.0" y="124.0" class="d-m" text-anchor="end" fill="#17160F">6.0</text><text x="36.0" y="150.0" class="d-m" fill="#17160F">L-503</text><text x="124.0" y="150.0" class="d-m" fill="#17160F">TECH-02</text><text x="308.0" y="150.0" class="d-m" text-anchor="end" fill="#17160F">9.0</text><text x="36.0" y="176.0" class="d-m" fill="#17160F">L-504</text><text x="124.0" y="176.0" class="d-m" fill="#17160F">TECH-05</text><text x="308.0" y="176.0" class="d-m" text-anchor="end" fill="#17160F">8.0</text><text x="36.0" y="202.0" class="d-m" fill="#17160F">L-505</text><text x="124.0" y="202.0" class="d-m" fill="#17160F">TECH-04</text><text x="308.0" y="202.0" class="d-m" text-anchor="end" fill="#17160F">4.5</text><rect x="26" y="107" width="296" height="24" fill="none" stroke="#AE4419" stroke-width="1.8" rx="3"/><path d="M336,119 L346,119" class="d-line-hot" marker-end="url(#ah)"/><text x="24.0" y="232.0" class="d-s">Created by a calculated column, or by any</text><text x="24.0" y="248.0" class="d-s">iterator: SUMX, FILTER, ADDCOLUMNS, RANKX.</text><text x="24.0" y="264.0" class="d-s" font-style="italic">It knows WHICH row. It does not remove any.</text><text x="500.0" y="24.0" class="d-t" fill="#17160F">Filter context</text><text x="500.0" y="40.0" class="d-s">A set of rows survives. No row is current.</text><rect x="500.0" y="54.0" width="300.0" height="164.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.4"/><text x="512.0" y="72.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="500" y1="80" x2="800" y2="80" stroke="#AE4419" stroke-width="1"/><text x="512.0" y="98.0" class="d-m" fill="#C9C4B6">L-501</text><text x="600.0" y="98.0" class="d-m" fill="#C9C4B6">TECH-02</text><text x="784.0" y="98.0" class="d-m" text-anchor="end" fill="#C9C4B6">7.5</text><rect x="502" y="107" width="296" height="24" fill="#EAF2EC"/><text x="512.0" y="124.0" class="d-m" fill="#17160F">L-502</text><text x="600.0" y="124.0" class="d-m" fill="#17160F">TECH-04</text><text x="784.0" y="124.0" class="d-m" text-anchor="end" fill="#17160F">6.0</text><text x="512.0" y="150.0" class="d-m" fill="#C9C4B6">L-503</text><text x="600.0" y="150.0" class="d-m" fill="#C9C4B6">TECH-02</text><text x="784.0" y="150.0" class="d-m" text-anchor="end" fill="#C9C4B6">9.0</text><text x="512.0" y="176.0" class="d-m" fill="#C9C4B6">L-504</text><text x="600.0" y="176.0" class="d-m" fill="#C9C4B6">TECH-05</text><text x="784.0" y="176.0" class="d-m" text-anchor="end" fill="#C9C4B6">8.0</text><rect x="502" y="185" width="296" height="24" fill="#EAF2EC"/><text x="512.0" y="202.0" class="d-m" fill="#17160F">L-505</text><text x="600.0" y="202.0" class="d-m" fill="#17160F">TECH-04</text><text x="784.0" y="202.0" class="d-m" text-anchor="end" fill="#17160F">4.5</text><text x="500.0" y="232.0" class="d-s">Created by slicers, filters and the axes of the</text><text x="500.0" y="248.0" class="d-s">visual. Here: TechnicianID is TECH-04.</text><text x="500.0" y="264.0" class="d-s" font-style="italic">It knows WHICH rows exist. It has no cursor.</text><rect x="24.0" y="296.0" width="846.0" height="86.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="38.0" y="318.0" class="d-t" fill="#17160F">Context transition</text><path d="M300,340 L470,340" class="d-line-hot" marker-end="url(#ah)"/><text x="120.0" y="346.0" class="d-lbl" fill="#77746B">row context</text><text x="520.0" y="346.0" class="d-lbl" fill="#77746B">filter context</text><text x="38.0" y="342.0" class="d-m" fill="#AE4419" font-weight="600">CALCULATE</text><text x="38.0" y="362.0" class="d-s">Invoked inside a row context, CALCULATE turns the current row into a filter on every column of that table.</text><text x="38.0" y="376.0" class="d-s">Any measure referenced inside an iterator gets this for free, which is why SUMX ( DimTechnician, [Labor Hours] ) returns 52.0 and not 62.0.</text></svg></div><figcaption><span class="fig-num">Figure 9.1</span>Row context knows which row you are on. Filter context knows which rows still exist.</figcaption></figure>
+
+  <p>Look at the two panels first. Both draw the same five labor rows, L-501 through L-505, so whatever differs between them is the mechanism and not the data. On the left, under the heading Row context, one row is outlined and carries a small arrow beside it. The other four are drawn exactly as they always were: still there, still visible, still countable. That is row context, a cursor. On the right, under the heading Filter context, three of the five rows are greyed out and two stay lit. The two that stay lit are the ones booked to TECH-04, which is the selection that panel's note names. Nothing is marked as current, because nothing needs to be. That is filter context, a knife. The card running the full width underneath is context transition, and its arrow runs from the words row context to the words filter context with <code>CALCULATE</code> sitting on it. That is the only thing in DAX that turns the first picture into the second. The last line of that card states a result this chapter reaches later, that <code>SUMX ( DimTechnician, [Labor Hours] )</code> returns 52.0 and not 62.0. Hold the question until Hours C, which is where the production controller's scorecard gets settled.</p>
+
+  <h3>Context transition, which is the hard part</h3>
+
+  <p>When <code>CALCULATE</code> is invoked while a row context is open, it does something before it does anything else. It takes the current row context on the table being iterated. It converts that into a filter context which cuts the table down to that row, using every column of the table. Then, with the new filter in place, it evaluates its expression.</p>
+
+  <p>That conversion is called context transition. It cannot be switched off, and it happens even when <code>CALCULATE</code> has no filter arguments at all. <code>CALCULATE ( [Labor Hours] )</code> written inside an iterator is doing real work despite looking like it does nothing.</p>
+
+  <p>Two consequences trip up almost everybody.</p>
+
+  <ol class="list">
+    <li>A measure referenced inside an iterator gets an implicit <code>CALCULATE</code> wrapped around it by the engine. Writing <code>[Labor Hours]</code> is exactly the same as writing <code>CALCULATE ( [Labor Hours] )</code>. So the measure undergoes context transition automatically, every time, whether or not you wanted it. This is why <code>SUMX ( FactLabor, [Labor Hours] )</code> does not do what a beginner expects.</li>
+    <li>Context transition on a table with no unique key filters to every row that matches on every column. A unique key is a column whose values never repeat. Without one, two identical rows are indistinguishable to the transition and both stay visible. Your iteration then silently includes more rows than you intended, and the total comes out too high with no error and no warning.</li>
+  </ol>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Context transition also overwrites, rather than intersects with, any existing filter on the columns of the transitioned table. This matters when a measure containing an iterator sits inside a visual that already filters that same table. The iterator still only walks rows visible in the outer filter context, so the slicer still controls the loop. Inside each iteration, though, the row filter replaces the outer one on those columns. Saying which of those two rules applies to a given expression is the fastest way to demonstrate you actually understand <code>CALCULATE</code>.</p>
+  </aside>
+
+  <h3>Three expressions on the Meridian rows</h3>
+
+  <p>Define the measure once and leave it alone for the rest of the chapter.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Hours</span></div>
+    <pre><code>Labor Hours <span class="op">=</span> <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 1</div><div class="linex-v">One aggregation over one column, with no filter modifier and no iterator. <code>SUM</code> because there is nothing to compute per row, so <code>SUMX</code> would open a row context for no gain. Plain <code>SUM</code> with no <code>CALCULATE</code> wrapper, because nothing here changes a filter. Whatever filter context the measure is called in, it sums the <code>Hours</code> values that survive it.</div></div>
+    <div class="linex-row"><div class="linex-k">Baseline</div><div class="linex-v">With no slicers and no visual axes, the filter context is empty, all eight rows are visible, and the measure returns 62.0. Every result later in this chapter is a variation on that one number.</div></div>
+  </div>
+
+  <p>These are the eight rows it will be working over. <code>FactLabor</code> is <code>LaborEntries</code> with <code>TechnicianID</code> trimmed, which is what repaired L-505 back onto TECH-04.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 09.1</span> FactLabor, all eight rows, with the technician key after trimming.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">LaborID</th><th scope="col">WorkOrderID</th><th scope="col">TechnicianID</th><th scope="col">WorkDate</th><th scope="col" class="num">Hours</th></tr></thead>
+        <tbody>
+          <tr><td class="key">L-501</td><td class="key">WO-1001</td><td class="key">TECH-02</td><td>2025-01-07</td><td class="num">7.5</td></tr>
+          <tr><td class="key">L-502</td><td class="key">WO-1001</td><td class="key">TECH-04</td><td>2025-01-09</td><td class="num">6.0</td></tr>
+          <tr><td class="key">L-503</td><td class="key">WO-1002</td><td class="key">TECH-02</td><td>2025-01-09</td><td class="num">9.0</td></tr>
+          <tr><td class="key">L-504</td><td class="key">WO-1003</td><td class="key">TECH-05</td><td>2025-01-20</td><td class="num">8.0</td></tr>
+          <tr><td class="key">L-505</td><td class="key">WO-1003</td><td class="key">TECH-04</td><td>2025-01-22</td><td class="num">4.5</td></tr>
+          <tr class="row-bad"><td class="key">L-506</td><td class="key">WO-1004</td><td class="key">TECH-07</td><td>2025-02-05</td><td class="num">10.0</td></tr>
+          <tr><td class="key">L-507</td><td class="key">WO-1006</td><td class="key">TECH-01</td><td>2025-02-19</td><td class="num">12.0</td></tr>
+          <tr><td class="key">L-508</td><td class="key">WO-1007</td><td class="key">TECH-05</td><td>2025-03-04</td><td class="num">5.0</td></tr>
+          <tr class="row-total"><td>Total</td><td></td><td></td><td></td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The shaded row is L-506, whose technician TECH-07 does not exist in the HR extract. Hold on to that row. It is what makes the third expression interesting, and it is where the production controller's ten hours are hiding.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Three expressions, two results</span></div>
+    <pre><code><span class="c">// 1. Row context only. No transition anywhere.</span>
+Hours A <span class="op">=</span> <span class="k">SUMX</span> ( <span class="t">FactLabor</span>, <span class="t">FactLabor</span><span class="col">[Hours]</span> )
+
+<span class="c">// 2. Measure inside an iterator. Implicit CALCULATE,</span>
+<span class="c">// so context transition on every one of the 8 rows.</span>
+Hours B <span class="op">=</span> <span class="k">SUMX</span> ( <span class="t">FactLabor</span>, <span class="col">[Labor Hours]</span> )
+
+<span class="c">// 3. Same measure, different table iterated.</span>
+Hours C <span class="op">=</span> <span class="k">SUMX</span> ( <span class="t">DimTechnician</span>, <span class="col">[Labor Hours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v">First argument is a table, second is an expression evaluated in the row context that table opens. <code>SUMX</code> rather than <code>SUM</code> because <code>SUM</code> accepts only a column reference and cannot be handed an expression to work out per row.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v">The only change from line 2 is the second argument. Here it is a measure reference in <code>[Name]</code> form, where line 2 had a column reference in <code>Table[Column]</code> form. That single difference is what invites the implicit <code>CALCULATE</code> and therefore context transition.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 9</div><div class="linex-v">Identical expression to line 6, iterating <span class="dim-tag">Dimension</span> <code>DimTechnician</code> instead of <span class="fact-tag">Fact</span> <code>FactLabor</code>. Nothing else moves. The result does.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 09.2</span> What the three expressions return with no slicers applied, and which mechanism produced each result.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Expression</th><th scope="col" class="num">Result</th><th scope="col">Mechanism</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Hours A</th><td class="num">62.0</td><td>Row context only. Reads one stored value per row.</td></tr>
+          <tr><th scope="row">Hours B</th><td class="num">62.0</td><td>Context transition per row. Right answer, wrong reasons if you assume it matched A by accident.</td></tr>
+          <tr class="row-bad"><th scope="row">Hours C</th><td class="num">52.0</td><td>Context transition per technician. TECH-07 is not in the dimension, so 10.0 hours are never visited.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h4>Hours A, 62.0, no transition</h4>
+
+  <p><code>SUMX</code> opens a row context over <code>FactLabor</code> and moves through the eight rows. On each one, <code>FactLabor[Hours]</code> resolves against the row pointer and yields a stored number. The engine reads 7.5, 6.0, 9.0, 8.0, 4.5, 10.0, 12.0 and 5.0 straight off those eight rows, and adds them to 62.0. Every value comes from storage exactly as it sits there. The one thing that could convert a row context into a filter is <code>CALCULATE</code>, and this expression contains none, explicit or implicit. This is the boring case, and boring is what you want.</p>
+
+  <h4>Hours B, also 62.0, for a completely different reason</h4>
+
+  <p>Same eight iterations, but the second argument is a measure, so the engine rewrites it as <code>CALCULATE ( [Labor Hours] )</code>. On the first iteration the row context is sitting on L-501. Context transition takes that row and builds a filter on <code>FactLabor</code> covering every column of it: <code>LaborID</code> equals L-501, <code>WorkOrderID</code> equals WO-1001, <code>TechnicianID</code> equals TECH-02, <code>WorkDate</code> equals 7 January 2025, <code>Hours</code> equals 7.5, <code>HourlyRate</code> equals 95. Only one row in the table satisfies all six conditions, because <code>LaborID</code> alone is already unique. <code>FactLabor</code> is now filtered to a single row. Only then does <code>SUM ( FactLabor[Hours] )</code> run, over a table of one row, returning 7.5.</p>
+
+  <p>Repeat that seven more times and you get 6.0, 9.0, 8.0, 4.5, 10.0, 12.0, 5.0, and the outer <code>SUMX</code> adds them to 62.0. The number is identical to Hours A and the machinery underneath is a different animal. A read of a stored value happened eight times in A. In B, eight filter contexts were constructed, eight filtered scans of the fact table were performed, and eight aggregations were run. The result agrees only because the transition happened to isolate exactly one row each time.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>Hours B is the expensive way to get 62.0. On eight rows nobody notices. On a labor table with two million rows, an iterator with a transitioning measure inside it can force the engine out of its fast column scan and into a much slower row by row evaluation, and query time can go from milliseconds to minutes. Reserve transition inside an iterator for when you genuinely need per row aggregation of related data, and never write it just because it reads nicely.</p>
+  </aside>
+
+  <h4>Hours C, 52.0, and this one is genuinely useful</h4>
+
+  <p>This is the scorecard the production controller asked for, and here is where its 52.0 comes from. Change nothing but the iterated table. Take <code>DimTechnician</code> at the point in the build where it holds the six cleaned rows from the HR extract, TECH-01 through TECH-06. <code>SUMX</code> now walks six rows, not eight. On each one the implicit <code>CALCULATE</code> transitions that technician row into a filter on <code>DimTechnician</code>. Because <code>TechnicianID</code> is unique in that table, the transition isolates one technician. That single row filter then propagates down the one to many relationship into <code>FactLabor</code>, cutting it to that technician's labor rows, and <code>SUM ( FactLabor[Hours] )</code> totals whatever is left.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 09.3</span> The six values produced by SUMX ( DimTechnician, [Labor Hours] ), with the labor rows each one reached.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">TechnicianID</th><th scope="col">Name</th><th scope="col">Labor rows reached</th><th scope="col" class="num">Hours</th></tr></thead>
+        <tbody>
+          <tr><td class="key">TECH-01</td><td>R. Okafor</td><td>L-507</td><td class="num">12.0</td></tr>
+          <tr><td class="key">TECH-02</td><td>M. Halvorsen</td><td>L-501, L-503</td><td class="num">16.5</td></tr>
+          <tr><td class="key">TECH-03</td><td>J. Prieto</td><td class="muted">none</td><td class="num">0</td></tr>
+          <tr><td class="key">TECH-04</td><td>D. Sandoval</td><td>L-502, L-505</td><td class="num">10.5</td></tr>
+          <tr><td class="key">TECH-05</td><td>K. Ibrahim</td><td>L-504, L-508</td><td class="num">13.0</td></tr>
+          <tr><td class="key">TECH-06</td><td>L. Petrov</td><td class="muted">none</td><td class="num">0</td></tr>
+          <tr class="row-total"><td>Total</td><td></td><td></td><td class="num">52.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>12.0 plus 16.5 plus 0 plus 10.5 plus 13.0 plus 0 is 52.0. The ten hours on L-506 are simply never reached, because the loop is over technicians and TECH-07 is not a technician as far as this table is concerned. The engine reports this as a clean success. No error is raised and no blank row appears. The number is quietly ten hours short of the fact table total, which is why the scorecard and the card beside it disagree.</p>
+
+  <p>One precision point before you use Table 09.3 as gospel. For TECH-03 and TECH-06, <code>SUM</code> over an empty set returns <code>BLANK</code>, not zero. The table above shows 0 because that is the arithmetic contribution, and <code>SUMX</code> treats blank as zero when it adds the six values together. In a matrix visual those two technicians would show an empty cell where this table shows 0, and by default their rows would disappear from the visual entirely.</p>
+
+  <details class="expand" open>
+    <summary>Trace this by hand, row by row</summary>
+    <div class="expand-body">
+      <p>Six iterations of <code>SUMX ( DimTechnician, [Labor Hours] )</code>. Read the middle column as the filter that context transition installed on <code>DimTechnician</code>, and the right column as what survived in <code>FactLabor</code> after that filter propagated across the relationship.</p>
+      <ol class="steps">
+        <li>Row context lands on TECH-01. Implicit <code>CALCULATE</code> fires. Transition filters <code>DimTechnician</code> to TechnicianID = TECH-01, Name = R. Okafor, HomeStation = MSP, EmployeeType = Staff. That is one row. Propagation cuts <code>FactLabor</code> to L-507 only. <code>SUM ( FactLabor[Hours] )</code> returns 12.0.</li>
+        <li>Row context moves to TECH-02. Transition isolates M. Halvorsen. <code>FactLabor</code> keeps L-501 and L-503. 7.5 plus 9.0 gives 16.5.</li>
+        <li>Row context moves to TECH-03. Transition isolates J. Prieto. Propagation leaves <code>FactLabor</code> with zero rows, because J. Prieto logged no time in the quarter. <code>SUM</code> over nothing returns <code>BLANK</code>, which contributes 0.</li>
+        <li>Row context moves to TECH-04. Transition isolates D. Sandoval. <code>FactLabor</code> keeps L-502 and L-505. 6.0 plus 4.5 gives 10.5. Note that L-505 only arrives here because the trailing space in its <code>TechnicianID</code> was trimmed in Power Query. Without that trim this iteration would return 6.0 and the grand total would be 47.5.</li>
+        <li>Row context moves to TECH-05. Transition isolates K. Ibrahim. <code>FactLabor</code> keeps L-504 and L-508. 8.0 plus 5.0 gives 13.0.</li>
+        <li>Row context moves to TECH-06. Transition isolates L. Petrov. No labor rows survive, so the result is <code>BLANK</code> and contributes 0.</li>
+      </ol>
+      <p>The outer <code>SUMX</code> adds 12.0, 16.5, 0, 10.5, 13.0 and 0, and returns 52.0. L-506 was never visited by any of the six iterations, so its 10.0 hours are absent by construction. Nothing malfunctioned. The loop simply never went near that row.</p>
+      <p>Now the inconvenient part. In the finished Meridian model, <code>DimTechnician</code> has seven rows, because an Unknown technician member was added for TECH-07 exactly so that orphan facts have somewhere to land. Run the same expression against that seven row version. A seventh iteration isolates TECH-07, reaches L-506, and returns 10.0. That brings the total to 62.0, matching the fact table. The 52.0 belonged to an incomplete dimension all along, and <code>SUMX</code> was doing its job both times. That is why the unknown member work in Part 3 earns its keep.</p>
+    </div>
+  </details>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Building a technician scorecard by iterating the dimension, then reconciling it against a plant total that iterates the fact table, and concluding that DAX is unreliable when the two disagree. They disagree because they are answering different questions. Iterating a dimension answers "how much for each of these people", which by definition excludes anyone not in the list. Iterating the fact answers "how much in total". Decide which question the business is asking before you decide which table to iterate. If the answer is the first, then the completeness of your dimension has just become a reporting requirement, and you should write it into the spec as one.</p>
+  </aside>
+
+  <h3>When transition cannot isolate one row</h3>
+
+  <p>The planner wants planned hours compared across trades, with the month taken out of the way. She builds a small helper table that strips the month columns off capacity, points a measure at it, and asks you why MSP airframe now shows 72 planned hours when the source workbook says 44. Nothing on her screen is flagged. Both iterated tables so far had a unique key, and hers does not.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">CapByTrade, calculated table</span></div>
+    <pre><code>CapByTrade <span class="op">=</span>
+    <span class="k">SELECTCOLUMNS</span> (
+        <span class="t">FactCapacity</span>,
+        <span class="s">"StationCode"</span>, <span class="t">FactCapacity</span><span class="col">[StationCode]</span>,
+        <span class="s">"Trade"</span>, <span class="t">FactCapacity</span><span class="col">[Trade]</span>,
+        <span class="s">"PlannedHours"</span>, <span class="t">FactCapacity</span><span class="col">[PlannedHours]</span>
+    )</code></pre>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>SELECTCOLUMNS</code> rather than <code>SUMMARIZE</code>, and the choice is the whole point. <code>SUMMARIZE</code> would group the rows and collapse the duplicates, which hides the problem and produces a table with a natural key again. <code>SELECTCOLUMNS</code> keeps every one of the 28 rows exactly as they were, minus the two month columns, which is what a rushed modeller actually ends up with.</p>
+  </div>
+
+  <p>MSP planned 14 airframe hours in January and 14 again in February. Drop the month and those two rows become <code>MSP, Airframe, 14</code> and <code>MSP, Airframe, 14</code>, identical in all three remaining columns. March is <code>MSP, Airframe, 16</code>, still distinct. Now compare two ways of totalling the MSP airframe hours.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">The same total, two ways</span></div>
+    <pre><code>Planned Trade Hours <span class="op">=</span> <span class="k">SUM</span> ( <span class="t">CapByTrade</span><span class="col">[PlannedHours]</span> )
+
+<span class="c">// Row context only. Correct.</span>
+MSP Airframe A <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="k">FILTER</span> (
+            <span class="t">CapByTrade</span>,
+            <span class="t">CapByTrade</span><span class="col">[StationCode]</span> <span class="op">=</span> <span class="s">"MSP"</span>
+                <span class="op">&amp;&amp;</span> <span class="t">CapByTrade</span><span class="col">[Trade]</span> <span class="op">=</span> <span class="s">"Airframe"</span>
+        ),
+        <span class="t">CapByTrade</span><span class="col">[PlannedHours]</span>
+    )
+
+<span class="c">// Transition on a table with no unique key. Inflated.</span>
+MSP Airframe B <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="k">FILTER</span> (
+            <span class="t">CapByTrade</span>,
+            <span class="t">CapByTrade</span><span class="col">[StationCode]</span> <span class="op">=</span> <span class="s">"MSP"</span>
+                <span class="op">&amp;&amp;</span> <span class="t">CapByTrade</span><span class="col">[Trade]</span> <span class="op">=</span> <span class="s">"Airframe"</span>
+        ),
+        <span class="col">[Planned Trade Hours]</span>
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">MSP Airframe A</div><div class="linex-v">Three rows survive the <code>FILTER</code>. The iterator reads 14, 14 and 16 straight off each row and returns 44. That agrees with the source workbook, where MSP planned 14 airframe hours in January, 14 in February and 16 in March.</div></div>
+    <div class="linex-row"><div class="linex-k">MSP Airframe B</div><div class="linex-v">Same three rows, but the measure triggers transition. On the January row the filter becomes StationCode = MSP, Trade = Airframe, PlannedHours = 14. Two rows match that, so the measure returns 28. On the February row the filter is character for character the same, so it returns 28 again. The March row is unique and returns 16. 28 plus 28 plus 16 is 72, which is 28 hours of capacity that Meridian does not have.</div></div>
+  </div>
+
+  <p>The planner had the B version. No error, and no warning triangle. Any utilisation percentage sitting on top of that number now divides by 72 where it should divide by 44. Every airframe utilisation figure at MSP therefore reads about 61 percent of its true value, and the shop manager is told there is slack that does not exist. The defence is a unique key on any table you intend to iterate with a transitioning expression. In practice that means keeping <code>MonthKey</code> on <code>FactCapacity</code> instead of throwing it away for tidiness.</p>
+
+  <h3>Nested row contexts, and why EARLIER exists</h3>
+
+  <p>The shift supervisor wants to know, for each work order, which labor line was the biggest. He is chasing a pattern in who gets handed the long jobs. That is a ranking inside each work order, and writing it is where row contexts start sitting on top of one another.</p>
+
+  <p>Row contexts nest. If you write a calculated column on <code>FactLabor</code>, you already have one row context over <code>FactLabor</code>. If that column then calls <code>FILTER ( FactLabor, ... )</code>, the <code>FILTER</code> opens a second row context over the same table. Inside the <code>FILTER</code>, a bare reference to <code>FactLabor[Hours]</code> resolves to the inner context, the row <code>FILTER</code> is currently testing. The outer row is shadowed. The value you actually want, the one belonging to the row the column is being computed for, can no longer be reached by name.</p>
+
+  <p><code>EARLIER</code> exists to reach past the shadow. It means "the value this column had in the row context one level out". The name misleads on first reading, because it sounds temporal and it is not. Here is a ranking column on <code>FactLabor</code> that ranks each labor entry by hours within its own work order.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Hours Rank in WO, the EARLIER form</span></div>
+    <pre><code>Hours Rank in WO <span class="op">=</span>
+    <span class="k">COUNTROWS</span> (
+        <span class="k">FILTER</span> (
+            <span class="t">FactLabor</span>,
+            <span class="t">FactLabor</span><span class="col">[WorkOrderID]</span>
+                <span class="op">=</span> <span class="k">EARLIER</span> ( <span class="t">FactLabor</span><span class="col">[WorkOrderID]</span> )
+                <span class="op">&amp;&amp;</span> <span class="t">FactLabor</span><span class="col">[Hours]</span>
+                <span class="op">&gt;=</span> <span class="k">EARLIER</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 5 and 6</div><div class="linex-v">The bare <code>FactLabor[WorkOrderID]</code> on the left of the comparison is the row <code>FILTER</code> is testing. The <code>EARLIER ( FactLabor[WorkOrderID] )</code> on the right is the row the calculated column is being written for. Same column name, two different rows, and nothing in the syntax tells you which is which except the wrapper.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 8</div><div class="linex-v">Greater than or equal, not greater than, so that the largest entry counts itself and ranks 1. Plain greater than would rank it 0.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>COUNTROWS</code> turns the surviving table into the rank. Written this way the whole expression is correct and almost unreadable, which is the case against <code>EARLIER</code>.</div></div>
+  </div>
+
+  <p>The same logic, with the outer values captured by name instead.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Hours Rank in WO, the VAR form</span></div>
+    <pre><code>Hours Rank in WO <span class="op">=</span>
+    <span class="k">VAR</span> CurrentWO <span class="op">=</span> <span class="t">FactLabor</span><span class="col">[WorkOrderID]</span>
+    <span class="k">VAR</span> CurrentHours <span class="op">=</span> <span class="t">FactLabor</span><span class="col">[Hours]</span>
+    <span class="k">RETURN</span>
+        <span class="k">COUNTROWS</span> (
+            <span class="k">FILTER</span> (
+                <span class="t">FactLabor</span>,
+                <span class="t">FactLabor</span><span class="col">[WorkOrderID]</span> <span class="op">=</span> CurrentWO
+                    <span class="op">&amp;&amp;</span> <span class="t">FactLabor</span><span class="col">[Hours]</span> <span class="op">&gt;=</span> CurrentHours
+            )
+        )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">VAR lines</div><div class="linex-v">The two variables are evaluated in the outer row context, before <code>FILTER</code> opens anything, and their values are then fixed. A variable in DAX is a constant once assigned, so no later context can change what <code>CurrentWO</code> means.</div></div>
+    <div class="linex-row"><div class="linex-k">FILTER line</div><div class="linex-v">Inside <code>FILTER</code>, <code>FactLabor[WorkOrderID]</code> refers to the row being tested, and <code>CurrentWO</code> refers to the row being computed. The comparison reads left to right as English, which the <code>EARLIER</code> version never manages.</div></div>
+    <div class="linex-row"><div class="linex-k">COUNTROWS</div><div class="linex-v">Counting how many rows in the same work order have hours greater than or equal to this row's hours gives that row's rank, with 1 for the largest.</div></div>
+  </div>
+
+  <p>Both forms return the same values. L-501 ranks 1 and L-502 ranks 2 within WO-1001, since 7.5 beats 6.0. L-504 ranks 1 and L-505 ranks 2 within WO-1003, since 8.0 beats 4.5. L-503, L-506, L-507 and L-508 each rank 1, being the only labor line on their work order. That column answers the supervisor's question: filter it to rank 1 and he has the biggest line on every work order, with the name attached. Use the second form in all new code. <code>EARLIER</code> still works and is still supported, but it forces the reader to count nesting levels in their head. It takes an optional second argument for skipping more than one level that almost nobody remembers. And it breaks the moment somebody wraps your expression in another iterator.</p>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>COUNTROWS</code> rather than <code>COUNT</code>. <code>COUNT</code> counts non blank values in one column, so it would silently undercount any row where the counted column happened to be blank. <code>COUNTROWS</code> counts rows regardless of content, which is what a rank needs. And <code>FILTER</code> in place of a boolean predicate inside <code>CALCULATE</code>, because the condition compares a column against a value captured from a different row of the same table, which a simple predicate cannot express.</p>
+  </div>
+
+  <h3>The calculated column trap that follows from all this</h3>
+
+  <p>The production controller wants the work order list to carry two extra columns: how many labor lines each order has, and how many hours they add up to. It sounds like a five minute job. The first attempt fails to compile, and the reason is the rule this chapter opened with.</p>
+
+  <p>Row context points at a row and leaves every other row visible. Say it once more, because this is where it produces its most confusing symptom. In a calculated column, a reference to a column of a related table on the many side resolves to all the rows that match. That is a table, and DAX will not put a table into a scalar column.</p>
+
+  <p>Which function you need depends entirely on which side of the relationship you are reaching towards.</p>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <p>A column on <code>FactWorkOrder</code> to see how much labor each order absorbed.</p>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Does not work</span></div>
+        <pre><code>Labor Lines <span class="op">=</span>
+    <span class="k">RELATED</span> ( <span class="t">FactLabor</span><span class="col">[LaborID]</span> )</code></pre>
+      </div>
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>RELATED</code> promises a single scalar. It can only deliver one when the target sits on the one side.</div></div>
+      </div>
+      <p><code>FactLabor</code> is on the many side of the header to line relationship. WO-1001 has two labor rows, so there is no single <code>LaborID</code> to return and the expression is rejected outright.</p>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <p>Ask for the table, then aggregate it.</p>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Lines, column on FactWorkOrder</span></div>
+        <pre><code>Labor Lines <span class="op">=</span>
+    <span class="k">COALESCE</span> (
+        <span class="k">COUNTROWS</span> (
+            <span class="k">RELATEDTABLE</span> ( <span class="t">FactLabor</span> )
+        ),
+        <span class="n">0</span>
+    )</code></pre>
+      </div>
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v"><code>RELATEDTABLE</code> returns the labor rows belonging to the current work order, as a table.</div></div>
+        <div class="linex-row"><div class="linex-k">Lines 3 and 2</div><div class="linex-v"><code>COUNTROWS</code> reduces that table to a number, and <code>COALESCE</code> turns the blank into 0 for WO-1005 and WO-1008.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>RELATEDTABLE</code> rather than <code>FILTER ( FactLabor, FactLabor[WorkOrderID] = FactWorkOrder[WorkOrderID] )</code>, because <code>RELATEDTABLE</code> uses the relationship the model already holds. The <code>FILTER</code> version rebuilds that join by hand, which is longer to read and much slower on a large fact table. Under the hood <code>RELATEDTABLE</code> is <code>CALCULATETABLE</code> of the target table, so it performs context transition and then lets the filter propagate along the relationship. That is the same mechanism as Hours C, applied to a table result instead of a scalar. And <code>COALESCE</code> in place of <code>IF ( ISBLANK ( ... ), 0, ... )</code>, because <code>COUNTROWS</code> of an empty table returns <code>BLANK</code> and not zero. <code>COALESCE</code> handles that in one evaluation, where the <code>IF</code> form makes you write the count expression twice.</p>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 09.4</span> Labor Lines and total labor hours as calculated columns on FactWorkOrder, using RELATEDTABLE.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">WorkOrderID</th><th scope="col">Rows returned by RELATEDTABLE</th><th scope="col" class="num">Labor Lines</th><th scope="col" class="num">Labor Hours</th></tr></thead>
+        <tbody>
+          <tr><td class="key">WO-1001</td><td>L-501, L-502</td><td class="num">2</td><td class="num">13.5</td></tr>
+          <tr><td class="key">WO-1002</td><td>L-503</td><td class="num">1</td><td class="num">9.0</td></tr>
+          <tr><td class="key">WO-1003</td><td>L-504, L-505</td><td class="num">2</td><td class="num">12.5</td></tr>
+          <tr><td class="key">WO-1004</td><td>L-506</td><td class="num">1</td><td class="num">10.0</td></tr>
+          <tr class="row-bad"><td class="key">WO-1005</td><td class="muted">empty table</td><td class="num">0</td><td class="num">0</td></tr>
+          <tr><td class="key">WO-1006</td><td>L-507</td><td class="num">1</td><td class="num">12.0</td></tr>
+          <tr><td class="key">WO-1007</td><td>L-508</td><td class="num">1</td><td class="num">5.0</td></tr>
+          <tr class="row-bad"><td class="key">WO-1008</td><td class="muted">empty table</td><td class="num">0</td><td class="num">0</td></tr>
+          <tr class="row-total"><td>Total</td><td></td><td class="num">8</td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>That table is the production controller's two columns, finished. The Labor Hours column is the same idea with a different aggregator, written as <code>SUMX ( RELATEDTABLE ( FactLabor ), FactLabor[Hours] )</code>. <code>SUMX</code> here, and not a bare <code>SUM ( FactLabor[Hours] )</code>, and the reason is the whole subject of this chapter. <code>SUM</code> reads the filter context. A calculated column on <code>FactWorkOrder</code> supplies a row context, and row context does not travel across a relationship. So a bare <code>SUM</code> would see all eight labor rows on every single work order and write 62.0 into all eight cells. <code>SUMX</code> over <code>RELATEDTABLE</code> states the row set explicitly instead of hoping one arrives. <code>CALCULATE ( SUM ( FactLabor[Hours] ) )</code> would also work, by forcing the transition, and it is the shorter form. It also hides the mechanism behind a function that looks like it is doing nothing. The two shaded rows are WO-1005 and WO-1008, which have no labor at all. Without <code>COALESCE</code> those cells would be blank, and a blank in a numeric column has a way of turning into an unexpected gap in a chart later.</p>
+
+  <p>Reaching the other direction is easier, and it works across more than one hop.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Aircraft Type, column on FactLabor</span></div>
+    <pre><code><span class="c">// Two hops: FactLabor to FactWorkOrder to DimAircraft.</span>
+<span class="c">// Both hops go many to one, so RELATED can follow them.</span>
+Aircraft Type <span class="op">=</span>
+    <span class="k">RELATED</span> ( <span class="t">DimAircraft</span><span class="col">[AircraftType]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Hop 1</div><div class="linex-v"><code>FactLabor[WorkOrderID]</code> is on the many side of the relationship to <code>FactWorkOrder[WorkOrderID]</code>. One work order per labor row, so the value is unambiguous.</div></div>
+    <div class="linex-row"><div class="linex-k">Hop 2</div><div class="linex-v"><code>FactWorkOrder[ACREG]</code> is on the many side of the relationship to <span class="derived-tag">Built</span> <code>DimAircraft[ACREG]</code>. One aircraft per work order, again unambiguous, so <code>RELATED</code> keeps walking and returns the type.</div></div>
+    <div class="linex-row"><div class="linex-k">Limit</div><div class="linex-v"><code>RELATED</code> follows a chain only while every step goes from many to one. The instant one step goes the other way, it fails, and you need <code>RELATEDTABLE</code> plus an aggregator for that step.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>RELATED</code>, and not <code>LOOKUPVALUE ( DimAircraft[AircraftType], DimAircraft[ACREG], RELATED ( FactWorkOrder[ACREG] ) )</code>. Both return the same string. <code>LOOKUPVALUE</code> performs its own search and does not require a relationship, which makes it the right tool when no relationship exists. Here one does, and <code>RELATED</code> uses the relationship the engine has already indexed. Choosing <code>LOOKUPVALUE</code> when a relationship is available is paying for a search you have already paid for once.</p>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 09.5</span> Aircraft Type resolved onto every labor row through two relationship hops, and the hours that roll up per type.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">LaborID</th><th scope="col">WorkOrderID</th><th scope="col">ACREG</th><th scope="col">Aircraft Type</th><th scope="col" class="num">Hours</th></tr></thead>
+        <tbody>
+          <tr><td class="key">L-501</td><td class="key">WO-1001</td><td class="key">N771QR</td><td>A320-200</td><td class="num">7.5</td></tr>
+          <tr><td class="key">L-502</td><td class="key">WO-1001</td><td class="key">N771QR</td><td>A320-200</td><td class="num">6.0</td></tr>
+          <tr><td class="key">L-506</td><td class="key">WO-1004</td><td class="key">N771QR</td><td>A320-200</td><td class="num">10.0</td></tr>
+          <tr><td class="key">L-503</td><td class="key">WO-1002</td><td class="key">N448LM</td><td>B737-800</td><td class="num">9.0</td></tr>
+          <tr><td class="key">L-504</td><td class="key">WO-1003</td><td class="key">N902TT</td><td>E175</td><td class="num">8.0</td></tr>
+          <tr><td class="key">L-505</td><td class="key">WO-1003</td><td class="key">N902TT</td><td>E175</td><td class="num">4.5</td></tr>
+          <tr><td class="key">L-508</td><td class="key">WO-1007</td><td class="key">N902TT</td><td>E175</td><td class="num">5.0</td></tr>
+          <tr class="row-bad"><td class="key">L-507</td><td class="key">WO-1006</td><td class="key">N338WA</td><td class="cell-bad">Unknown type</td><td class="num">12.0</td></tr>
+          <tr class="row-total"><td>Total</td><td></td><td></td><td></td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Grouped by type that is 23.5 hours on the A320-200 fleet, 9.0 on the B737-800, 17.5 on the E175 and 12.0 against the recovered tail N338WA. L-507 returns a value at all because <code>DimAircraft</code> was built as an append of the registry and the distinct tails from the work orders. N338WA is therefore a real dimension row with placeholder attributes. Against the raw registry, <code>RELATED</code> would find nothing and those 12.0 hours would vanish from every type breakdown on the report.</p>
+
+  <p>One last honest caveat about calculated columns generally. Every column here is computed at refresh and stored in the model, so it costs memory in proportion to its cardinality and it cannot respond to a slicer. <code>Aircraft Type</code> on <code>FactLabor</code> is a reasonable trade, since the model already stores the same values on <code>DimAircraft</code> and the dictionary is tiny. <code>Labor Lines</code> on <code>FactWorkOrder</code> is fine at eight rows and would be worth questioning at eight million. At that size a measure using <code>COUNTROWS</code> over the filtered fact table gives you the same answer without materialising anything. Reach for a calculated column when you need the value on a slicer or an axis. Reach for a measure otherwise.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>A row context knows which row you are on. A filter context knows which rows exist. Neither one implies the other.</li>
+      <li>Calculated columns and iterators create row context. Slicers, visual axes, report filters and <code>CALCULATE</code> create filter context. A measure starts with filter context only, which is why <code>SUM ( FactLabor[Hours] )</code> works and a bare <code>FactLabor[Hours]</code> does not.</li>
+      <li>Context transition is <code>CALCULATE</code> converting the current row into a filter on all columns of the iterated table. Any measure reference inside an iterator triggers it, because the engine wraps measures in an implicit <code>CALCULATE</code>.</li>
+      <li><code>SUMX ( FactLabor, FactLabor[Hours] )</code> and <code>SUMX ( FactLabor, [Labor Hours] )</code> both return 62.0 by completely different routes, and only the first is cheap.</li>
+      <li><code>SUMX ( DimTechnician, [Labor Hours] )</code> returns 52.0 over the six HR technicians, because TECH-07 on L-506 is not in the dimension and is never iterated. Add the Unknown member and it returns 62.0. What you iterate decides what you can possibly count.</li>
+      <li>Transition on a table without a unique key filters to every row matching on all columns, which inflates totals with no error. Keep a key on anything you intend to iterate.</li>
+      <li>Use <code>VAR</code> to capture the outer row value instead of <code>EARLIER</code> in all new code. Same result, and it survives being nested inside somebody else's iterator.</li>
+      <li>In a calculated column, <code>RELATED</code> reaches towards the one side across any chain of many to one hops, and <code>RELATEDTABLE</code> with an aggregator reaches towards the many side. Wrap the count in <code>COALESCE</code> unless you want blanks for work orders with no activity.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="08.html"><span class="pn-dir">Previous</span><span class="pn-t">Single versus bidirectional cross-filtering</span></a><a class="pn" href="10.html"><span class="pn-dir">Next</span><span class="pn-t">Calculated column or measure</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

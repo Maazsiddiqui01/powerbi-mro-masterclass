@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Single versus bidirectional cross-filtering</title>
+</head>
+<body data-ch="08">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">08</span><span class="tb-title">Single versus bidirectional cross-filtering</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-08">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 3 . Relationships and filter flow</div>
+    <h2 class="chapter-title"><span class="chapter-num">08</span>Single versus bidirectional cross-filtering</h2>
+    <p class="chapter-lede">After this chapter you will be able to say exactly which rows a Both relationship adds to a query. You will be able to name the three costs you pay for it. You will also be able to choose between a model change, a <code>CROSSFILTER</code> modifier and <code>TREATAS</code> for any requirement in the Meridian model.</p>
+  </div>
+
+  <p class="lead">The production controller wants Q1 hours by certification. He runs four certifications on his board and he wants to know how many hours went to each one. You put <code>DimCertification</code> on the rows of a table visual and drop the <code>Labor Hours</code> measure into the values. All four rows come back 62.0. That is the whole quarter's hours, printed four times under four different labels, and nothing on the page warns you.</p>
+
+  <p>A measure is a calculation the engine runs once for every cell of a visual. It runs over whatever rows are still visible at that moment, and that set of visible rows is called the filter context. So the four identical numbers are telling you something specific. The certification the reader picked never reached the labor rows at all. The reason is one property on one relationship, and most people have never opened it.</p>
+
+  <p>Cross-filter direction looks like a preference sitting in a properties pane. What it states is which way the engine may walk a relationship when it builds the filter context. Change it and you change the answer to questions you were not thinking about at the time.</p>
+
+  <p>Every relationship in the Meridian model has two properties that matter here. Cardinality says which side is the one and which is the many. Cross-filter direction says which of those two sides can filter the other. Section C of the model spec sets every relationship to single, which means the filter runs from the one side to the many side and stops. <span class="dim-tag">Dimension</span> filters <span class="fact-tag">Fact</span>. Never the reverse.</p>
+
+  <p>Set a relationship to Both and you add a second, opposite hop. The filter can now run from the many side back to the one side. That sounds symmetric. Underneath, the two hops are different operations, and the reverse one is the expensive half.</p>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Default direction</div><div class="kv-v">Single, one to many</div></div>
+    <div class="kv-item"><div class="kv-k">Legitimate use of Both</div><div class="kv-v">Bridge in a many to many</div></div>
+    <div class="kv-item"><div class="kv-k">Costs you pay</div><div class="kv-v">Ambiguity, performance, RLS</div></div>
+    <div class="kv-item"><div class="kv-k">Measure-level equivalent</div><div class="kv-v">CROSSFILTER inside CALCULATE</div></div>
+  </div>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 350" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><line x1="450" y1="14" x2="450" y2="336" stroke="#D2CDC0" stroke-width="1" stroke-dasharray="4 4"/><text x="24.0" y="26.0" class="d-t" fill="#1B5A68">Single, the default</text><text x="474.0" y="26.0" class="d-t" fill="#AE4419">Both, bidirectional</text><rect x="24.0" y="46.0" width="175.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="35.0" y="63.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="24.0" y1="72.0" x2="199.0" y2="72.0" stroke="#1B5A68" stroke-width="1"/><text x="35.0" y="84.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="35.0" y="99.5" class="d-m">EmployeeType</text><rect x="24.0" y="176.0" width="175.0" height="71.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="35.0" y="193.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="24.0" y1="202.0" x2="199.0" y2="202.0" stroke="#AE4419" stroke-width="1"/><text x="35.0" y="214.0" class="d-m">TechnicianID</text><text x="35.0" y="229.5" class="d-m">Hours</text><line x1="112.0" y1="122.0" x2="112.0" y2="176.0" class="d-line-hot" marker-end="url(#ah)"/><text x="103.0" y="140.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="103.0" y="164.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="214.0" y="96.0" class="d-s">A selection on DimTechnician</text><text x="214.0" y="111.0" class="d-s">reaches FactLabor.</text><text x="214.0" y="141.0" class="d-s">A selection on FactLabor</text><text x="214.0" y="156.0" class="d-s">does not reach DimTechnician.</text><rect x="24.0" y="262.0" width="400.0" height="68.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="38.0" y="282.0" class="d-t" fill="#2B6140">One path, one answer</text><text x="38.0" y="300.0" class="d-s">The engine resolves a filter with a lookup. Every measure that</text><text x="38.0" y="314.0" class="d-s">touches these two tables behaves the same way in every visual.</text><rect x="474.0" y="46.0" width="175.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="485.0" y="63.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="474.0" y1="72.0" x2="649.0" y2="72.0" stroke="#1B5A68" stroke-width="1"/><text x="485.0" y="84.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="485.0" y="99.5" class="d-m">EmployeeType</text><rect x="474.0" y="176.0" width="175.0" height="71.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="485.0" y="193.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="474.0" y1="202.0" x2="649.0" y2="202.0" stroke="#AE4419" stroke-width="1"/><text x="485.0" y="214.0" class="d-m">TechnicianID</text><text x="485.0" y="229.5" class="d-m">Hours</text><line x1="562" y1="122" x2="562" y2="176" class="d-line-hot" marker-end="url(#ah)" marker-start="url(#ah)"/><text x="553.0" y="140.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="553.0" y="164.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="664.0" y="96.0" class="d-s">Now a selection on FactLabor</text><text x="664.0" y="111.0" class="d-s">also narrows DimTechnician,</text><text x="664.0" y="141.0" class="d-s">which is what makes a slicer</text><text x="664.0" y="156.0" class="d-s">hide unused technicians.</text><rect x="474.0" y="262.0" width="400.0" height="80.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="488.0" y="282.0" class="d-t" fill="#98281E">Convenient, and the usual source of ambiguity</text><text x="488.0" y="300.0" class="d-s">The engine must now build a set on the one side rather than do a</text><text x="488.0" y="314.0" class="d-s">lookup, and it pays that cost on every query, not only the</text><text x="488.0" y="328.0" class="d-s">ones that actually need it.</text></svg></div><figcaption><span class="fig-num">Figure 8.1</span>What actually changes when a relationship is set to Both.</figcaption></figure>
+
+  <p>Look at the arrows first. Both panels draw the same two tables, <code>DimTechnician</code> above <code>FactLabor</code>, joined on <code>TechnicianID</code> with the 1 on the dimension and the * on the fact. In the left panel, the one titled Single, the default, a single arrow runs downward from the dimension into the fact. The note beside it says a selection on <code>FactLabor</code> does not reach <code>DimTechnician</code>. In the right panel, titled Both, bidirectional, that same pair of boxes is joined by a double headed arrow. The note beside that one says a selection on <code>FactLabor</code> now narrows <code>DimTechnician</code> as well. The boxes, the columns and the keys are identical on both sides. The arrow is the only thing that changes. Under the left panel sits a green card headed one path, one answer. Under the right one sits a red card headed convenient, and the usual source of ambiguity. That single changed property is the whole subject of this chapter, and it stays invisible in a report visual until it produces a number you cannot defend.</p>
+
+  <h3>What actually changes when you set Both</h3>
+
+  <p>Going from the one side to the many side is a lookup. The engine has a filtered set of keys on the dimension and it needs the fact rows whose key is in that set. Column storage is built for exactly this. Going from the many side to the one side is a different job. The engine has to work out which distinct key values survive in the filtered fact. It builds that set in memory, which is what the word materialisation means, and only then applies it as a filter on the dimension. A lookup reads what is already indexed. A materialisation builds something new on every query that needs it.</p>
+
+  <p>The practical consequence is that selecting fact rows now restricts the dimension. Say a report page filters <code>FactLabor</code> to March, and the relationship from <code>DimTechnician</code> to <code>FactLabor</code> is set to Both. <code>DimTechnician</code> is then reduced to the technicians who booked labor in March. In Meridian that is <code>TECH-05</code> alone, because <code>L-508</code> is the only March labor row. A slicer built on <code>DimTechnician</code> would show one name. A slicer is the on-page control a user clicks to choose values. Nothing about your report definition changed. Only the relationship property did.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 8.1</span> The same selection under the two directions. Each Both cell switches exactly one relationship and leaves the rest of the model alone: technician to labor for the March row, technician to bridge for the A&amp;P row.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Selection</th><th scope="col">Single direction reaches</th><th scope="col">Both directions also reaches</th></tr></thead>
+        <tbody>
+          <tr><th scope="row"><code>DimTechnician[HomeStation]</code> = MSP</th><td><code>FactLabor</code>, <code>BridgeTechCert</code></td><td class="muted">nothing new, the filter already starts on the one side</td></tr>
+          <tr><th scope="row"><code>FactLabor[WorkDate]</code> in March</th><td><code>FactLabor</code> only</td><td><code>DimTechnician</code>, then forward into <code>BridgeTechCert</code>, and it stops there because the bridge to certification relationship is still single</td></tr>
+          <tr><th scope="row"><code>DimCertification[CertCode]</code> = A&amp;P</th><td><code>BridgeTechCert</code> only, so <code>Labor Hours</code> sits at its unfiltered 62.0 on every certification row</td><td><code>DimTechnician</code>, then <code>FactLabor</code>, giving 39.0 hours</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Row three is the production controller's problem, written out as a filter path. Rows one and two only change what a slicer displays. Row three changes a number from wrong to right, and it is the one case here where the reverse hop answers a business question. The next section takes it apart. Then it shows you the same answer written as DAX, so you can see that the model property is a convenience. The capability was there all along.</p>
+
+  <h3>The legitimate use: a bridge in a many to many</h3>
+
+  <p>Meridian technicians hold multiple certifications, and each certification is held by multiple technicians. That shape is called many to many. The model spec resolves it by splitting <code>Technicians[Certifications]</code> to rows, which produces <span class="bridge-tag">Bridge</span> <code>BridgeTechCert</code> with 10 rows. A bridge table is a table whose only job is to hold one row for each valid pairing. This one sits on the many side of two relationships, one from <code>DimTechnician</code> and one from <code>DimCertification</code>.</p>
+
+  <p>With both of those relationships left at single, a selection on <code>DimCertification</code> filters the bridge and stops there. The bridge carries no measures. <code>FactLabor</code> never hears about the selection, so an hours measure returns its unfiltered 62.0 on every one of the four certification rows. Note what that is not. It is not a blank, which people expect and would at least notice. It is the grand total, wearing four different labels.</p>
+
+  <p>Set the <code>DimTechnician</code> to <code>BridgeTechCert</code> relationship to Both and the chain completes. Here is the walk for A&amp;P.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 8.2</span> Filter propagation for a selection of A&amp;P, with the technician to bridge relationship set to Both.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Hop</th><th scope="col">Table</th><th scope="col">Direction</th><th scope="col">Rows left in play</th></tr></thead>
+        <tbody>
+          <tr><td class="key">1</td><td><code>DimCertification</code></td><td class="muted">selection</td><td>A&amp;P</td></tr>
+          <tr><td class="key">2</td><td><code>BridgeTechCert</code></td><td>one to many</td><td>TECH-01/A&amp;P, TECH-02/A&amp;P, TECH-04/A&amp;P</td></tr>
+          <tr class="row-good"><td class="key">3</td><td><code>DimTechnician</code></td><td>many to one, needs Both</td><td>TECH-01, TECH-02, TECH-04</td></tr>
+          <tr><td class="key">4</td><td><code>FactLabor</code></td><td>one to many</td><td>L-501, L-502, L-503, L-505, L-507</td></tr>
+          <tr class="row-total"><td colspan="3">Hours: 7.5 plus 6.0 plus 9.0 plus 4.5 plus 12.0</td><td class="num">39.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Hop 3 is the one that only exists under Both, and 39.0 is the number the production controller asked for. Note that <code>L-505</code> appears in the result at 4.5 hours. That is only true because <code>FactLabor</code> was built with the technician key trimmed. Untrimmed, <code>"TECH-04 "</code> would fail the join and A&amp;P would come out at 34.5. Cross-filter direction and key hygiene fail in ways that look identical in a card visual, so check the keys before you touch the relationship properties.</p>
+
+  <p>You do not have to change the model to get this number. The same behaviour is available as a measure.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Hours by Certification</span></div>
+    <pre><code><span class="col">Hours by Certification</span> <span class="op">=</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ),
+        <span class="k">CROSSFILTER</span> (
+            <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span>,
+            <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span>,
+            <span class="k">BOTH</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>CALCULATE</code> because the visual cell wants one number. <code>CALCULATETABLE</code> returns a table, and a table will not fit in a cell.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>SUM</code> because <code>Hours</code> is a stored column with no expression around it. <code>SUMX</code> would open a row context and make the engine iterate it for no arithmetic benefit.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 4 to 8</div><div class="linex-v"><code>CROSSFILTER</code> flips the direction of one named relationship for the duration of this <code>CALCULATE</code> only. Outside this measure the relationship is still single.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>CROSSFILTER</code> rather than <code>USERELATIONSHIP</code>, because the two solve different problems that are easy to confuse. <code>USERELATIONSHIP</code> chooses which of several relationships between two tables is the active one for the duration of a <code>CALCULATE</code>. That is what <a class="xref" href="#ch-12">Chapter 12</a> does for the three date columns on <code>FactWorkOrder</code>. <code>CROSSFILTER</code> changes the direction of an already active relationship, or switches it off entirely. Those are different axes. There is only one relationship between <code>DimTechnician</code> and <code>BridgeTechCert</code> and it is already active. Pointing <code>USERELATIONSHIP</code> at it is legal and completely inert, because it has no argument that says which way the filter runs. Only <code>CROSSFILTER</code> has that argument.</p>
+  </div>
+
+  <p>There is nothing special inside the engine about Both. Write the reverse hop yourself and you get the same 39.0.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Hours by Certification, manual reverse hop</span></div>
+    <pre><code><span class="col">Hours by Certification Manual</span> <span class="op">=</span>
+<span class="k">VAR</span> <span class="col">TechsWithCert</span> <span class="op">=</span>
+    <span class="k">VALUES</span> ( <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span> )
+<span class="k">RETURN</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ),
+        <span class="k">TREATAS</span> (
+            <span class="col">TechsWithCert</span>,
+            <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 2 to 3</div><div class="linex-v">The variable is evaluated in the outer filter context, where A&amp;P is already filtering the bridge. It returns TECH-01, TECH-02, TECH-04. <code>VALUES</code> rather than <code>DISTINCT</code> because <code>VALUES</code> keeps the blank member the engine adds when a fact holds a key the dimension does not. Meridian still has one of those: <code>FactParts</code> carries WO-1009, which has no header row in <code>FactWorkOrder</code>. On this bridge column the two functions return the same three rows, so the choice looks arbitrary here. It stops being arbitrary the moment you point the same pattern at a column that sits on the one side of an imperfect join.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 5 to 11</div><div class="linex-v">The captured list is applied as a filter on <code>DimTechnician</code>. From there it propagates forward to <code>FactLabor</code> down the existing single relationship. Result: 39.0, identical to the Both version.</div></div>
+  </div>
+
+  <p>That is all a bidirectional relationship does. It reads the distinct keys surviving on the many side and applies them as a filter on the one side. The model setting does it for every query that touches the relationship, whether or not the query needed it.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Setting a bridge relationship to Both makes the per-certification numbers computable. It does not make them additive. A&amp;P 39.0 plus Avionics 10.5 plus NDT 12.0 plus Engine Run 23.5 comes to 85.0 against a true total of 62.0. <code>TECH-04</code> holds three certifications, so his 10.5 hours are counted once under each. The 23-hour gap is what correct arithmetic on a many to many looks like. The fix is a total row computed on its own labor rows, so that it stops being the sum of what the reader can see. Bidirectional filtering solves half of a many to many. Additivity is the half it leaves you.</p>
+  </aside>
+
+  <h3>The illegitimate use, and the symptom it produces</h3>
+
+  <p>The shift supervisor at MSP comes over with a printout. Your report says MSP did 34.5 hours in the quarter. His whiteboard says 28.5, and he has been keeping that whiteboard for eleven years. You check your figure twice and it holds. So does his. Two people, one word, and the word is MSP.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 470" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="30.0" y="156.0" width="168.0" height="55.5" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="41.0" y="173.0" class="d-t" fill="#1B5A68">DimStation</text><line x1="30.0" y1="182.0" x2="198.0" y2="182.0" stroke="#1B5A68" stroke-width="1"/><text x="41.0" y="194.0" class="d-m" font-weight="600" fill="#1B5A68">StationCode</text><rect x="300.0" y="40.0" width="190.0" height="71.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="311.0" y="57.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="300.0" y1="66.0" x2="490.0" y2="66.0" stroke="#AE4419" stroke-width="1"/><text x="311.0" y="78.0" class="d-m">StationCode</text><text x="311.0" y="93.5" class="d-m">WorkOrderID</text><rect x="300.0" y="268.0" width="190.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="311.0" y="285.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="300.0" y1="294.0" x2="490.0" y2="294.0" stroke="#1B5A68" stroke-width="1"/><text x="311.0" y="306.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="311.0" y="321.5" class="d-m">HomeStation</text><rect x="614.0" y="152.0" width="190.0" height="86.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="625.0" y="169.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="614.0" y1="178.0" x2="804.0" y2="178.0" stroke="#AE4419" stroke-width="1"/><text x="625.0" y="190.0" class="d-m">WorkOrderID</text><text x="625.0" y="205.5" class="d-m">TechnicianID</text><text x="625.0" y="221.0" class="d-m">Hours</text><line x1="198.0" y1="176.0" x2="300.0" y2="92.0" class="d-line-hot" marker-end="url(#ah)"/><text x="215.3" y="176.9" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="294.1" y="112.0" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="490.0" y1="92.0" x2="614.0" y2="176.0" class="d-line-hot" marker-end="url(#ah)"/><text x="497.4" y="111.4" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="596.5" y="178.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="198.0" y1="200.0" x2="300.0" y2="300.0" class="d-line-hot" marker-end="url(#ah)" stroke-dasharray="6 4"/><text x="202.4" y="220.4" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="283.0" y="299.4" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="490.0" y1="300.0" x2="614.0" y2="216.0" class="d-line-hot" marker-end="url(#ah)" stroke-dasharray="6 4"/><text x="507.5" y="302.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="606.6" y="235.4" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="206.0" y="120.0" class="d-lbl" fill="#AE4419">path A</text><text x="206.0" y="274.0" class="d-lbl" fill="#AE4419">path B</text><rect x="30.0" y="364.0" width="400.0" height="92.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="44.0" y="386.0" class="d-t" fill="#98281E">Select MSP. Which answer is correct?</text><text x="44.0" y="408.0" class="d-s">path A, work performed at MSP</text><text x="414.0" y="408.0" class="d-m" text-anchor="end" fill="#98281E" font-weight="600">34.5 hours</text><text x="44.0" y="426.0" class="d-s">path B, hours booked by MSP-based technicians</text><text x="414.0" y="426.0" class="d-m" text-anchor="end" fill="#98281E" font-weight="600">28.5 hours</text><text x="44.0" y="448.0" class="d-s" font-style="italic">Both are defensible. Neither is what the axis label says.</text><rect x="454.0" y="364.0" width="416.0" height="92.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="468.0" y="386.0" class="d-t" fill="#77746B">Why the engine refuses to guess</text><text x="468.0" y="408.0" class="d-s">Two paths mean two possible results for one measure.</text><text x="468.0" y="426.0" class="d-s">Rather than choose silently, Power BI blocks the second</text><text x="468.0" y="444.0" class="d-s">active relationship. The fix is two named measures.</text></svg></div><figcaption><span class="fig-num">Figure 8.2</span>Two filter paths from DimStation to FactLabor, and two defensible answers for one label.</figcaption></figure>
+
+  <p>Follow the two routes leaving <code>DimStation</code> on the left. Path A, the solid line across the top, goes to <code>FactWorkOrder</code> and continues into <code>FactLabor</code> on the right through the header to line relationship, the one that joins each work order to its own labor rows. Path B, the dashed line across the bottom, goes to <code>DimTechnician</code> and its <code>HomeStation</code> column, then continues into <code>FactLabor</code> through the technician key. Both routes start at the same table and end at the same table. That is the shape the engine refuses. The card underneath puts the consequence as a question: select MSP, and which of the two answers is correct, the 34.5 hours path A produces or the 28.5 path B produces? Both are defensible, and neither is what the axis label says.</p>
+
+  <p>The model spec marks <code>DimStation[StationCode]</code> to <code>DimTechnician[HomeStation]</code> as deliberately not created, and this is why. The relationship looks obviously correct. Technicians do have a home station, and it is the same list of station codes. The relationship is factually right. The trouble is that it hands <code>DimStation</code> two ways to reach <code>FactLabor</code>, and the two ways disagree.</p>
+
+  <p>The disagreement runs wider than MSP. Ask for labor hours down each path, station by station.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 8.3</span> The same station selection down two paths. Both columns total 62.0, and the only row where the two paths agree is PHX, which has no activity of either kind.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Station</th><th scope="col" class="num">Path A, work order station</th><th scope="col" class="num">Path B, technician home station</th></tr></thead>
+        <tbody>
+          <tr><td class="key">MSP</td><td class="num cell-bad">34.5</td><td class="num cell-bad">28.5</td></tr>
+          <tr><td class="key">TUS</td><td class="num">22.5</td><td class="num">10.5</td></tr>
+          <tr><td class="key">LAS</td><td class="num">5.0</td><td class="num">13.0</td></tr>
+          <tr><td class="key">UNASSIGNED</td><td class="num">0</td><td class="num">10.0</td></tr>
+          <tr><td class="key">PHX</td><td class="num">0</td><td class="num">0</td></tr>
+          <tr class="row-total"><td>Total</td><td class="num">62.0</td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <details class="expand" open>
+    <summary>Trace both MSP numbers by hand, row by row</summary>
+    <div class="expand-body">
+      <p><strong>Path A, through <code>FactWorkOrder</code>.</strong> MSP work orders are WO-1001, WO-1002, WO-1006 and WO-1008. Their labor hours are 13.5, 9.0, 12.0 and 0. That is 13.5 plus 9.0 plus 12.0 equals 34.5. This is work performed at the MSP shop, whoever did it. <code>TECH-04</code> is a TUS technician and his 6.0 hours on WO-1001 are inside this number.</p>
+      <p><strong>Path B, through <code>DimTechnician[HomeStation]</code>.</strong> The technicians whose home station is MSP are TECH-01, TECH-02 and TECH-06. Their hours are 12.0, 16.5 and 0. That is 12.0 plus 16.5 plus 0 equals 28.5. This is work booked by MSP staff, wherever it was performed. That is the supervisor's whiteboard, and he is counting his own crew.</p>
+      <p>The other rows in Table 8.3 come out the same way. TUS home station is TECH-03 at 0 plus TECH-04 at 10.5, which is 10.5. LAS is TECH-05 alone at 13.0. <code>TECH-07</code> has no row in the HR extract, so the built <code>DimTechnician</code> gives him an unknown row with an Unassigned home station. His 10.0 hours land there, which is why Path B shows 10.0 where Path A shows 0. Both columns reach 62.0 because every labor row is counted exactly once in each. They just get counted under different labels.</p>
+    </div>
+  </details>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>Power BI refuses to activate the relationship. A message says it would introduce ambiguity between tables, and the new relationship drops to inactive. No wrong number has appeared yet. The message reads as an obstacle, so somebody makes it go away. They deactivate the older relationship so the new one can go active, or they flip a direction to Both somewhere else and keep clicking until the model saves. Now the report returns a number, and that number comes from whichever path was left standing. Nobody wrote down which one it was, and it will not be the same after somebody adds a table next quarter.</p>
+  </div>
+
+  <p>The engine will not choose, because there is nothing to choose between. Both answers are defensible. 34.5 is what the MSP shop manager means by MSP hours. 28.5 is what the MSP shift supervisor means. One label, two questions, and no rule the engine could apply that would be right for both readers.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Turning every relationship in the model to Both to make a stuck measure move. Put <code>DimCertification</code> on rows with a parts cost measure and all four rows read 28,245, the unfiltered total. That happens because <code>FactParts</code> is only reachable from <code>FactWorkOrder</code>, and there is no path at all from a certification to a work order. Set every relationship to Both and a path appears: certification to bridge to technician to <code>FactLabor</code> to <code>FactWorkOrder</code> to <code>FactParts</code>. Now the rows do move. WO-1003 contributes its full 12,680 of parts to A&amp;P, to Avionics and to Engine Run, because <code>TECH-04</code> and <code>TECH-05</code> booked labor to it and between them hold those three certifications. The report went from obviously stuck to plausibly wrong, which is the worse of the two states. A measure that will not respond to the rows you put it against is the model telling you there is no path from those rows to that number. Treat that as information about the model and go looking for the missing path.</p>
+  </aside>
+
+  <h3>The fix: two measures with two names</h3>
+
+  <p>The two numbers answer two questions, so give them two names and leave the model alone. The supervisor gets his 28.5 back and the shop manager keeps his 34.5.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Two questions, two measures</span></div>
+    <pre><code><span class="col">Labor Hours</span> <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )
+
+<span class="col">Labor Hours by Home Station</span> <span class="op">=</span>
+<span class="k">VAR</span> <span class="col">Stations</span> <span class="op">=</span>
+    <span class="k">VALUES</span> ( <span class="t">DimStation</span><span class="col">[StationCode]</span> )
+<span class="k">RETURN</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ),
+        <span class="k">REMOVEFILTERS</span> ( <span class="t">DimStation</span> ),
+        <span class="k">TREATAS</span> (
+            <span class="col">Stations</span>,
+            <span class="t">DimTechnician</span><span class="col">[HomeStation]</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 1 to 2</div><div class="linex-v">The plain measure. Station comes from the work order, because that is the only station relationship in the model. On MSP it returns 34.5.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 5 to 6</div><div class="linex-v">Capture the selected station codes before anything is removed. The variable is evaluated in the outer filter context, which is the whole reason this pattern works.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 10</div><div class="linex-v"><code>REMOVEFILTERS</code> on <code>DimStation</code>, and not on <code>FactWorkOrder</code>. Clearing the intermediate table achieves nothing, because <code>DimStation</code> still holds the selection and re-propagates it down the work order path. You have to remove the filter at its source.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 11 to 14</div><div class="linex-v"><code>TREATAS</code> applies the captured codes to <code>DimTechnician[HomeStation]</code> as though a relationship existed. From there the normal single relationship carries the filter into <code>FactLabor</code>. On MSP it returns 28.5, which is the supervisor's number.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>REMOVEFILTERS</code> rather than <code>ALL</code>: they do the same thing when used as a <code>CALCULATE</code> modifier, but <code>ALL</code> is also a table function. A reader six months from now has to work out which of the two jobs it is doing on that line. <code>REMOVEFILTERS</code> only ever means one thing.</p>
+    <p><code>TREATAS</code>, and not <code>INTERSECT</code> or a <code>FILTER</code> over <code>DimTechnician</code>. Lineage is the engine's record of which model column a set of values came from, and it is what lets those values travel down a relationship. <code>INTERSECT</code> returns a table you then have to feed back into <code>CALCULATE</code>, and it keeps the lineage of its first argument instead of restamping it. A set of station codes stays a set of station codes, so it never lands on <code>DimTechnician[HomeStation]</code> and never reaches <code>FactLabor</code>. <code>TREATAS</code> restamps the lineage of the captured values onto the target column, which is exactly what a relationship does. <code>FILTER</code> over the dimension would work, but it forces a scan of <code>DimTechnician</code> on every evaluation and it reads as a loop where the model wanted a join.</p>
+  </div>
+
+  <p>The alternative is to denormalise the home station onto the fact, which means copying the value from the dimension onto every labor row.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">FactLabor calculated column</span></div>
+    <pre><code><span class="t">FactLabor</span><span class="col">[TechHomeStation]</span> <span class="op">=</span>
+    <span class="k">RELATED</span> ( <span class="t">DimTechnician</span><span class="col">[HomeStation]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>RELATED</code> rather than <code>LOOKUPVALUE</code>, because a many to one relationship already exists from <code>FactLabor</code> to <code>DimTechnician</code>. <code>RELATED</code> follows it. <code>LOOKUPVALUE</code> performs its own match and would still return the right value, but it ignores the relationship you already maintain. A later key change then stops being reflected in one place and keeps being reflected in the other.</div></div>
+  </div>
+
+  <p>Here is the inconvenient part. You cannot then relate <code>DimStation</code> to that new column, because you would recreate the two paths you were trying to avoid. The denormalised column needs its own station table, a second copy of <code>DimStation</code> called something like <code>DimHomeStation</code>. The report then carries two visibly different station slicers. That duplication is the honest price of asking two station questions on one fact, and it is a steep price for something the measure pair above already gives you. If you go that way, name the slicers so nobody has to guess: "Work performed at" and "Technician based at".</p>
+
+  <h3>The three costs of Both</h3>
+
+  <p>Six months later the planner asks for one more breakdown, and you open model view to add the relationship it needs. Power BI refuses to activate it and says the model would become ambiguous. You did not draw the path it is complaining about. Somebody drew it to close a ticket, and nobody wrote down why. That is the first of the three costs. The other two are quieter and you pay them the whole time.</p>
+
+  <h4>1. Ambiguity</h4>
+  <p>Covered above. Power BI blocks you, and the blocking is the visible part. What matters is what people do next. Both is the tool they reach for to get past being blocked, so a model with several bidirectional relationships saves cleanly and then quietly narrows what anyone can add to it later. Every Both setting creates extra paths, and the next relationship has to avoid crossing all of them. The person who hits that wall is rarely the person who set the direction. What they have to unpick is a decision nobody recorded, which is exactly the position the planner has just put you in.</p>
+
+  <h4>2. Performance</h4>
+  <p>The reverse hop is a scan plus a materialisation. It runs whenever a filter lands on the many side of that relationship, and the author of the query never gets asked. Set <code>DimTechnician</code> to <code>FactLabor</code> to Both, then drop a date slicer on the page. The slicer filters <code>FactLabor</code>. The reverse hop then reads the technician keys that survived and applies them to <code>DimTechnician</code>. Every visual on that page which touches <code>DimTechnician</code> now pays for the materialisation, including a plain table of technicians with a count of the certifications each one holds. That table asked for none of it. The cost is attached to the relationship, not to the measure, so no measure on the page shows any sign of it.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>On the Meridian data you will not be able to measure this. Eight labor rows and ten bridge rows fit in a cache line, and the reverse hop costs nothing you can detect in Performance Analyzer. That is the trap. The cost scales with the cardinality of the relationship column on the many side. A <code>FactLabor</code> with two hundred million rows and forty thousand distinct technician keys can materialise a set of up to forty thousand rows on every affected query, while your test model tells you the change is free. Here you have to reason about the mechanism, because a benchmark on development data will never show you the bill.</p>
+  </aside>
+
+  <h4>3. Row level security</h4>
+  <p>Row level security, RLS, is a rule that limits which rows a named group of users is allowed to see. Security predicates are filters. They enter the filter context before your measures run and they propagate along relationships like anything else. So a bidirectional relationship extends the reach of a security rule to tables the rule author never considered. Give a TUS manager an RLS rule on <code>DimStation</code>. With single direction throughout, that rule reaches <code>FactWorkOrder</code>, then <code>FactLabor</code> and <code>FactParts</code>. It never reaches <code>DimTechnician</code>. The manager still sees all seven technicians in a slicer while their measures show only TUS work. Now set <code>DimTechnician</code> to <code>FactLabor</code> to Both and switch on that relationship's security filter property. The station rule reaches <code>DimTechnician</code> as well, and the manager's technician slicer shrinks to the people who booked hours at TUS. Nobody edited the rule. Somebody changed a relationship.</p>
+
+  <p>Two things are certain here and worth stating separately from the rest. First, cross-filter direction and security filter direction are different settings. Each relationship has an "Apply security filter in both directions" property, and it is off by default even when the cross-filter direction is Both. Power BI treats security propagation as a decision you make on purpose. Second, Power BI Desktop validates the model against your roles and will refuse to save some combinations of bidirectional filtering and RLS, returning an error instead of a warning. The exact set of blocked combinations has moved across product versions. Read that error as the model telling you the security path is ambiguous, and change the design.</p>
+
+  <h3>Choosing between the three tools</h3>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 8.4</span> Which mechanism to use, and the test that decides it.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Situation</th><th scope="col">Use</th><th scope="col">Why</th></tr></thead>
+        <tbody>
+          <tr class="row-good"><th scope="row">Essentially every measure touching these two tables needs the reverse hop</th><td>Bidirectional relationship</td><td>Paying the cost on every query is honest when every query needs it. The classic case is the bridge in a many to many, which is <code>DimTechnician</code> to <code>BridgeTechCert</code> in Meridian.</td></tr>
+          <tr><th scope="row">One or two measures need the reverse hop, the rest do not</th><td><code>CROSSFILTER</code> in <code>CALCULATE</code></td><td>The cost is scoped to those measures. The model stays single direction, so nobody inherits a surprise, and the intent is written down in the measure where a reviewer will find it.</td></tr>
+          <tr><th scope="row">You need the effect without changing the model, or the two tables should not be related at all</th><td><code>TREATAS</code></td><td>No relationship, no ambiguity, no security propagation. This is the only option when relating the tables would create a second path, which is the <code>DimStation</code> to <code>DimTechnician</code> case exactly.</td></tr>
+          <tr class="row-bad"><th scope="row">A slicer is showing more items than you want</th><td>None of the above</td><td>This is a visual problem being solved in the model. See below.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Change the model when the requirement is structural and permanent. Change the measure when the requirement belongs to a question. A many to many is structural: the link between a technician and a certification is a fact about the business, and it does not vary by report page. "Hours booked by technicians based at this station" is a question, and questions get measures. If you cannot say which of the two you are looking at, you are looking at a question.</p>
+  </aside>
+
+  <h3>The same trap in the vocabulary you use every day</h3>
+
+  <p>The production controller asks for Q1 hours split by service line. A service line is the kind of work a job belongs to, and Meridian runs four of them: Heavy, Light, Line, and Cabin and IFE. You build the visual and send it out. Two people come back the same afternoon. The cabin crew chief says his crew booked more than the 10.0 hours you gave him. The light maintenance chief says the shop did nine hours of light work and his crew is showing zero. Neither of them is wrong.</p>
+
+  <p>Service line arrives from the Heavy Maintenance Control Centre planning board, the HMCC, and it is merged onto <code>FactWorkOrder</code> in Power Query. The shop floor system never carries it. So route A runs <code>DimServiceLine</code> to <code>FactWorkOrder</code> to <code>FactLabor</code>, using the header to line relationship you already have. It answers one question: what kind of work was done.</p>
+
+  <p>There is a second route to the same word. Every technician belongs to a crew. <code>CrewAssignment</code> gives each technician a crew code, and <code>CrewCodeMap</code> turns that crew code into a service line. So <code>TECH-04</code> on <code>CRW-CAB</code> belongs to Cabin and IFE. Merge those two in Power Query and <code>DimTechnician</code> gains a <code>CrewServiceLine</code> column. Route B then runs <code>DimServiceLine</code> to <code>DimTechnician</code> to <code>FactLabor</code>. It answers a different question: whose crew did the work.</p>
+
+  <p>Two routes, one dimension, one fact. That is the station shape again with different table names, and this time all four service line rows disagree.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 8.5</span> Achieved hours by service line down two routes. Both columns total 62.0, and no service line agrees with itself.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Service line</th><th scope="col" class="num">Route A, work order service line</th><th scope="col" class="num">Route B, technician crew</th></tr></thead>
+        <tbody>
+          <tr><td class="key">Heavy</td><td class="num">38.0</td><td class="num">28.5</td></tr>
+          <tr><td class="key">Light</td><td class="num">9.0</td><td class="num">0.0</td></tr>
+          <tr><td class="key">Line</td><td class="num">5.0</td><td class="num">13.0</td></tr>
+          <tr><td class="key">Cabin and IFE</td><td class="num cell-bad">10.0</td><td class="num cell-bad">10.5</td></tr>
+          <tr><td class="key">Crew code not in the map</td><td class="num">0</td><td class="num">10.0</td></tr>
+          <tr class="row-total"><td>Total</td><td class="num">62.0</td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Start with <code>TECH-04</code>, because he moves the most. He sits on <code>CRW-CAB</code>, the cabin crew. In Q1 he booked 10.5 hours: 6.0 on WO-1001 and 4.5 on WO-1003. Both of those are Heavy C-checks, the scheduled inspection that takes an aircraft out of service for weeks at a time. Route A files that 10.5 under Heavy, because Heavy is the work that was done. Route B files it under Cabin and IFE, because the cabin crew is who did it. One technician, 10.5 hours, and the service line he lands on depends on which route you took.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Cabin and IFE reads 10.0 down route A and 10.5 down route B, so the pair looks like a rounding argument. The two numbers share no labor rows at all. Route A's 10.0 is one row, <code>L-506</code>, booked by <code>TECH-07</code> to WO-1004, the cabin retrofit. Route B's 10.5 is two different rows, <code>L-502</code> and <code>L-505</code>, both booked by <code>TECH-04</code> to heavy checks. Half an hour of visible difference, and a complete change of the rows underneath it. Numbers that nearly agree are harder to defend than numbers that obviously do not, because nobody opens an investigation over half an hour.</p>
+  </aside>
+
+  <p><code>TECH-07</code> carries the rest of the gap. His crew code is <code>CRW-XX9</code>, and <code>CrewCodeMap</code> has no row for it. Route B cannot give his 10.0 hours a service line at all, so they land in a blank row. Remember who owns that map. No system produces it, you maintain it by hand, and no refresh will ever tell you that a new crew code turned up.</p>
+
+  <p>The resolution is the one this chapter has already argued. Leave <code>DimServiceLine</code> and <code>DimTechnician[CrewServiceLine]</code> unrelated. Relating them hands <code>DimServiceLine</code> two ways to reach <code>FactLabor</code>, and you are back in front of the same ambiguity message. Write two measures instead. Name them so the difference sits in the field list where the production controller can read it.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Hours by Crew Line</span></div>
+    <pre><code><span class="col">Labor Hours by Crew Line</span> <span class="op">=</span>
+<span class="k">VAR</span> <span class="col">SelectedLines</span> <span class="op">=</span>
+    <span class="k">VALUES</span> ( <span class="t">DimServiceLine</span><span class="col">[ServiceLine]</span> )
+<span class="k">RETURN</span>
+    <span class="k">CALCULATE</span> (
+        <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ),
+        <span class="k">REMOVEFILTERS</span> ( <span class="t">DimServiceLine</span> ),
+        <span class="k">TREATAS</span> (
+            <span class="col">SelectedLines</span>,
+            <span class="t">DimTechnician</span><span class="col">[CrewServiceLine]</span>
+        )
+    )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 2 to 3</div><div class="linex-v">Capture the service lines the visual is asking for, before anything is cleared. The variable is evaluated in the outer filter context, which is what makes the pattern work. <code>VALUES</code> again here, and not <code>DISTINCT</code>, for the reason given earlier: <code>VALUES</code> keeps the blank member the engine adds when a fact holds a key the dimension does not. On today's four service lines the two functions return the same rows. That stops being true the first time the HMCC board emits a fifth one.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 5 to 6</div><div class="linex-v"><code>CALCULATE</code> because the visual wants one number here. <code>CALCULATETABLE</code> returns a table to iterate, which is a different job. <code>SUM</code> because <code>Hours</code> is a stored column with no expression wrapped round it, so <code>SUMX</code> would iterate for nothing.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 7</div><div class="linex-v"><code>REMOVEFILTERS</code> on <code>DimServiceLine</code>, and not on <code>FactWorkOrder</code>. Clearing the middle table gains you nothing, because <code>DimServiceLine</code> still holds the selection and pushes it straight back down the work order route. Take the filter off at its source. <code>REMOVEFILTERS</code> again in place of <code>ALL</code>, for the reason given earlier: <code>ALL</code> also works as a table function, so a reader has to stop and decide which job it is doing.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 8 to 11</div><div class="linex-v"><code>TREATAS</code> stamps the captured service line values onto <code>DimTechnician[CrewServiceLine]</code>, and the existing single relationship carries the filter on into <code>FactLabor</code>. <code>TREATAS</code> rather than a real relationship, because a real relationship is exactly what creates the second path.</div></div>
+  </div>
+
+  <p>Now the cost, and it is a real one. <code>TECH-07</code> has a blank <code>CrewServiceLine</code>, so <code>TREATAS</code> matches nothing for him and his 10.0 hours drop out of the crew measure. The crew measure totals 62.0 minus 10.0, which is 52.0, while <code>Labor Hours</code> totals 62.0 on the same page. Ten hours go missing and nothing on screen says so. Put both measures in one table visual and add a third measure holding the difference between them. Then the unmapped crew code has a number attached to it, and somebody will fix the map.</p>
+
+  <p>The model stays as it is. The field list carries two names and each name answers one question. The production controller gets Heavy at 38.0, which is the work the shop did. The cabin crew chief gets 10.5, which is what his crew booked. Neither of them has to learn what a filter path is.</p>
+
+  <h3>The slicer case, which is almost always the wrong tool</h3>
+
+  <p>The shift supervisor picks LAS on the station slicer, clicks a technician name in the technician slicer, and the page goes blank. He tries two more names and gets the same empty page. Then he raises a ticket saying the report is broken. This is the most common reason a bidirectional relationship ends up in a production model, so it gets its own treatment.</p>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <p>Select LAS on the station slicer. The technician slicer still lists all seven members of <code>DimTechnician</code>. That includes <code>TECH-03</code> and <code>TECH-06</code>, who have no labor rows anywhere, and <code>TECH-01</code>, who has hours but not at LAS.</p>
+      <p>Set <code>DimTechnician</code> to <code>FactLabor</code> to Both. The technician slicer now shows <code>TECH-05</code> alone, because <code>L-508</code> is the only LAS labor row. The ticket closes.</p>
+      <p>What you actually changed is global. The model now has a new path running from <code>FactLabor</code> back up to <code>DimTechnician</code>, and forward from there into <code>BridgeTechCert</code>. It stops at the bridge, because the bridge to certification relationship is still single. Any filter that reaches <code>FactLabor</code> in any report now narrows the technician list, whether the visual wanted that or not, and the next relationship anyone adds is likelier to be rejected as ambiguous.</p>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <p>Put a visual level filter on the slicer itself: <code>Labor Hours</code> is not blank, or <code>Labor Hours &gt; 0</code> if you want to drop technicians whose hours net to zero. The slicer evaluates that measure per member in the current filter context and hides the members that fail.</p>
+      <p>The cost is paid by that one visual, on that one page. It is visible to the next person who opens the report, because it sits in the filter pane where they will look.</p>
+      <p>It also survives the requirement changing. When somebody asks for technicians with hours in the last 90 days instead, you edit a measure. You do not renegotiate the model.</p>
+    </div>
+  </div>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>Both approaches produce a slicer showing <code>TECH-05</code>, and the supervisor's ticket closes either way. They are indistinguishable in the screenshot attached to that ticket, which is why this decision gets made badly. The difference only surfaces later, in a query plan you did not write and a relationship you cannot create.</p>
+  </div>
+
+  <p>Slicer behaviour deserves more room than a paragraph in a relationships chapter. "The slicer shows the wrong items" has at least five distinct causes, and only one of them is about cross-filter direction. <a class="xref" href="#ch-17">Chapter 17</a> works through the diagnosis properly. Until then, the rule is short: if the only thing you want to change is which items appear in a slicer, leave the relationship alone.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Single direction means the filter runs one way, from the one side to the many side. Both adds a reverse hop that reads the surviving keys on the many side and applies them to the one side. That reverse hop is a scan and a materialisation, and it costs more than the forward lookup.</li>
+      <li>The legitimate case is a bridge in a many to many. Setting <code>DimTechnician</code> to <code>BridgeTechCert</code> to Both lets an A&amp;P selection reach <code>FactLabor</code> and return 39.0. It does not make the certification rows additive: they sum to 85.0 against a true total of 62.0.</li>
+      <li>Two filter paths from one table to another is ambiguity, and the engine refuses it because both answers are defensible. MSP is 34.5 hours through the work order and 28.5 hours through technician home station. Two questions, one label.</li>
+      <li>Hours by service line has the same two routes. Through the work order it is Heavy 38.0, Light 9.0, Line 5.0 and Cabin and IFE 10.0. Through the technician's crew it is Heavy 28.5, Cabin and IFE 10.5, Line 13.0, Light 0.0 and 10.0 hours on a crew code that is not in the map. Both total 62.0 and all four service lines disagree, because <code>TECH-04</code> sits on the cabin crew and booked 10.5 hours to heavy checks. Answer it with two named measures and leave the model alone.</li>
+      <li>Force the ambiguity through and the number comes from whichever path is left standing. That choice is not written down anywhere, and it will not survive the next model change.</li>
+      <li>Three costs, all real: ambiguity, a per-query materialisation you cannot measure on small data, and security filters reaching tables the rule author never considered.</li>
+      <li>Bidirectional relationship when every measure needs the reverse hop. <code>CROSSFILTER</code> when one or two do. <code>TREATAS</code> when the tables should not be related at all.</li>
+      <li>A slicer showing too many items is a visual problem. Fix it with a visual level measure filter. A model property makes every query in the model pay for it.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="07.html"><span class="pn-dir">Previous</span><span class="pn-t">How a filter actually travels through the model</span></a><a class="pn" href="09.html"><span class="pn-dir">Next</span><span class="pn-t">Row context and filter context</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

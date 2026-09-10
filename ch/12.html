@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>USERELATIONSHIP and CROSSFILTER</title>
+</head>
+<body data-ch="12">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">12</span><span class="tb-title">USERELATIONSHIP and CROSSFILTER</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-12">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 4 . Evaluation context and DAX</div>
+    <h2 class="chapter-title"><span class="chapter-num">12</span>USERELATIONSHIP and CROSSFILTER</h2>
+    <p class="chapter-lede">After this chapter you can activate an inactive relationship inside a single measure, change or cut the filter direction of one relationship for one calculation, and defend which of those two, or a model change, is the right instrument for the problem in front of you.</p>
+  </div>
+
+  <p class="lead">The production controller stops at your desk with one question. How many work orders closed in January? Your page has a month axis and a work order count, and the January cell reads 3. His board says two aircraft went out the door in January. You are both looking at the same eight work orders.</p>
+
+  <p>The report is counting the wrong date. It counts by opened date, because that is the relationship the model has switched on, and nothing in the visual says so. By the end of the first section that January cell reads 2 and you can say exactly why.</p>
+
+  <p>Every modifier you have used so far changes the filter. These two change the wiring the filter travels along. They hold for the length of one <code>CALCULATE</code>, and then the model snaps back to exactly what the relationship diagram says it is. <code>USERELATIONSHIP</code> swaps which relationship on a path is the active one. <code>CROSSFILTER</code> sets the direction a named relationship propagates in, or switches it off entirely.</p>
+
+  <p>That difference is worth holding onto, because it changes how you reason about a measure. When a modifier changes the filter, you ask what rows survive. When a modifier changes the model, you ask which way the filter went and where it arrived. Both modifiers are arguments to <code>CALCULATE</code>. Both are temporary. A report author looking at a field list sees no sign of either one.</p>
+
+  <h3>USERELATIONSHIP: borrow a relationship for one calculation</h3>
+
+  <p>Meridian has the standard role playing problem, and it sits underneath the controller's question. <span class="fact-tag">Fact</span> <code>FactWorkOrder</code> carries three dates on every row: <code>OpenedDate</code>, <code>PromisedDate</code> and <code>ClosedDate</code>. There is one <span class="dim-tag">Dimension</span> <code>DimDate</code>, marked as the date table, and it has three relationships into the fact. Only the one on <code>OpenedDate</code> is active. An active relationship is the one the engine uses when nothing in the query says otherwise, and a path between two tables can carry only one of them. The other two relationships are inactive. They are stored, they are fully defined, and they carry no filters until a measure asks for one by name. The shape is the one from <a class="xref" href="#ch-06">Chapter 6</a>, drawn here again. Chapter 6 covered the relationship settings. This chapter covers the measure that puts them to work.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 360" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="40.0" y="120.0" width="178.0" height="86.5" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="51.0" y="137.0" class="d-t" fill="#1B5A68">DimDate</text><line x1="40.0" y1="146.0" x2="218.0" y2="146.0" stroke="#1B5A68" stroke-width="1"/><text x="51.0" y="158.0" class="d-m" font-weight="600" fill="#1B5A68">Date</text><text x="51.0" y="173.5" class="d-m">MonthName</text><text x="51.0" y="189.0" class="d-m">Quarter</text><rect x="470.0" y="74.0" width="210.0" height="117.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="481.0" y="91.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="470.0" y1="100.0" x2="680.0" y2="100.0" stroke="#AE4419" stroke-width="1"/><text x="481.0" y="112.0" class="d-m" font-weight="600" fill="#AE4419">WorkOrderID</text><text x="481.0" y="127.5" class="d-m">OpenedDate</text><text x="481.0" y="143.0" class="d-m">PromisedDate</text><text x="481.0" y="158.5" class="d-m">ClosedDate</text><text x="481.0" y="174.0" class="d-m">QuotedAmount</text><line x1="218.0" y1="150.0" x2="470.0" y2="122.0" class="d-line-hot" marker-end="url(#ah)"/><text x="300.0" y="128.0" class="d-lbl" fill="#AE4419">active</text><line x1="218.0" y1="176.0" x2="470.0" y2="152.0" class="d-line-off"/><text x="300.0" y="164.0" class="d-lbl" fill="#77746B">inactive</text><line x1="218.0" y1="200.0" x2="470.0" y2="182.0" class="d-line-off"/><text x="300.0" y="200.0" class="d-lbl" fill="#77746B">inactive</text><text x="690.0" y="122.0" class="d-m" fill="#AE4419" font-weight="600">OpenedDate</text><text x="690.0" y="152.0" class="d-m" fill="#77746B">PromisedDate</text><text x="690.0" y="182.0" class="d-m" fill="#77746B">ClosedDate</text><rect x="40.0" y="236.0" width="400.0" height="106.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="54.0" y="258.0" class="d-t" fill="#17160F">One date table, three roles</text><text x="54.0" y="278.0" class="d-m">Work Orders Opened  = COUNTROWS ( FactWorkOrder )</text><text x="54.0" y="296.0" class="d-m">Work Orders Closed  = CALCULATE ( [Opened],</text><text x="54.0" y="312.0" class="d-m">        USERELATIONSHIP ( DimDate[Date],</text><text x="54.0" y="328.0" class="d-m">                          FactWorkOrder[ClosedDate] ) )</text><rect x="470.0" y="236.0" width="400.0" height="106.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="484.0" y="258.0" class="d-t" fill="#2B6140">Why it matters</text><text x="484.0" y="278.0" class="d-m">January by opened date:  3 work orders</text><text x="484.0" y="296.0" class="d-m">January by closed date:   2 work orders</text><text x="484.0" y="316.0" class="d-s">Same slicer, same table, different question.</text><text x="484.0" y="334.0" class="d-s" font-style="italic">One date table keeps the slicer honest.</text></svg></div><figcaption><span class="fig-num">Figure 12.1</span>One date table, three relationships to the same fact, only one of them active.</figcaption></figure>
+
+  <p>Look at the three lines running from <code>DimDate</code> into <code>FactWorkOrder</code>. The top one is solid and labelled active. The two beneath it are dashed and labelled inactive. The three columns they land on are named beside the fact box: <code>OpenedDate</code>, <code>PromisedDate</code>, <code>ClosedDate</code>. Each dashed line is a working relationship waiting for a measure to name it. The figure can label which line is live, because the figure is drawing the model. A report field list cannot. That is the whole reason the measure has to say out loud which date it means. The first card underneath gives the two measures in their shortest form. The second gives the number this section is heading for: January counts 3 work orders by opened date and 2 by closed date.</p>
+
+  <p><code>USERELATIONSHIP</code> names a relationship by its two columns. It tells the engine to treat that relationship as active while the surrounding <code>CALCULATE</code> evaluates. It does a second thing that people forget: it deactivates whatever relationship was previously active along the same path. There can only ever be one active relationship between two tables on a given path. Switching on <code>DimDate[Date]</code> to <code>FactWorkOrder[ClosedDate]</code> therefore switches off <code>DimDate[Date]</code> to <code>FactWorkOrder[OpenedDate]</code> for that evaluation. You are not adding a second path. You are substituting one for another.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Work Orders Opened</span></div>
+    <pre><code>Work Orders Opened <span class="op">=</span>
+<span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> )</code></pre>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>COUNTROWS ( FactWorkOrder )</code> and not <code>COUNT ( FactWorkOrder[ClosedDate] )</code>. <code>COUNT</code> ignores blanks. Two Meridian work orders, WO-1004 and WO-1008, have no closed date. Under the closed relationship the two expressions happen to agree. A blank date joins to no row in <code>DimDate</code>, so those rows fall out anyway. They stop agreeing the moment somebody reuses the measure without the modifier. Then <code>COUNT</code> quietly reports 6 and <code>COUNTROWS</code> reports 8. <code>DISTINCTCOUNT ( FactWorkOrder[WorkOrderID] )</code> is also correct today and costs more. It builds a distinct value list over a table whose grain is already one row per work order. Grain is what one row of a table stands for, and one row of <code>FactWorkOrder</code> stands for one work order. Count rows when the grain is the thing you are counting.</p>
+  </div>
+
+  <p>The other two measures are the same count with a relationship modifier added, and one of them needs a second argument as well. No table is duplicated and nothing is materialised.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Work Orders Closed and Work Orders Promised</span></div>
+    <pre><code>Work Orders Closed <span class="op">=</span>
+<span class="k">CALCULATE</span> (
+    <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> ),
+    <span class="k">USERELATIONSHIP</span> (
+        <span class="t">DimDate</span><span class="col">[Date]</span>,
+        <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span>
+    ),
+    <span class="k">NOT</span> <span class="k">ISBLANK</span> ( <span class="t">FactWorkOrder</span><span class="col">[ClosedDate]</span> )
+)
+
+Work Orders Promised <span class="op">=</span>
+<span class="k">CALCULATE</span> (
+    <span class="k">COUNTROWS</span> ( <span class="t">FactWorkOrder</span> ),
+    <span class="k">USERELATIONSHIP</span> (
+        <span class="t">DimDate</span><span class="col">[Date]</span>,
+        <span class="t">FactWorkOrder</span><span class="col">[PromisedDate]</span>
+    )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>CALCULATE</code>, and not a bare <code>COUNTROWS</code>, because <code>USERELATIONSHIP</code> returns nothing and cannot stand on its own. It only has meaning as an argument to <code>CALCULATE</code> or to <code>CALCULATETABLE</code>. Reach for <code>CALCULATETABLE</code> when the surrounding expression needs a table. A visual cell needs a single value, so <code>CALCULATE</code> is the one here.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v">The expression being modified. It is the identical count in all three measures. Nothing about the counting changes, only the route the date filter takes to reach the fact.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 4 to 7</div><div class="linex-v">The modifier. The two columns identify an existing relationship. Order does not matter to the engine, and this book writes the date column first everywhere so the three role measures read the same way. If no relationship exists between those two columns, this is an error, not a silent virtual join.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 8</div><div class="linex-v">Excludes WO-1004 and WO-1008, which have no closed date. Inside a month it changes nothing. A blank date joins to no row in <code>DimDate</code>, so those two rows fall out anyway. It is there for the total row. Nothing filters <code>DimDate</code> on the total, the two unmatched rows come back, and the measure would otherwise read 8 instead of 6. <code>Work Orders Promised</code> needs no equivalent, because every work order carries a promised date.</div></div>
+    <div class="linex-row"><div class="linex-k">Scope</div><div class="linex-v">The substitution holds for everything inside this <code>CALCULATE</code>, including any measure it calls. It ends when the <code>CALCULATE</code> ends. Nothing in the model file changes, and a second report page evaluating at the same moment is unaffected.</div></div>
+  </div>
+
+  <p>Put the three measures on one matrix with <code>DimDate[MonthName]</code> on rows and you get the table that makes the whole idea concrete. One axis, one date table, three different questions.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 12.1</span> The same eight work orders counted through three relationships to the same date table.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Month</th>
+            <th scope="col" class="num">Work Orders Opened</th>
+            <th scope="col" class="num">Work Orders Closed</th>
+            <th scope="col" class="num">Work Orders Promised</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">January 2025</th><td class="num">3</td><td class="num">2</td><td class="num">2</td></tr>
+          <tr><th scope="row">February 2025</th><td class="num">3</td><td class="num">2</td><td class="num">3</td></tr>
+          <tr><th scope="row">March 2025</th><td class="num">2</td><td class="num">2</td><td class="num">3</td></tr>
+          <tr class="row-total"><td>Total</td><td class="num">8</td><td class="num">6</td><td class="num">8</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>January is the row that pays for the chapter, and it is the row the production controller was arguing about. Three work orders opened: WO-1001, WO-1002 and WO-1003. Two closed. His board said two aircraft out in January, and the closed column agrees with his board. WO-1003 opened on 14 January and closed on 5 February, so it counts in the opened column against January and in the closed column against February. That single work order sitting in two different months is the thing a second date table would have made ambiguous and a shared date column would have made impossible.</p>
+
+  <p>Read the totals as a check on your own work. Opened sums to 3 plus 3 plus 2, which is 8, the full work order count. Promised sums to 2 plus 3 plus 3, also 8, because every work order carries a promised date. Closed sums to 2 plus 2 plus 2, which is 6. Six is right. WO-1004 and WO-1008 have a blank <code>ClosedDate</code>, a blank joins to nothing in <code>DimDate</code>, and those two work orders are correctly absent from every month of that column. Six is the closed work order count. Now subtract closed from opened, month by month, and you get 1, 1 and 0. That is a backlog. It grows by one in January, by one more in February, and holds in March. It ends at the two open work orders you already know about.</p>
+
+  <h4>What USERELATIONSHIP will not do</h4>
+
+  <p>Four things are certain, and I would defend all four in a design review. First, the modifier has to be inside <code>CALCULATE</code> or <code>CALCULATETABLE</code>. Second, both columns must already form a relationship in the model. The modifier activates a relationship; it never creates one. Third, activating a relationship on a path deactivates the one that was active on that path. Pass two <code>USERELATIONSHIP</code> arguments for the same path inside one <code>CALCULATE</code> and the engine raises an error. Fourth, several <code>USERELATIONSHIP</code> arguments in the same <code>CALCULATE</code> are fine when they address different paths.</p>
+
+  <p>Nesting is where careful people still get caught. If your <code>CALCULATE</code> calls a measure that sets its own <code>USERELATIONSHIP</code> on the same path, the inner one governs inside its own evaluation. That is scoping working as designed. It produces a classic symptom: a measure that is right on its own and wrong the moment somebody wraps it. If you build a base measure that already pins a relationship, treat it as pinned and stop reusing it as a generic building block.</p>
+
+  <p>Three more limitations, and I will mark which parts are certain. First, row level security, usually written RLS. RLS is a rule that restricts which rows a given user is allowed to see. The documentation states that <code>USERELATIONSHIP</code> cannot be used when RLS is defined on the table involved. If your tenant applies RLS to <code>FactWorkOrder</code>, test these three measures under a security role before you ship them. Second, weak relationships. A weak relationship is one with many-to-many cardinality, or one that crosses source groups in a composite model. The modifier is designed around regular strong relationships, and I will not claim every weak relationship case behaves the way the strong case does. Third, calculated columns. A calculated column has no filter context of its own and is evaluated at refresh. So a <code>CALCULATE</code> inside one behaves differently from the same expression in a measure. Whether a specific calculated column pattern with <code>USERELATIONSHIP</code> resolves the way you expect during refresh is something to prove in your own model, on your own version of Power BI, with a value you can check by hand. Meridian is small enough that checking by hand takes four minutes.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>One date table, one active relationship, and a measure that names the date column it means. If a report needs to count by promised date, that requirement belongs in the measure, not in a second copy of the calendar.</p>
+  </aside>
+
+  <h4>The cost, which is close to nothing</h4>
+
+  <p>There is no data movement here. The relationship already exists in the model. Its join structures were built at refresh time along with every other relationship. <code>USERELATIONSHIP</code> chooses which of them the engine uses while one <code>CALCULATE</code> runs. The engine copies no table and builds no filter list. Refresh costs exactly what it cost before.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p><code>USERELATIONSHIP</code> is a routing decision, not a data operation. It does not make a slow join fast, though. If <code>ClosedDate</code> is high cardinality against a large fact, the scan costs what that join costs, exactly as it would if you had made that relationship active in the model. Measure the join, not the modifier.</p>
+  </aside>
+
+  <h4>The argument that actually decides it</h4>
+
+  <p>Eight months from now the planner asks for promised date counts on a second page. You open the file and find a measure called <code>Work Order Count</code>. Nothing in the name tells you which of the three dates it counts, so you have to open the definition and read it. Multiply that by every measure on every page.</p>
+
+  <p>Readability is why you choose this pattern. A measure called <code>Work Orders Closed</code> whose definition contains <code>USERELATIONSHIP ( FactWorkOrder[ClosedDate], DimDate[Date] )</code> tells every future reader what it means, including you in eight months. The meaning lives in the measure and travels with it. Performance barely enters the argument.</p>
+
+  <p>Now consider the alternative that gets built instead, usually in a hurry. Somebody imports a second date table called <code>DateClosed</code> and relates it to <code>FactWorkOrder[ClosedDate]</code> with a normal active relationship. It works. It also moves the meaning out of the measure and onto the report canvas. That single measure called <code>Work Order Count</code> now returns opened counts when somebody drags month from <code>DimDate</code>, and closed counts when somebody drags month from <code>DateClosed</code>. Nothing in the visual or the tooltip says which happened. You get two fields called <code>MonthName</code> in the same field list, and two slicers that look identical and do not filter each other. Time intelligence needs both tables marked as date tables. On Meridian the storage cost is trivial, since <code>DimDate</code> is 90 rows. Storage is the smaller of the two bills. The expensive one is correctness: the report is now right or wrong depending on which of two identical looking fields somebody happened to pick.</p>
+
+  <p>Here is the inconvenient part, and it is a real one. Measures can only fix measures. Suppose the planner asks for a cohort matrix with opened month down the rows and closed month across the columns. <code>USERELATIONSHIP</code> cannot deliver it. Both axes are columns supplying filters through relationships, and only one relationship on that path can be active during the query. A cross-tab of two different dates genuinely requires a second date table, deliberately named something like <code>DateClosed</code>, with the axis role written into the field names. That is the case where the second table is the right answer, and it is narrower than the number of models you will find it in.</p>
+
+  <h3>CROSSFILTER: change the direction of one relationship for one calculation</h3>
+
+  <p>The shift supervisor wants to know how many hours his A&amp;P certified technicians booked this quarter. You put a certification slicer on the page next to total labor hours. Every certification returns 62.0, which is every hour in the quarter. The filter leaves the slicer and never arrives.</p>
+
+  <p>That is a direction problem, and <code>CROSSFILTER</code> is the instrument for it. <code>CROSSFILTER</code> names a relationship the way <code>USERELATIONSHIP</code> does, by its two columns, and sets that relationship's cross filter direction for the duration of the <code>CALCULATE</code>. Cross filter direction means which way a filter is allowed to travel along a relationship. Three settings exist. <code>OneWay</code> filters from the one side to the many side only. <code>Both</code> lets the filter travel in either direction. <code>None</code> stops the relationship propagating anything at all.</p>
+
+  <p>What is certain is that <code>CROSSFILTER</code> sets direction on a relationship that already exists. Whether setting a direction on an inactive relationship also activates it is behaviour I would test in your own build before relying on it. In a measure you hand to somebody else, <code>USERELATIONSHIP</code> states that intent far more plainly anyway.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 350" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><line x1="450" y1="14" x2="450" y2="336" stroke="#D2CDC0" stroke-width="1" stroke-dasharray="4 4"/><text x="24.0" y="26.0" class="d-t" fill="#1B5A68">Single, the default</text><text x="474.0" y="26.0" class="d-t" fill="#AE4419">Both, bidirectional</text><rect x="24.0" y="46.0" width="175.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="35.0" y="63.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="24.0" y1="72.0" x2="199.0" y2="72.0" stroke="#1B5A68" stroke-width="1"/><text x="35.0" y="84.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="35.0" y="99.5" class="d-m">EmployeeType</text><rect x="24.0" y="176.0" width="175.0" height="71.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="35.0" y="193.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="24.0" y1="202.0" x2="199.0" y2="202.0" stroke="#AE4419" stroke-width="1"/><text x="35.0" y="214.0" class="d-m">TechnicianID</text><text x="35.0" y="229.5" class="d-m">Hours</text><line x1="112.0" y1="122.0" x2="112.0" y2="176.0" class="d-line-hot" marker-end="url(#ah)"/><text x="103.0" y="140.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="103.0" y="164.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="214.0" y="96.0" class="d-s">A selection on DimTechnician</text><text x="214.0" y="111.0" class="d-s">reaches FactLabor.</text><text x="214.0" y="141.0" class="d-s">A selection on FactLabor</text><text x="214.0" y="156.0" class="d-s">does not reach DimTechnician.</text><rect x="24.0" y="262.0" width="400.0" height="68.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="38.0" y="282.0" class="d-t" fill="#2B6140">One path, one answer</text><text x="38.0" y="300.0" class="d-s">The engine resolves a filter with a lookup. Every measure that</text><text x="38.0" y="314.0" class="d-s">touches these two tables behaves the same way in every visual.</text><rect x="474.0" y="46.0" width="175.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="485.0" y="63.0" class="d-t" fill="#1B5A68">DimTechnician</text><line x1="474.0" y1="72.0" x2="649.0" y2="72.0" stroke="#1B5A68" stroke-width="1"/><text x="485.0" y="84.0" class="d-m" font-weight="600" fill="#1B5A68">TechnicianID</text><text x="485.0" y="99.5" class="d-m">EmployeeType</text><rect x="474.0" y="176.0" width="175.0" height="71.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="485.0" y="193.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="474.0" y1="202.0" x2="649.0" y2="202.0" stroke="#AE4419" stroke-width="1"/><text x="485.0" y="214.0" class="d-m">TechnicianID</text><text x="485.0" y="229.5" class="d-m">Hours</text><line x1="562" y1="122" x2="562" y2="176" class="d-line-hot" marker-end="url(#ah)" marker-start="url(#ah)"/><text x="553.0" y="140.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="553.0" y="164.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="664.0" y="96.0" class="d-s">Now a selection on FactLabor</text><text x="664.0" y="111.0" class="d-s">also narrows DimTechnician,</text><text x="664.0" y="141.0" class="d-s">which is what makes a slicer</text><text x="664.0" y="156.0" class="d-s">hide unused technicians.</text><rect x="474.0" y="262.0" width="400.0" height="80.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="488.0" y="282.0" class="d-t" fill="#98281E">Convenient, and the usual source of ambiguity</text><text x="488.0" y="300.0" class="d-s">The engine must now build a set on the one side rather than do a</text><text x="488.0" y="314.0" class="d-s">lookup, and it pays that cost on every query, not only the</text><text x="488.0" y="328.0" class="d-s">ones that actually need it.</text></svg></div><figcaption><span class="fig-num">Figure 12.2</span>What actually changes when a relationship is set to Both.</figcaption></figure>
+
+  <p>Both panels draw the same pair of tables: <code>DimTechnician</code> above <code>FactLabor</code>, the pair <a class="xref" href="#ch-08">Chapter 8</a> took apart. They differ in one property. On the left, under Single, the default, one arrow points down from the one side to the many side. The note beside it says what that costs. A selection on <code>DimTechnician</code> reaches <code>FactLabor</code>, and a selection on <code>FactLabor</code> stops where it started. On the right, under Both, bidirectional, the same line carries an arrow head at each end. The note beside it describes what people actually want from that: a slicer that hides technicians with no hours. The green card and the red card underneath are the trade itself. One path and one answer on the left. Convenience and the usual source of ambiguity on the right. That return path on the right is the edge <code>CROSSFILTER</code> opens for the length of one calculation instead of for the whole file.</p>
+
+  <h4>Both, without committing the whole model</h4>
+
+  <p>Meridian's certification structure is a classic bridge. A bridge table holds the pairs that link two other tables when neither side is unique. <span class="dim-tag">Dimension</span> <code>DimTechnician</code> has one row per technician. <span class="dim-tag">Dimension</span> <code>DimCertification</code> has four rows. <span class="bridge-tag">Bridge</span> <code>BridgeTechCert</code> has ten rows, one per technician per certification, produced by splitting the delimited <code>Certifications</code> column. Both relationships into the bridge point from the one side to the many side and both are single direction.</p>
+
+  <p>So the supervisor's certification slicer filters the bridge and stops there. The filter reaches <code>BridgeTechCert</code>. From there it needs to travel from the many side back up to <code>DimTechnician</code> before it can flow down into <code>FactLabor</code>, and a single direction relationship carries filters one way only. That is why hours by certification came back as the same 62.0 in every row. The fix for one measure is one argument.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Hours by Certification</span></div>
+    <pre><code>Hours by Certification <span class="op">=</span>
+<span class="k">CALCULATE</span> (
+    <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ),
+    <span class="k">CROSSFILTER</span> (
+        <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span>,
+        <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span>,
+        <span class="k">BOTH</span>
+    )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>SUM ( FactLabor[Hours] )</code> and not <code>SUMX ( FactLabor, FactLabor[Hours] )</code>. Hours is a stored column, so <code>SUM</code> resolves to one storage engine scan with no row context involved. <code>SUMX</code> earns its place when the per-row expression is not a plain column, for example hours times hourly rate.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 4 to 8</div><div class="linex-v">The relationship between the bridge and the technician dimension, set to filter in both directions for this evaluation only. The relationship in the model file stays single direction. Every other measure on the page keeps the model it was written against.</div></div>
+    <div class="linex-row"><div class="linex-k">Path</div><div class="linex-v">With that edge opened, a certification selection travels <code>DimCertification</code> to <code>BridgeTechCert</code>, up to <code>DimTechnician</code>, then down to <code>FactLabor</code>. Four tables, three hops, one modifier.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 12.2</span> Hours by certification with the bridge relationship set to Both. The measure is correct row by row and the total is not.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Certification</th><th scope="col" class="num">Hours</th><th scope="col">Technicians contributing</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">A&amp;P</th><td class="num">39.0</td><td class="muted">TECH-01 12.0, TECH-02 16.5, TECH-04 10.5</td></tr>
+          <tr><th scope="row">Avionics</th><td class="num">10.5</td><td class="muted">TECH-03 0, TECH-04 10.5, TECH-06 0</td></tr>
+          <tr><th scope="row">NDT</th><td class="num">12.0</td><td class="muted">TECH-01 12.0, TECH-03 0</td></tr>
+          <tr><th scope="row">Engine Run</th><td class="num">23.5</td><td class="muted">TECH-04 10.5, TECH-05 13.0</td></tr>
+          <tr class="row-bad"><td>Sum of the four rows</td><td class="num cell-bad">85.0</td><td class="muted">what a reader adds up by eye</td></tr>
+          <tr class="row-total"><td>True total labor hours</td><td class="num">62.0</td><td class="muted">every labor row, counted once</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Every one of those four rows is right. TECH-04 really did work 10.5 hours and really does hold three certifications, so those hours belong in three rows. The rows add to 85.0 against a true total of 62.0, a gap of 23.0 hours, and no report consumer will thank you for explaining that after they have quoted the wrong number to a customer.</p>
+
+  <details class="expand" open>
+    <summary>Trace the 23 hour gap by hand</summary>
+    <div class="expand-body">
+      <p>Take the certified technicians only. TECH-01 12.0, TECH-02 16.5, TECH-04 10.5 and TECH-05 13.0 add to 52.0. TECH-03 and TECH-06 hold certifications and logged no hours, so they add nothing.</p>
+      <p>Now count the repeats. TECH-01 appears in two certification rows, A&amp;P and NDT, so their 12.0 hours are counted twice and 12.0 hours of excess are created. TECH-04 appears in three rows, A&amp;P, Avionics and Engine Run, so 10.5 counted three times creates 21.0 of excess. TECH-02 and TECH-05 hold one certification each and create none. Excess is 12.0 plus 21.0, which is 33.0, and 52.0 plus 33.0 is 85.0.</p>
+      <p>Then the other direction. TECH-07 logged 10.0 hours on WO-1004 and is not in the source technician list at all, so that technician has no bridge rows and appears in no certification row. 52.0 plus those 10.0 hours is the true 62.0. The visible gap of 23.0 is 33.0 hours of double counting minus 10.0 hours that are missing entirely, which is why the total looks less wrong than it is.</p>
+    </div>
+  </details>
+
+  <p><code>CROSSFILTER</code> and a permanently bidirectional relationship both do one job: they get the filter to travel. The arithmetic of a many-to-many is a separate decision. Somebody has to choose whether hours get allocated across certifications, deduplicated, or reported per certification with an explicit warning on the total. That decision is <a class="xref" href="#ch-14">Chapter 14</a>.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Setting the bridge relationship to <code>Both</code> in the model itself, watching the certification rows finally populate, and shipping it that afternoon. The four rows were always going to be right once the filter could travel. What changed is that every other measure in the file now answers a certification slicer, and this visual now shows a total of 85.0 next to a report header that still says 62.0 hours worked in Q1. Getting the filter to arrive is the easy half of the problem.</p>
+  </aside>
+
+  <h4>None, when a measure should ignore a relationship</h4>
+
+  <p>The finance manager wants one number per technician: what share of Q1 labor hours did each of them book? You put hours on a bar chart with a technician slicer beside it. Pick TECH-02 and the numerator and the denominator both drop to 16.5, so every technician shows 100 percent. The denominator has to stop listening to that slicer.</p>
+
+  <p>Meridian's technician slicer is useful and occasionally in the way. Any share calculation needs a denominator that holds still when the slicer moves.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Hours Ignoring Technician</span></div>
+    <pre><code>Labor Hours Ignoring Technician <span class="op">=</span>
+<span class="k">CALCULATE</span> (
+    <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ),
+    <span class="k">CROSSFILTER</span> (
+        <span class="t">FactLabor</span><span class="col">[TechnicianID]</span>,
+        <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span>,
+        <span class="k">NONE</span>
+    )
+)</code></pre>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>REMOVEFILTERS ( DimTechnician )</code> returns the same 62.0 here and is the more common idiom, so use it when all you need is the total. The two do different jobs. <code>REMOVEFILTERS</code> clears the filter from the dimension itself. Anything else inside that same <code>CALCULATE</code> which reads <code>DimTechnician</code>, such as a row count or a home station test, also stops seeing the selection. <code>CROSSFILTER</code> with <code>None</code> leaves <code>DimTechnician</code> filtered to the selected technician and cuts one edge, the one into <code>FactLabor</code>. Reach for <code>None</code> when the selection still has work to do elsewhere in the expression, and for <code>REMOVEFILTERS</code> when you want the selection gone.</p>
+  </div>
+
+  <p>Select TECH-02 and the plain hours measure returns 16.5 while this one returns 62.0. 16.5 divided by 62.0 is 0.2661, so TECH-02 accounts for 26.6 percent of Q1 labor hours. That is the number the finance manager asked for, and the denominator holds whichever technician the user picks.</p>
+
+  <h4>OneWay, the setting everyone forgets exists</h4>
+
+  <p>Suppose somebody has already made the bridge relationship permanently bidirectional, either because they were asked for hours by certification or because a tutorial told them to. Now every measure in the file responds to a certification slicer, including the ones that should not. A denominator, a total hours reference line: both start moving.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Labor Hours All Certifications</span></div>
+    <pre><code><span class="c">// use when the bridge relationship is bidirectional in the model</span>
+Labor Hours All Certifications <span class="op">=</span>
+<span class="k">CALCULATE</span> (
+    <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ),
+    <span class="k">CROSSFILTER</span> (
+        <span class="t">BridgeTechCert</span><span class="col">[TechnicianID]</span>,
+        <span class="t">DimTechnician</span><span class="col">[TechnicianID]</span>,
+        <span class="k">ONEWAY</span>
+    )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 1</div><div class="linex-v">A comment that names the precondition. Without it the next reader deletes the modifier, because against a single direction model this measure looks like a no-op.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 5 to 9</div><div class="linex-v">The same relationship as the Both example, pushed the other way. Filtering from <code>DimTechnician</code> to the bridge still works. A certification selection can no longer climb back up to the technicians, so it never reaches <code>FactLabor</code> and the measure returns 62.0 under any certification selection.</div></div>
+    <div class="linex-row"><div class="linex-k">Use</div><div class="linex-v">Put it beside <code>Hours by Certification</code> and the double count becomes visible in the report rather than in a support ticket: 85.0 divided by 62.0 is 1.371, so the four shares add to 137.1 percent.</div></div>
+  </div>
+
+  <h3>Four ways to change how a filter travels</h3>
+
+  <p>Two of those requests landed in the same week, one from the production controller and one from the shift supervisor. You have four instruments to answer them with. They differ in what they touch and in how far the change spreads, and that spread is what decides it when you are choosing under time pressure.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 12.3</span> Four instruments for the same class of problem, compared by reach rather than by preference.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Approach</th><th scope="col">What it changes</th><th scope="col">Blast radius</th><th scope="col">Cost</th><th scope="col">When it is the right answer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Permanent bidirectional relationship</th>
+            <td>The stored cross filter direction of one relationship, always on</td>
+            <td>Every measure, every visual, every report built on the dataset, now and later</td>
+            <td>No storage cost. Extra propagation on every query touching the path, and it can make an otherwise valid model ambiguous</td>
+            <td>A bridge that genuinely serves every measure, in a model with no second path that could become ambiguous</td>
+          </tr>
+          <tr>
+            <th scope="row">CROSSFILTER in a measure</th>
+            <td>The direction of one named relationship for the duration of one CALCULATE</td>
+            <td>That measure, and anything that calls it</td>
+            <td>Close to nothing. No data copied, no filter list built</td>
+            <td>One or a few measures need the propagation and everything else should keep the model as documented</td>
+          </tr>
+          <tr>
+            <th scope="row">TREATAS in a measure</th>
+            <td>Applies the values of one column as a filter on another, with no relationship involved</td>
+            <td>That measure only</td>
+            <td>Builds and passes a value list, so it scales with distinct values on the key. More than CROSSFILTER on a wide key</td>
+            <td>There is no relationship to name, for example across a grain mismatch or a path you refuse to make permanent</td>
+          </tr>
+          <tr>
+            <th scope="row">Re-modelling</th>
+            <td>The tables themselves, their grain and their keys</td>
+            <td>Everything, including refresh, existing reports and anyone with a bookmark</td>
+            <td>Development time, refresh time, and a business decision somebody has to own</td>
+            <td>The number is flatly wrong, and correcting it needs a shape no modifier can produce</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p><code>TREATAS</code> earns a row of its own next to <code>CROSSFILTER</code> because of one specific case: <code>CROSSFILTER</code> can only redirect a relationship that already exists in the model, and <code>TREATAS</code> needs no relationship at all. In Meridian that matters at the capacity join, where <code>FactCapacity</code> sits at station and month grain while <code>FactLabor</code> sits at day grain, and where the relationship you would want may not be one you are willing to create.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Asked to separate <code>USERELATIONSHIP</code> from <code>CROSSFILTER</code>, the short answer is that one changes which relationship is used and the other changes how an already chosen relationship propagates. The longer answer is the one worth giving. Both are arguments to <code>CALCULATE</code>, so both last exactly one evaluation, which means neither can repair a model whose grain is wrong. They redirect filters. They do not change what a row means, and 85.0 against 62.0 is a grain problem wearing a direction problem's clothes.</p>
+  </aside>
+
+  <p>Which leaves the decision rule, and it is short enough to keep. Change the model when every measure needs it. Change the measure when one measure needs it. A bidirectional relationship you set once and never revisit is a promise you have made to every report author who will ever open the file, and a <code>CROSSFILTER</code> or <code>USERELATIONSHIP</code> argument is a note in the margin of one calculation. Most of the time the note is enough.</p>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li><code>USERELATIONSHIP</code> activates an inactive relationship for one <code>CALCULATE</code> and deactivates whatever was active on that same path. It never creates a relationship and it never stands alone.</li>
+      <li>Meridian by month: opened 3, 3, 2 for a total of 8, closed 2, 2, 2 for a total of 6, promised 2, 3, 3 for a total of 8. January opens three and closes two, and WO-1003 sits in January opened and February closed.</li>
+      <li>Two work orders never appear in the closed column at all, because a blank <code>ClosedDate</code> joins to no date and 6 is the correct closed count.</li>
+      <li>The modifier is cheap because it copies nothing. Choose it for readability: the measure states which date it means, whereas a second date table lets the report author decide by accident.</li>
+      <li>A cross-tab of opened month against closed month is the case <code>USERELATIONSHIP</code> cannot serve. That is when a second, explicitly named date table is right.</li>
+      <li><code>CROSSFILTER</code> sets one relationship to <code>OneWay</code>, <code>Both</code> or <code>None</code> for one <code>CALCULATE</code>. <code>Both</code> gives hours by certification of 39.0, 10.5, 12.0 and 23.5, which add to 85.0 against a true 62.0. Getting the filter to travel is not the same as getting the arithmetic right, and that is <a class="xref" href="#ch-14">Chapter 14</a>.</li>
+      <li>Verify in your own environment: behaviour under row level security, over weak or many-to-many relationships, and inside calculated columns evaluated at refresh.</li>
+      <li>Change the model when every measure needs it. Change the measure when one measure needs it.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="11.html"><span class="pn-dir">Previous</span><span class="pn-t">CALCULATE and every filter modifier you need</span></a><a class="pn" href="13.html"><span class="pn-dir">Next</span><span class="pn-t">Role-playing dimensions: one date table, many dates</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

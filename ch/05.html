@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Power Query mechanics that matter for modelling</title>
+</head>
+<body data-ch="05">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">05</span><span class="tb-title">Power Query mechanics that matter for modelling</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-05">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 2 . Shaping the data</div>
+    <h2 class="chapter-title"><span class="chapter-num">05</span>Power Query mechanics that matter for modelling</h2>
+    <p class="chapter-lede">By the end of this chapter you will be able to predict the exact row count that comes out of every unpivot, append, merge and group in the Meridian load, and you will know which of those steps quietly changes the meaning of a number that is already on a report page.</p>
+  </div>
+
+  <p class="lead">The finance manager wants one number: what has the shop quoted this quarter. You put a card on the page and it reads 53,600. He has the quotes in front of him and says the figure is 38,100. Nothing in the report shows an error, and every work order looks correct when you drill into it. The card is still wrong by 15,500. A merge you built in the query editor last week is counting two work orders twice.</p>
+
+  <p>Most Power Query training is a tour of the ribbon. Your problem is narrower than that. A handful of these transformations change the <em>grain</em> of a table. Grain means what one row of a table stands for. One row of <code>WorkOrders</code> stands for one work order. One row of <code>LaborEntries</code> stands for the hours one technician booked on one day. Grain is the thing your model is built on, so get the grain wrong in the query editor and no amount of DAX will rescue the report.</p>
+
+  <p>This chapter works through the transformations that actually move the model: unpivot, append, merge and its six join kinds, expand versus aggregate, group by, and the query dependency choices that decide how often your source gets hit. Each one is also argued against its DAX equivalent. Most of them have one, and it usually returns the same number, which is exactly what makes the choice look optional. Every example runs on Meridian rows. Every row count is one you can check by hand against the source tables.</p>
+
+  <h3>Unpivot: turning column headers back into data</h3>
+
+  <p>The planner keeps <code>ShopCapacity</code> in a workbook and edits it by hand every month. She asks for a chart of planned hours by trade, which sounds like five minutes of work. In her workbook the trades are column headings, and a column heading cannot go on the axis of a chart. One step in the query editor turns those headings into data she can slice.</p>
+
+  <p><code>ShopCapacity</code> arrives from the monthly planning workbook as a matrix. Someone in planning built it to be read by a human, so the trades run across the top.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 05.1</span> ShopCapacity as it arrives, 7 rows wide, with trade names living in the header row.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">StationCode</th>
+            <th scope="col">Month</th>
+            <th scope="col" class="num">Airframe</th>
+            <th scope="col" class="num">Avionics</th>
+            <th scope="col" class="num">Engine</th>
+            <th scope="col" class="num">NDT</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">MSP</td><td>2025-01</td><td class="num">14</td><td class="num">8</td><td class="num">6</td><td class="num">2</td></tr>
+          <tr><td class="key">MSP</td><td>2025-02</td><td class="num">14</td><td class="num">8</td><td class="num">6</td><td class="num">2</td></tr>
+          <tr><td class="key">MSP</td><td>2025-03</td><td class="num">16</td><td class="num">8</td><td class="num">4</td><td class="num">2</td></tr>
+          <tr><td class="key">TUS</td><td>2025-01</td><td class="num">10</td><td class="num">5</td><td class="num">8</td><td class="num">2</td></tr>
+          <tr><td class="key">TUS</td><td>2025-02</td><td class="num">10</td><td class="num">5</td><td class="num">8</td><td class="num">2</td></tr>
+          <tr><td class="key">LAS</td><td>2025-03</td><td class="num">8</td><td class="num">6</td><td class="num">4</td><td class="num">2</td></tr>
+          <tr><td class="key">PHX</td><td>2025-03</td><td class="num">8</td><td class="num">4</td><td class="num">3</td><td class="num">1</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Airframe, Avionics, Engine and NDT are four values of one attribute called Trade. The numbers under them are all the same measurement, planned hours. A model can only slice by a column, and here Trade is spread across four column names. No relationship can point at a column header either. Unpivot fixes both problems in one step.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">FactCapacity, the version that survives change</span></div>
+<pre><code><span class="k">let</span>
+    Source <span class="op">=</span> <span class="t">ShopCapacity</span>,
+    Unpivoted <span class="op">=</span> <span class="k">Table.UnpivotOtherColumns</span>(
+        Source, {<span class="s">"StationCode"</span>, <span class="s">"Month"</span>},
+        <span class="s">"Attribute"</span>, <span class="s">"Value"</span>),
+    Renamed <span class="op">=</span> <span class="k">Table.RenameColumns</span>(Unpivoted, {
+        {<span class="s">"Attribute"</span>, <span class="s">"Trade"</span>},
+        {<span class="s">"Value"</span>, <span class="s">"PlannedHours"</span>}}),
+    Typed <span class="op">=</span> <span class="k">Table.TransformColumnTypes</span>(Renamed, {
+        {<span class="s">"Trade"</span>, <span class="k">type text</span>},
+        {<span class="s">"PlannedHours"</span>, <span class="k">Int64.Type</span>}})
+<span class="k">in</span>
+    Typed</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>Table.UnpivotOtherColumns</code> takes the list of columns to <em>keep</em>. Everything you leave out of that list gets folded down into two new columns. Read that twice. You name the survivors, and the ribbon label suggests the opposite.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v">The two literals name the output columns. The generated names are always <code>Attribute</code> and <code>Value</code> when you use the ribbon, which is why the next step exists.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 6</div><div class="linex-v">Rename immediately. <code>Attribute</code> becomes <code>Trade</code> because a column called Attribute tells a report reader nothing, and because a field list full of Attribute columns from four different queries is unusable.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 9</div><div class="linex-v">Type immediately. Unpivot returns <code>Value</code> as type any. An untyped numeric column will still sum, but it stores as a variant, compresses badly, and any implicit measure you build on it can silently become a text count.</div></div>
+  </div>
+
+  <p>Now the ribbon. The Transform tab offers three commands and their names do not map to the generated functions the way you would expect. Read the formula bar after every unpivot, because the formula bar is the only honest description of what you did.</p>
+
+  <p><strong>Unpivot Only Selected Columns</strong> generates <code>Table.Unpivot</code> with the four trade names written into the step as a literal list. <strong>Unpivot Columns</strong> and <strong>Unpivot Other Columns</strong> both generate <code>Table.UnpivotOtherColumns</code>. They differ only in which columns you had highlighted when you clicked. So the practical test is the function name in the formula bar. Read that, and ignore the menu label you clicked to get there.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">The hard coded variant, from Unpivot Only Selected Columns</span></div>
+<pre><code><span class="k">let</span>
+    Source <span class="op">=</span> <span class="t">ShopCapacity</span>,
+    Unpivoted <span class="op">=</span> <span class="k">Table.Unpivot</span>(
+        Source,
+        {<span class="s">"Airframe"</span>, <span class="s">"Avionics"</span>, <span class="s">"Engine"</span>, <span class="s">"NDT"</span>},
+        <span class="s">"Attribute"</span>, <span class="s">"Value"</span>)
+<span class="k">in</span>
+    Unpivoted</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v">The trade list is frozen into the query. Today it produces the same 28 rows as the other version. Next month, when planning adds a Structures column to the workbook, this step unpivots the same four trades and carries Structures through as a fifth, still wide, column that nothing in the model reads.</div></div>
+    <div class="linex-row"><div class="linex-k">Failure mode</div><div class="linex-v">No error, no warning. Planned capacity is understated and the utilisation measure quietly goes up, because the denominator lost hours.</div></div>
+  </div>
+
+  <p>The anchored version behaves the other way. <code>Table.UnpivotOtherColumns</code> names <code>StationCode</code> and <code>Month</code>. Those two are the grain keys, and they are the columns least likely to change. A new Structures column is absent from that list, so it gets unpivoted along with everything else and arrives as a new Trade value on the next refresh. That is why anchoring on keys is the default. You name the stable columns and let everything else flow through. The rule is short. Select the two key columns, use Unpivot Other Columns, and confirm the formula bar reads <code>Table.UnpivotOtherColumns</code> before you move on.</p>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Assuming the auto-generated Changed Type step above the unpivot will catch a source change. It will stay silent and it will keep working. <code>Table.TransformColumnTypes</code> only touches the columns it names. When planning adds Structures, that step ignores it and passes it through as type any. Pair that with Unpivot Only Selected Columns and the refresh succeeds, the query still reports 176 planned hours, and an entire trade is missing from the model. A Changed Type step does fail loudly when a column it names is renamed or removed at source. A column being added is the quiet case. Type after the unpivot instead, on the two columns the unpivot creates, exactly as the query above does.</p>
+  </aside>
+
+  <p>Running the anchored query against the seven source rows gives 7 times 4 equals 28 rows. Here are the first eight.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 05.2</span> First 8 of the 28 rows of FactCapacity after unpivot, rename and typing.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">StationCode</th><th scope="col">Month</th><th scope="col">Trade</th><th scope="col" class="num">PlannedHours</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">MSP</td><td>2025-01</td><td>Airframe</td><td class="num">14</td></tr>
+          <tr><td class="key">MSP</td><td>2025-01</td><td>Avionics</td><td class="num">8</td></tr>
+          <tr><td class="key">MSP</td><td>2025-01</td><td>Engine</td><td class="num">6</td></tr>
+          <tr><td class="key">MSP</td><td>2025-01</td><td>NDT</td><td class="num">2</td></tr>
+          <tr><td class="key">MSP</td><td>2025-02</td><td>Airframe</td><td class="num">14</td></tr>
+          <tr><td class="key">MSP</td><td>2025-02</td><td>Avionics</td><td class="num">8</td></tr>
+          <tr><td class="key">MSP</td><td>2025-02</td><td>Engine</td><td class="num">6</td></tr>
+          <tr><td class="key">MSP</td><td>2025-02</td><td>NDT</td><td class="num">2</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Source rows</div><div class="kv-v">7</div></div>
+    <div class="kv-item"><div class="kv-k">Trade columns</div><div class="kv-v">4</div></div>
+    <div class="kv-item"><div class="kv-k">Rows out</div><div class="kv-v">28</div></div>
+    <div class="kv-item"><div class="kv-k">Total planned hours</div><div class="kv-v">176</div></div>
+  </div>
+
+  <p>The 176 is unchanged by the unpivot, and that is the check you should run every time. By trade, 80 Airframe plus 44 Avionics plus 39 Engine plus 13 NDT equals 176. By station, MSP 90 plus TUS 50 plus LAS 20 plus PHX 16 equals the same 176. An unpivot that changes a grand total means you unpivoted a key column by accident.</p>
+
+  <p>The planner now has her chart. Trade is a column with four values in it, so it goes on the axis, and the bars add up to the 176 hours she typed into the workbook.</p>
+
+  <h4>What the same unpivot costs in DAX</h4>
+
+  <p>DAX has no unpivot. No function takes a table and a list of columns and returns a longer table. The equivalent is a calculated table that stacks four separately shaped queries on top of each other. It looks like this, and it is the whole reason the transformation belongs upstream.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">FactCapacity as a calculated table, do not ship this</span></div>
+<pre><code>FactCapacityDAX <span class="op">=</span>
+<span class="k">UNION</span> (
+    <span class="k">SELECTCOLUMNS</span> ( <span class="t">ShopCapacity</span>,
+        <span class="s">"StationCode"</span>, <span class="t">ShopCapacity</span><span class="col">[StationCode]</span>,
+        <span class="s">"Month"</span>, <span class="t">ShopCapacity</span><span class="col">[Month]</span>,
+        <span class="s">"Trade"</span>, <span class="s">"Airframe"</span>,
+        <span class="s">"PlannedHours"</span>, <span class="t">ShopCapacity</span><span class="col">[Airframe]</span> ),
+    <span class="k">SELECTCOLUMNS</span> ( <span class="t">ShopCapacity</span>,
+        <span class="s">"StationCode"</span>, <span class="t">ShopCapacity</span><span class="col">[StationCode]</span>,
+        <span class="s">"Month"</span>, <span class="t">ShopCapacity</span><span class="col">[Month]</span>,
+        <span class="s">"Trade"</span>, <span class="s">"Avionics"</span>,
+        <span class="s">"PlannedHours"</span>, <span class="t">ShopCapacity</span><span class="col">[Avionics]</span> ),
+    <span class="k">SELECTCOLUMNS</span> ( <span class="t">ShopCapacity</span>,
+        <span class="s">"StationCode"</span>, <span class="t">ShopCapacity</span><span class="col">[StationCode]</span>,
+        <span class="s">"Month"</span>, <span class="t">ShopCapacity</span><span class="col">[Month]</span>,
+        <span class="s">"Trade"</span>, <span class="s">"Engine"</span>,
+        <span class="s">"PlannedHours"</span>, <span class="t">ShopCapacity</span><span class="col">[Engine]</span> ),
+    <span class="k">SELECTCOLUMNS</span> ( <span class="t">ShopCapacity</span>,
+        <span class="s">"StationCode"</span>, <span class="t">ShopCapacity</span><span class="col">[StationCode]</span>,
+        <span class="s">"Month"</span>, <span class="t">ShopCapacity</span><span class="col">[Month]</span>,
+        <span class="s">"Trade"</span>, <span class="s">"NDT"</span>,
+        <span class="s">"PlannedHours"</span>, <span class="t">ShopCapacity</span><span class="col">[NDT]</span> )
+)</code></pre>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>SELECTCOLUMNS</code> and not <code>ADDCOLUMNS</code>, because <code>ADDCOLUMNS</code> returns every column of the source table plus the ones you add. Each of the four blocks would still carry Airframe, Avionics, Engine and NDT alongside the new Trade column. The union would then produce a table that is long and wide at the same time, with the original matrix still embedded in it. <code>SELECTCOLUMNS</code> returns only the four columns you name, which is the shape a fact table needs.</p>
+    <p><code>UNION</code> and not one of the join functions, because there is no key to join on here. You are stacking rows, and the join functions match rows. The cost is that <code>UNION</code> pairs its inputs by column <em>position</em>. Column names are ignored entirely. If a colleague edits the third block and swaps the Month and Trade lines, the engine stays quiet. Month values land in the Trade column, the visual still renders, and station months appear as trade names. Column order is load bearing and nothing checks it.</p>
+    <p>The deeper objection stands regardless of which functions you pick: the trade list is written four times in the expression. Adding Structures means editing this DAX, republishing, and remembering to do it. The Power Query version needs nothing. That is a maintenance cost you pay forever in exchange for saving one step in the query editor now.</p>
+  </div>
+
+  <h3>Append versus merge, and why the difference changes your row count</h3>
+
+  <p>The production controller wants a station slicer on every page, PHX included. You look for a station list and there is no such table. Station codes are scattered across three sources, and PHX appears in only one of them. Building that slicer means stacking three lists on top of each other and keeping one row of each station, which is what append does.</p>
+
+  <dl class="defs">
+    <dt>Append</dt><dd>Stacks tables vertically. Rows out equals the sum of rows in. Columns are matched <em>by name</em>. A column present in one input and absent in another produces nulls for the rows that did not have it.</dd>
+    <dt>Merge</dt><dd>Joins tables horizontally on one or more key columns. Columns out is the sum of the columns; rows out depends entirely on the join kind and on how many matches each key finds.</dd>
+  </dl>
+
+  <p>The name matching in append is where people get hurt. There is no positional fallback and no warning. Rename <code>StationCode</code> to <code>Station</code> in one of the three inputs and the append succeeds, produces two columns instead of one, and fills each with nulls for the rows that came from the other side. A table visual will show a longer list of stations with a blank in it and nothing will look obviously broken.</p>
+
+  <p>Meridian needs an appended station dimension because station codes are scattered across three sources and no single source has all of them. <code>WorkOrders</code> knows about MSP, TUS and LAS, and has one blank. <code>Technicians</code> knows about MSP, TUS and LAS through <code>HomeStation</code>. <code>ShopCapacity</code> is the only place PHX exists at all.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">DimStation, built by append</span></div>
+<pre><code><span class="k">let</span>
+    FromWO <span class="op">=</span> <span class="k">Table.SelectColumns</span>(
+        <span class="t">WorkOrders</span>, {<span class="s">"StationCode"</span>}),
+    FromTech <span class="op">=</span> <span class="k">Table.RenameColumns</span>(
+        <span class="k">Table.SelectColumns</span>(<span class="t">Technicians</span>, {<span class="s">"HomeStation"</span>}),
+        {{<span class="s">"HomeStation"</span>, <span class="s">"StationCode"</span>}}),
+    FromCap <span class="op">=</span> <span class="k">Table.SelectColumns</span>(
+        <span class="t">ShopCapacity</span>, {<span class="s">"StationCode"</span>}),
+    Stacked <span class="op">=</span> <span class="k">Table.Combine</span>({FromWO, FromTech, FromCap}),
+    Deduped <span class="op">=</span> <span class="k">Table.Distinct</span>(Stacked),
+    NoBlank <span class="op">=</span> <span class="k">Table.SelectRows</span>(Deduped, <span class="k">each</span>
+        <span class="col">[StationCode]</span> <span class="op">&lt;&gt;</span> <span class="k">null</span>
+        <span class="k">and</span> <span class="col">[StationCode]</span> <span class="op">&lt;&gt;</span> <span class="s">""</span>),
+    WithUnassigned <span class="op">=</span> <span class="k">Table.Combine</span>({NoBlank,
+        <span class="op">#</span>table({<span class="s">"StationCode"</span>}, {{<span class="s">"UNASSIGNED"</span>}})})
+<span class="k">in</span>
+    WithUnassigned</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 4 to 6</div><div class="linex-v">The rename is the entire append. Without it, <code>Table.Combine</code> returns a two column table and the six technician rows carry null in <code>StationCode</code>. This is the silent failure described above, reproduced deliberately so you can see how small the fix is.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 9</div><div class="linex-v"><code>Table.Combine</code> is what the Append Queries button generates. It takes a list of tables, so appending a fourth source later is one more entry in the braces.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 12 to 13</div><div class="linex-v">Both tests are needed. A missing station arrives as null from a database and as an empty string from a text or Excel export, and the two are not equal in M.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 15</div><div class="linex-v">The <code>#table</code> constructor builds a one row table inline, so the Unassigned member is created inside the query itself. There is no separate file for somebody to maintain and forget.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 05.3</span> Row count at each step of the DimStation append.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">Step</th><th scope="col" class="num">Rows</th><th scope="col">What is in it</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">WorkOrders[StationCode]</th><td class="num">8</td><td>MSP, MSP, TUS, TUS, blank, MSP, LAS, MSP</td></tr>
+          <tr><th scope="row">Technicians[HomeStation] renamed</th><td class="num">6</td><td>MSP, MSP, TUS, TUS, LAS, MSP</td></tr>
+          <tr><th scope="row">ShopCapacity[StationCode]</th><td class="num">7</td><td>MSP three times, TUS twice, LAS, PHX</td></tr>
+          <tr class="row-total"><th scope="row">After Table.Combine</th><td class="num">21</td><td>8 plus 6 plus 7</td></tr>
+          <tr><th scope="row">After Table.Distinct</th><td class="num">5</td><td>MSP, TUS, LAS, PHX and the blank</td></tr>
+          <tr class="row-bad"><th scope="row">After removing the blank</th><td class="num">4</td><td>WO-1005 now has no dimension member</td></tr>
+          <tr class="row-good"><th scope="row">After adding UNASSIGNED</th><td class="num">5</td><td>WO-1005 has somewhere to land</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Note what happens in the last two rows. Removing the blank is correct, because an empty key describes nothing. It is missing data, and it belongs out of the dimension. Removing it on its own leaves WO-1005 with a station code that matches no dimension row. A row like that is an orphan: a fact whose key finds nothing on the other side of the relationship. Power BI parks orphans in an automatic blank row where nobody thinks to filter. So add <span class="dim-tag">Dimension</span> <code>UNASSIGNED</code>. The append is only finished when the orphan has a named home.</p>
+
+  <p>That is the production controller's slicer. Five stations, PHX among them, and WO-1005 sitting under UNASSIGNED where he can see it.</p>
+
+  <h4>What the same append costs in DAX</h4>
+
+  <p>DAX can stack tables. <code>UNION</code> takes two or more tables and returns their rows one after another. That is the append operation wearing a different name. You can build the same five row dimension as a calculated table without much effort.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">DimStation as a calculated table, the version to argue against</span></div>
+<pre><code>DimStationDAX <span class="op">=</span>
+<span class="k">VAR</span> Stacked <span class="op">=</span>
+    <span class="k">UNION</span> (
+        <span class="k">SELECTCOLUMNS</span> ( <span class="t">WorkOrders</span>,
+            <span class="s">"StationCode"</span>, <span class="t">WorkOrders</span><span class="col">[StationCode]</span> ),
+        <span class="k">SELECTCOLUMNS</span> ( <span class="t">Technicians</span>,
+            <span class="s">"StationCode"</span>, <span class="t">Technicians</span><span class="col">[HomeStation]</span> ),
+        <span class="k">SELECTCOLUMNS</span> ( <span class="t">ShopCapacity</span>,
+            <span class="s">"StationCode"</span>, <span class="t">ShopCapacity</span><span class="col">[StationCode]</span> )
+    )
+<span class="k">VAR</span> Cleaned <span class="op">=</span>
+    <span class="k">FILTER</span> (
+        <span class="k">DISTINCT</span> ( Stacked ),
+        <span class="k">NOT</span> <span class="k">ISBLANK</span> ( <span class="col">[StationCode]</span> )
+            <span class="op">&amp;&amp;</span> <span class="col">[StationCode]</span> <span class="op">&lt;&gt;</span> <span class="s">""</span>
+    )
+<span class="k">RETURN</span>
+    <span class="k">UNION</span> ( Cleaned, <span class="k">ROW</span> ( <span class="s">"StationCode"</span>, <span class="s">"UNASSIGNED"</span> ) )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Stacked</div><div class="linex-v">21 rows, 8 plus 6 plus 7, exactly the count in Table 05.3. <code>UNION</code> does not deduplicate, so this intermediate holds every repeat of MSP from all three sources and the <code>DISTINCT</code> below is not optional.</div></div>
+    <div class="linex-row"><div class="linex-k">SELECTCOLUMNS</div><div class="linex-v">Does the job <code>Table.RenameColumns</code> does in the M version, giving the technician column the name <code>StationCode</code>. Note the reversal, though. In M the rename is load bearing, because append matches by name. In DAX it is cosmetic, because <code>UNION</code> matches by position and takes its output names from the first table. The danger moved from one place to the other, and it is still in the room.</div></div>
+    <div class="linex-row"><div class="linex-k">Cleaned</div><div class="linex-v"><code>DISTINCT</code> takes 21 down to 5, the four real stations plus the blank from WO-1005, and the filter takes it to 4. Both tests are still needed, for the same reason as in M: a missing station arrives as blank from a database and as an empty string from a spreadsheet.</div></div>
+    <div class="linex-row"><div class="linex-k">RETURN</div><div class="linex-v">A second <code>UNION</code> adds the Unassigned member and the table lands at 5 rows, the same 5 the query editor produced. The numbers agree at every step. That is exactly why the numbers cannot decide this one for you.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>DISTINCT</code> and not <code>VALUES</code>. On a table expression the two look interchangeable. <code>VALUES</code> can also return an extra blank row, and it does so when its table sits on the one side of a relationship that has unmatched values pointing at it. A dimension that quietly grows a phantom member on some future refresh is the exact failure this build exists to prevent.</p>
+    <p><code>ROW</code> and not <code>DATATABLE</code>. <code>DATATABLE</code> makes you declare a type for every column and accepts only constants, which is a lot of syntax for one station code. <code>ROW</code> builds the one row table inline, and it is the closest thing DAX has to the <code>#table</code> constructor on line 15 of the M version.</p>
+  </div>
+
+  <p>The functions do their job. The problem is what a calculated table drags into the model behind it. DAX can only read tables that are already in the model, so <code>WorkOrders</code>, <code>Technicians</code> and <code>ShopCapacity</code> all have to be loaded, in full, purely to feed a five row dimension. That is 8 plus 6 plus 7 rows of raw source sitting in the field list beside the model you designed on purpose. In Power Query the same three inputs are queries with Enable Load switched off. They exist in the editor and they never become tables. That matters well beyond tidiness. Every loaded table is a table a report author can drag onto a page. A raw <code>WorkOrders</code> table sitting next to <code>FactWorkOrder</code> is how a report ends up with two work order counts that disagree, and nobody able to say which one is real.</p>
+
+  <p>Three more costs follow from that. The calculated table is rebuilt on every refresh, so the 21 row stack and the distinct are re-evaluated whether or not a station was added. It also cannot fold. Folding is Power Query translating your steps into a native query that the source runs on your behalf, and it is the biggest refresh lever you have. Without it, the distinct runs inside the model while the database that holds an index on that very column is never asked. The third cost is that no Power Query step can reference a calculated table. The first time you need to merge a station description onto <code>DimStation</code>, you have to move the whole build upstream anyway, and you write the M version you skipped.</p>
+
+  <p>The recommendation here is one sided, and it should be. Append in Power Query. The DAX version is worth writing exactly once, in a DAX query window. Write it on the day you want to prove to yourself that the station list really does come to five members, before you trust the query editor to have done it.</p>
+
+  <h3>The six join kinds, with the exact Meridian counts</h3>
+
+  <p>The production controller asks how many work orders are on the board for each aircraft. You merge the work orders to the fleet registry, put a card on the page, and it reads seven. He counts eight on his whiteboard. One work order fell out of the join on its way to the report. Which one fell out, and whether anything fell out at all, is decided entirely by the join kind you picked from a dropdown.</p>
+
+  <p>Merge is <code>Table.NestedJoin</code>. It puts a nested table into a new column on the left table. You then decide whether to expand that column or aggregate it. The join kind decides which rows survive to that point, and the six kinds behave differently enough that guessing is not viable. Take <code>WorkOrders</code> as the left table and <code>AircraftRegistry</code> as the right, joining on <code>ACREG</code>. Eight work orders sit across five distinct tails. The registry holds six rows. N338WA on WO-1006 is in the work orders and missing from the registry. N120CE and N553KD are in the registry with no work orders against them.</p>
+
+  <p>Left outer keeps all 8 work orders and gives WO-1006 an empty nested table. Inner drops WO-1006 and returns 7. Right outer keeps every registry row: the 7 work orders that match a tail, plus N120CE and N553KD carried in with null work order columns, so 7 plus 2 equals 9 rows. Full outer keeps everything on both sides: all 8 work orders plus the same 2 registry-only tails, so 8 plus 2 equals 10 rows. Left anti returns only the left rows with no match, which is WO-1006 alone. Right anti returns only the unmatched right rows, N120CE and N553KD.</p>
+
+  <details class="expand" open>
+    <summary>Join kind reference, all six against WorkOrders and AircraftRegistry</summary>
+    <div class="expand-body">
+      <figure class="tbl">
+        <figcaption><span class="tbl-num">Table 05.4</span> Merge of WorkOrders (left, 8 rows) to AircraftRegistry (right, 6 rows) on ACREG.</figcaption>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th scope="col">Join kind</th><th scope="col">M constant</th><th scope="col" class="num">Rows out</th><th scope="col">Arithmetic and content</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Inner</th><td class="key">JoinKind.Inner</td><td class="num">7</td><td>8 less the 1 unmatched work order. WO-1006 is gone and nothing tells you.</td></tr>
+              <tr><th scope="row">Left outer</th><td class="key">JoinKind.LeftOuter</td><td class="num">8</td><td>All work orders kept. WO-1006 holds an empty nested table and expands to nulls.</td></tr>
+              <tr><th scope="row">Right outer</th><td class="key">JoinKind.RightOuter</td><td class="num">9</td><td>7 matched work orders plus 2 registry-only tails. 7 plus 2 equals 9.</td></tr>
+              <tr><th scope="row">Full outer</th><td class="key">JoinKind.FullOuter</td><td class="num">10</td><td>All 8 work orders plus the 2 registry-only tails. 8 plus 2 equals 10.</td></tr>
+              <tr class="row-good"><th scope="row">Left anti</th><td class="key">JoinKind.LeftAnti</td><td class="num">1</td><td>WO-1006 only. Your orphan list, exactly.</td></tr>
+              <tr><th scope="row">Right anti</th><td class="key">JoinKind.RightAnti</td><td class="num">2</td><td>N120CE and N553KD. Dimension members with no facts.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+      <p>Right outer and full outer differ by exactly one row here, and the row is WO-1006. That is worth sitting with: right outer silently discards the very work order you are usually looking for, because WO-1006 has no registry match and right outer only guarantees the right side.</p>
+    </div>
+  </details>
+
+  <p>Left anti is the join you should reach for most often, and it is the one people use least. It answers the question you actually have: which keys will fall into the blank row. Run it before you build any relationship.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">Orphan diagnostic, one row: WO-1006</span></div>
+<pre><code><span class="k">let</span>
+    Orphans <span class="op">=</span> <span class="k">Table.NestedJoin</span>(
+        <span class="t">WorkOrders</span>, {<span class="s">"ACREG"</span>},
+        <span class="t">AircraftRegistry</span>, {<span class="s">"ACREG"</span>},
+        <span class="s">"Registry"</span>, <span class="k">JoinKind.LeftAnti</span>),
+    Kept <span class="op">=</span> <span class="k">Table.SelectColumns</span>(Orphans,
+        {<span class="s">"WorkOrderID"</span>, <span class="s">"ACREG"</span>, <span class="s">"StationCode"</span>})
+<span class="k">in</span>
+    Kept</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v">The nested column is created and then thrown away, because in an anti join it is always empty. The join kind is doing all the work.</div></div>
+    <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">One row: WO-1006, N338WA, MSP. That is the production controller's eighth work order, and it fell out because tail N338WA never made it into the registry. It is also 12.0 labor hours that would otherwise sit in a blank aircraft type, and it is the whole reason DimAircraft gets built in the query editor instead of loaded straight from the registry.</div></div>
+    <div class="linex-row"><div class="linex-k">Keep it loaded</div><div class="linex-v">Set this query to load. Put it on a hidden diagnostic page as a table visual, with a card counting its rows. You then find out on the refresh that introduces a new orphan, rather than in a meeting.</div></div>
+  </div>
+
+  <p>One word on fuzzy matching. Merge offers it. It uses a similarity threshold to pair values that are close, and it will happily match TECH-04 to TECH-05 if you loosen the threshold enough. Keep it away from keys. A key match is a yes or no question, and fuzzy matching turns it into a probability that shifts as the data shifts. The same query can then return different join results next month with no code change at all. Fuzzy matching earns its place cleaning free text categories that a human typed, once, under supervision, with the match table exported and reviewed.</p>
+
+  <h4>What the same merge costs in DAX</h4>
+
+  <p>DAX has two join functions, <code>NATURALINNERJOIN</code> and <code>NATURALLEFTOUTERJOIN</code>. That is two of the six kinds in Table 05.4. There is no right outer, no full outer, and neither anti join, so the four kinds DAX does not have include the one you should be reaching for most often.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">The left outer join, in DAX</span></div>
+<pre><code>WOWithAircraft <span class="op">=</span>
+<span class="k">NATURALLEFTOUTERJOIN</span> ( <span class="t">WorkOrders</span>, <span class="t">AircraftRegistry</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">What it returns</div><div class="linex-v">When it works, 8 rows, with WO-1006 carrying blanks in every registry column. The same shape and the same count as <code>JoinKind.LeftOuter</code>.</div></div>
+    <div class="linex-row"><div class="linex-k">The join columns</div><div class="linex-v">You do not name them, and there is no argument where you could. The function joins on every column the two tables have in common by name. Today that is <code>ACREG</code> and nothing else. The day the fleet spreadsheet gains a <code>StationCode</code> column, this becomes a two column join, the row count changes, and not one character of the expression was edited.</div></div>
+    <div class="linex-row"><div class="linex-k">The lineage trap</div><div class="linex-v">The two <code>ACREG</code> columns belong to two different base tables. The engine treats them as different columns despite the identical name. The expression then raises an error saying there are no common join columns, rather than joining. Breaking the lineage on one side first is the usual workaround. Having to explain that last sentence to whoever inherits the file is itself an argument for doing the join in the query editor, where you pick the two columns by clicking them.</div></div>
+  </div>
+
+  <p>The anti joins have no direct equivalent at all. The nearest thing works only on the keys.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">The nearest thing to a left anti join</span></div>
+<pre><code>OrphanTails <span class="op">=</span>
+<span class="k">EXCEPT</span> (
+    <span class="k">VALUES</span> ( <span class="t">WorkOrders</span><span class="col">[ACREG]</span> ),
+    <span class="k">VALUES</span> ( <span class="t">AircraftRegistry</span><span class="col">[ACREG]</span> )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">One row, N338WA. Correct as far as it goes: five distinct tails appear in <code>WorkOrders</code> and four of them are in the registry. Reverse the two arguments and you get the right anti answer, N120CE and N553KD, two rows.</div></div>
+    <div class="linex-row"><div class="linex-k">What is missing</div><div class="linex-v">You get back an aircraft registration and nothing else. The Power Query version returned WO-1006, N338WA, MSP, which is a row somebody can act on without a second lookup. To get that back you write <code>FILTER ( WorkOrders, NOT ( WorkOrders[ACREG] IN VALUES ( AircraftRegistry[ACREG] ) ) )</code>, which is perfectly good code and honestly no worse than the M version for a check you never ship.</div></div>
+  </div>
+
+  <p>So here is the split. For a throwaway check in the DAX query view, either tool is fine and the DAX one is faster to type. For anything the model depends on, merge in Power Query. You get all six join kinds by name from a dropdown. The join can fold into a single native JOIN at the source. And what you leave behind is a query the next person can step through, one applied step at a time.</p>
+
+  <p>And for the ordinary case, which is wanting an attribute from a dimension to appear beside a fact, do neither. Build the relationship and let filter context carry the attribute at query time. That costs no refresh time, no memory and no maintenance, and it is the reason the Meridian model relates <code>DimAircraft</code> to <code>FactWorkOrder</code> rather than merging the registry into the work orders. The merge is for building the dimension. The relationship is for using it.</p>
+
+  <h3>Expand versus aggregate, and the row multiplication trap</h3>
+
+  <p>This is where the finance manager's 53,600 came from. After a merge you have a nested column and two ways to open it. Expand puts every nested row on its own output row. Aggregate collapses the nested table to one value per left row. Both look like formatting choices in a dropdown. Both change the grain of the table, and grain decides whether the totals on his card are right.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 380" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><text x="30.0" y="24.0" class="d-t" fill="#AE4419">Header grain</text><text x="430.0" y="24.0" class="d-t" fill="#AE4419">Line grain</text><rect x="30.0" y="44.0" width="250.0" height="116.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.4"/><text x="42.0" y="62.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="30" y1="70" x2="280" y2="70" stroke="#AE4419" stroke-width="1"/><text x="42.0" y="90.0" class="d-m">WO-1001</text><text x="268.0" y="90.0" class="d-m" text-anchor="end">3,000</text><text x="42.0" y="120.0" class="d-m">WO-1002</text><text x="268.0" y="120.0" class="d-m" text-anchor="end">3,200</text><text x="42.0" y="150.0" class="d-m">WO-1003</text><text x="268.0" y="150.0" class="d-m" text-anchor="end">12,500</text><rect x="430.0" y="44.0" width="300.0" height="176.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.4"/><text x="442.0" y="62.0" class="d-t" fill="#AE4419">FactLabor</text><line x1="430" y1="70" x2="730" y2="70" stroke="#AE4419" stroke-width="1"/><text x="442.0" y="90.0" class="d-m">L-501</text><text x="540.0" y="90.0" class="d-m" fill="#77746B">WO-1001</text><text x="718.0" y="90.0" class="d-m" text-anchor="end">7.5</text><path d="M280,85.0 C350,85.0 370,85.0 430,85.0" class="d-line-hot" fill="none"/><text x="442.0" y="120.0" class="d-m">L-502</text><text x="540.0" y="120.0" class="d-m" fill="#77746B">WO-1001</text><text x="718.0" y="120.0" class="d-m" text-anchor="end">6.0</text><path d="M280,85.0 C350,85.0 370,115.0 430,115.0" class="d-line-hot" fill="none"/><text x="442.0" y="150.0" class="d-m">L-503</text><text x="540.0" y="150.0" class="d-m" fill="#77746B">WO-1002</text><text x="718.0" y="150.0" class="d-m" text-anchor="end">9.0</text><path d="M280,115.0 C350,115.0 370,145.0 430,145.0" class="d-line-hot" fill="none"/><text x="442.0" y="180.0" class="d-m">L-504</text><text x="540.0" y="180.0" class="d-m" fill="#77746B">WO-1003</text><text x="718.0" y="180.0" class="d-m" text-anchor="end">8.0</text><path d="M280,145.0 C350,145.0 370,175.0 430,175.0" class="d-line-hot" fill="none"/><text x="442.0" y="210.0" class="d-m">L-505</text><text x="540.0" y="210.0" class="d-m" fill="#77746B">WO-1003</text><text x="718.0" y="210.0" class="d-m" text-anchor="end">4.5</text><path d="M280,145.0 C350,145.0 370,205.0 430,205.0" class="d-line-hot" fill="none"/><text x="300.0" y="218.0" class="d-lbl" fill="#77746B">one header row</text><text x="300.0" y="232.0" class="d-lbl" fill="#77746B">fans out to many</text><text x="300.0" y="246.0" class="d-lbl" fill="#77746B">line rows</text><rect x="30.0" y="250.0" width="360.0" height="108.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="44.0" y="272.0" class="d-t" fill="#98281E">Pull QuotedAmount down to line grain</text><text x="44.0" y="292.0" class="d-m">3,000 + 3,000 + 3,200 + 12,500 + 12,500</text><text x="44.0" y="310.0" class="d-s">WO-1001 and WO-1003 counted twice.</text><text x="44.0" y="328.0" class="d-s">Work orders with no labor line vanish entirely.</text><text x="44.0" y="348.0" class="d-s" font-style="italic">Two independent errors in one column.</text><rect x="430.0" y="250.0" width="440.0" height="108.0" rx="5" fill="#EAF2EC" stroke="#2B6140" stroke-width="1.4"/><text x="444.0" y="272.0" class="d-t" fill="#2B6140">Keep each measure at its own grain</text><text x="444.0" y="292.0" class="d-m">Quoted Amount  =  SUM ( FactWorkOrder[QuotedAmount] )   38,100</text><text x="444.0" y="310.0" class="d-m">Labor Cost     =  SUMX ( FactLabor, ... )                6,326.50</text><text x="444.0" y="328.0" class="d-s">The model joins them at the visual, not in a column.</text><text x="444.0" y="348.0" class="d-s" font-style="italic">If a measure needs DISTINCT to stop double counting, it is on the wrong table.</text></svg></div><figcaption><span class="fig-num">Figure 5.1</span>Header grain fans out to line grain, and header values duplicate when they follow.</figcaption></figure>
+
+  <p>This is the picture from chapter 01, and expand is the operation it was warning about. The box on the left, headed Header grain, holds three work orders with their quoted amounts. The box on the right, headed Line grain, holds the five labor lines that belong to them. The figure labels the two boxes with their model names, <code>FactWorkOrder</code> and <code>FactLabor</code>. Those are the tables this chapter is still calling <code>WorkOrders</code> and <code>LaborEntries</code>. Each curve running between the two boxes is one header row about to be read a second time, which is what the annotation on the curves says: one header row fans out to many line rows.</p>
+
+  <p>Then read the red card. Pulling <code>QuotedAmount</code> down to line grain gives the sum it prints: 3,000 plus 3,000 plus 3,200 plus 12,500 plus 12,500, which is 34,200 against a true 18,700 for those three work orders. The 15,500 gap is WO-1001 and WO-1003 counted twice, and it is the same 15,500 that turns up in the full eight row version below. The card names a second and independent error underneath that one. Work orders with no labor line vanish entirely, which is what an inner join does here. The green card opposite shows the shape that avoids both errors. <code>Quoted Amount</code> is summed on <code>FactWorkOrder</code> for 38,100. <code>Labor Cost</code> is summed over <code>FactLabor</code> for 6,326.50. The two meet at the visual, and neither one is written into a column.</p>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <p>Merge <code>WorkOrders</code> to <code>LaborEntries</code> on <code>WorkOrderID</code> with a left outer join, then expand <code>LaborID</code> and <code>Hours</code>.</p>
+      <div class="code" data-lang="M">
+        <div class="code-head"><span class="code-lang">M</span><span class="code-name">Expand</span></div>
+<pre><code>    Merged <span class="op">=</span> <span class="k">Table.NestedJoin</span>(
+        <span class="t">WorkOrders</span>, {<span class="s">"WorkOrderID"</span>},
+        <span class="t">LaborEntries</span>, {<span class="s">"WorkOrderID"</span>},
+        <span class="s">"Labor"</span>, <span class="k">JoinKind.LeftOuter</span>),
+    Expanded <span class="op">=</span> <span class="k">Table.ExpandTableColumn</span>(
+        Merged, <span class="s">"Labor"</span>,
+        {<span class="s">"LaborID"</span>, <span class="s">"Hours"</span>},
+        {<span class="s">"LaborID"</span>, <span class="s">"Hours"</span>})</code></pre>
+      </div>
+      <p>The table is now at labor line grain but every row still carries the header's <code>QuotedAmount</code>. Eight header rows became ten. Two work orders got their quoted amount written twice.</p>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <p>Same merge, but aggregate the nested column instead of expanding it.</p>
+      <div class="code" data-lang="M">
+        <div class="code-head"><span class="code-lang">M</span><span class="code-name">Aggregate</span></div>
+<pre><code>    Merged <span class="op">=</span> <span class="k">Table.NestedJoin</span>(
+        <span class="t">WorkOrders</span>, {<span class="s">"WorkOrderID"</span>},
+        <span class="t">LaborEntries</span>, {<span class="s">"WorkOrderID"</span>},
+        <span class="s">"Labor"</span>, <span class="k">JoinKind.LeftOuter</span>),
+    Rolled <span class="op">=</span> <span class="k">Table.AggregateTableColumn</span>(
+        Merged, <span class="s">"Labor"</span>,
+        {{<span class="s">"Hours"</span>, <span class="k">List.Sum</span>, <span class="s">"LaborHours"</span>}})</code></pre>
+      </div>
+      <p>Still 8 rows, one per work order, with <code>LaborHours</code> alongside <code>QuotedAmount</code>: 13.5, 9.0, 12.5, 10.0, null, 12.0, 5.0, null. Quoted total stays 38,100 and hours total 62.0. Better still, do neither, and load both tables as separate <span class="fact-tag">Fact</span> tables joined by a relationship on <code>WorkOrderID</code>.</p>
+    </div>
+  </div>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>A card called Total Quoted reads 53,600 instead of 38,100. Nothing errors. The number is 15,500 too high, which is 40.7 percent. It is wrong in a way nobody can see unless they already know the true figure. Drill into any individual work order and it looks correct.</p>
+  </div>
+
+  <p>Here is the arithmetic in full, because the double count is not evenly spread and the size of the error depends on which work orders happen to have multiple labor lines.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 05.5</span> Quoted amount after expanding WorkOrders to its labor lines. Rows after expand equals labor lines, or 1 where the work order has none.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">WorkOrderID</th><th scope="col" class="num">Labor lines</th><th scope="col" class="num">Rows after expand</th><th scope="col" class="num">QuotedAmount</th><th scope="col" class="num">Quoted counted</th></tr>
+        </thead>
+        <tbody>
+          <tr class="row-bad"><td class="key">WO-1001</td><td class="num">2</td><td class="num">2</td><td class="num">3,000</td><td class="num cell-bad">6,000</td></tr>
+          <tr><td class="key">WO-1002</td><td class="num">1</td><td class="num">1</td><td class="num">3,200</td><td class="num">3,200</td></tr>
+          <tr class="row-bad"><td class="key">WO-1003</td><td class="num">2</td><td class="num">2</td><td class="num">12,500</td><td class="num cell-bad">25,000</td></tr>
+          <tr><td class="key">WO-1004</td><td class="num">1</td><td class="num">1</td><td class="num">4,000</td><td class="num">4,000</td></tr>
+          <tr><td class="key">WO-1005</td><td class="num">0</td><td class="num">1</td><td class="num">2,000</td><td class="num">2,000</td></tr>
+          <tr><td class="key">WO-1006</td><td class="num">1</td><td class="num">1</td><td class="num">7,500</td><td class="num">7,500</td></tr>
+          <tr><td class="key">WO-1007</td><td class="num">1</td><td class="num">1</td><td class="num">900</td><td class="num">900</td></tr>
+          <tr><td class="key">WO-1008</td><td class="num">0</td><td class="num">1</td><td class="num">5,000</td><td class="num">5,000</td></tr>
+          <tr class="row-total"><td>Total</td><td class="num">8</td><td class="num">10</td><td class="num">38,100</td><td class="num">53,600</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Read the two totals columns against each other. The true quoted total is 38,100. After expansion the sum is 53,600. The difference is 15,500, which is exactly the 3,000 of WO-1001 counted a second time plus the 12,500 of WO-1003 counted a second time. That is the finance manager's card, and now you can tell him where the money went. WO-1005 and WO-1008 have no labor rows at all, so a left outer join keeps them as a single row each with null hours. That is why 8 labor lines plus 2 header-only rows give 10 output rows. An inner join would have returned 8 rows and dropped those two work orders entirely, which trades one wrong number for a different wrong number.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>Be precise about the cost, because the folding story is not the simple one. A merge and expand between two tables that live in the same SQL database usually does fold, into a single JOIN, and that is fine. It stops folding when the two sides come from different connectors, and then the mashup engine pulls both tables down and joins them locally on the gateway machine. Either way the expand multiplies rows before any filter is applied. On eight Meridian rows nobody notices. On a labor table with two million lines, writing the header columns onto every line inflates the dataset by the width of the header. You pay for that twice: once in refresh time and again in model size. Aggregate at the source grain, or keep the tables separate and let the relationship do the work at query time.</p>
+  </aside>
+
+  <h3>Group By, and what it silently drops</h3>
+
+  <p>The shift supervisor wants a list of work orders with the hours booked against each one. You group <code>LaborEntries</code> by work order, put the result on a page, and eight work orders come out as six. WO-1005 and WO-1008 are gone. Those are the two with nobody booked to them at all, and WO-1008 is still open, so they are the two he was looking hardest for.</p>
+
+  <p>Group By is the tool for changing grain on purpose. Rolling <code>LaborEntries</code> from technician-day grain up to work order grain is one step.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">LaborEntries rolled to work order grain</span></div>
+<pre><code><span class="k">let</span>
+    Trimmed <span class="op">=</span> <span class="k">Table.TransformColumns</span>(<span class="t">LaborEntries</span>, {
+        {<span class="s">"TechnicianID"</span>, <span class="k">Text.Trim</span>, <span class="k">type text</span>}}),
+    Grouped <span class="op">=</span> <span class="k">Table.Group</span>(Trimmed, {<span class="s">"WorkOrderID"</span>}, {
+        {<span class="s">"LaborHours"</span>, <span class="k">each</span> <span class="k">List.Sum</span>(<span class="col">[Hours]</span>),
+            <span class="k">type number</span>},
+        {<span class="s">"LineCount"</span>, <span class="k">each</span> <span class="k">Table.RowCount</span>(<span class="op">_</span>),
+            <span class="k">Int64.Type</span>}})
+<span class="k">in</span>
+    Grouped</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 4</div><div class="linex-v">The second argument is the list of grouping keys. Basic grouping in the dialog allows one key and one aggregation, and writes exactly this function with a shorter list. Advanced grouping adds keys and aggregations to the same two lists. Basic and Advanced behave identically. They differ only in how much of <code>Table.Group</code> the dialog lets you fill in, so start in Advanced and save yourself the reopen.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v"><code>List.Sum</code> reads a column out of the group and sums it. Inside the aggregation, <code>[Hours]</code> resolves to a list of values, which is why the function that reads it is <code>List.Sum</code>.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 7</div><div class="linex-v">The underscore is the whole group as a table, so <code>Table.RowCount</code> counts labor lines. Carrying a line count alongside every rolled-up sum costs nothing and makes fan-out visible the moment it appears.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 05.6</span> Result of the group. Six rows, not eight.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">WorkOrderID</th><th scope="col" class="num">LineCount</th><th scope="col" class="num">LaborHours</th></tr></thead>
+        <tbody>
+          <tr><td class="key">WO-1001</td><td class="num">2</td><td class="num">13.5</td></tr>
+          <tr><td class="key">WO-1002</td><td class="num">1</td><td class="num">9.0</td></tr>
+          <tr><td class="key">WO-1003</td><td class="num">2</td><td class="num">12.5</td></tr>
+          <tr><td class="key">WO-1004</td><td class="num">1</td><td class="num">10.0</td></tr>
+          <tr><td class="key">WO-1006</td><td class="num">1</td><td class="num">12.0</td></tr>
+          <tr><td class="key">WO-1007</td><td class="num">1</td><td class="num">5.0</td></tr>
+          <tr class="row-total"><td>Total</td><td class="num">8</td><td class="num">62.0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>WO-1005 and WO-1008 are missing from that table. Group By can only return groups that have at least one row. A work order with no labor booked to it has no rows to group, so it is absent from the output. There is no zero in there to find. Use this grouped query as your work order list and the count drops from 8 to 6, with the open work orders the first to go. That is the shift supervisor's two missing jobs. The correct pattern is to group the fact and then merge the result back onto the full <code>WorkOrders</code> list with a left outer join. The two missing work orders come back carrying null hours, and a measure turns null into zero on the page.</p>
+
+  <p>The dialog also offers All Rows as an aggregation. It generates <code>each _</code> and keeps the entire group as a nested table in a column. That is useful when you need to sort within a group or take the first row per key. Treat it as a scalpel. Every nested table is materialised in memory during evaluation, and the step almost never folds. On a large fact table an All Rows group can turn a query that used to stream into one that tries to hold the whole dataset at once. If you use it, add the step that removes the nested column as soon as you are finished with it.</p>
+
+  <h4>What the same group costs in DAX</h4>
+
+  <p>This is the transformation where DAX puts up the best fight, so it is worth being exact about which parts it wins. <code>SUMMARIZE</code> produces the same table Table 05.6 shows.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">The same group, in DAX</span></div>
+<pre><code>LaborByWO <span class="op">=</span>
+<span class="k">SUMMARIZE</span> (
+    <span class="t">FactLabor</span>,
+    <span class="t">FactLabor</span><span class="col">[WorkOrderID]</span>,
+    <span class="s">"LaborHours"</span>, <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ),
+    <span class="s">"LineCount"</span>, <span class="k">COUNTROWS</span> ( <span class="t">FactLabor</span> )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">Six rows and 62.0 hours, identical to the M version, and WO-1005 and WO-1008 are missing here too. The trap belongs to grouping itself, in either language. A group needs at least one row to be a group.</div></div>
+    <div class="linex-row"><div class="linex-k">The shape</div><div class="linex-v">Aggregations written directly inside <code>SUMMARIZE</code> read plainly and behave on eight rows. On a large fact table the pattern to prefer is <code>ADDCOLUMNS</code> wrapped around a bare <code>SUMMARIZE</code>. Aggregation expressions placed inside <code>SUMMARIZE</code> itself are evaluated in a context the engine finds harder to optimise.</div></div>
+  </div>
+
+  <p>Now the part where DAX is genuinely the better tool. The two missing work orders are easy to recover in DAX and awkward to recover in M. Iterate the header table instead of the fact table and all eight come back.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Eight rows, including the two with no labor</span></div>
+<pre><code>LaborByWOAll <span class="op">=</span>
+<span class="k">ADDCOLUMNS</span> (
+    <span class="k">VALUES</span> ( <span class="t">FactWorkOrder</span><span class="col">[WorkOrderID]</span> ),
+    <span class="s">"LaborHours"</span>,
+        <span class="k">COALESCE</span> ( <span class="k">CALCULATE</span> (
+            <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> ) ), <span class="n">0</span> )
+)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">VALUES over the header</div><div class="linex-v">Eight work orders in, eight rows out. WO-1005 and WO-1008 arrive carrying 0.0, and the total is still 62.0. In Power Query the same fix needs a second query and a left outer merge of the grouped result back onto the full header list.</div></div>
+    <div class="linex-row"><div class="linex-k">CALCULATE</div><div class="linex-v">Context transition. It converts the current <code>WorkOrderID</code> row of the iteration into a filter on <code>FactLabor</code>, which is what makes the sum specific to that work order. Leave it out and every row prints 62.0.</div></div>
+    <div class="linex-row"><div class="linex-k">COALESCE</div><div class="linex-v"><code>COALESCE</code> and not adding zero. Both turn the blank into 0.0 for the two work orders with no labor rows, and only one of them says so in the formula where the next reader will see it.</div></div>
+  </div>
+
+  <p>DAX wins the readability of that one fix, and loses everything around it. Three things decide it. Grouping in Power Query folds, so against a real source the <code>GROUP BY</code> is executed by the database and only the grouped rows cross the network. On a timesheet table of two million lines that is the difference between two million rows arriving and a few thousand. Grouping in DAX cannot fold. It cannot even start until the whole fact table is already in the model, so you have paid the cost the grouping was supposed to avoid. Third, the grouped table is stored and rebuilt on every refresh, whether or not any visual reads it.</p>
+
+  <p>Then the question that gets skipped. Why is this a stored table at all. Put <code>WorkOrderID</code> on the rows of a visual and a <code>Labor Hours</code> measure in the values. The engine groups at query time for nothing. There is no table to refresh and no second copy of the hours to reconcile with the first. So the recommendation has two branches and both are firm. If you only need the grouped number on a page, write the measure and group nowhere. If you need the grouped result as a physical column, because a relationship, a slicer, a sort order or a security filter has to point at it, group in Power Query. It folds there, and the next analyst can read it step by step. Grouping into a stored DAX table pays the cost of materialising and collects none of the benefit of folding.</p>
+
+  <h3>Reference versus Duplicate, and how often your source gets read</h3>
+
+  <p>The planner's refresh now runs longer than the slot she has before her scheduling meeting. You open the trace to find out why, and the shop floor work order table is read three times in a single refresh. You only ever wrote one query against it. Three other queries reference that one, and reference turns out to mean something different from what you assumed.</p>
+
+  <p>Right clicking a query gives you both options. They do different things, and the difference shows up months later. Duplicate copies the M text. You get a second independent query with its own copy of every step, and from that moment the two drift. Fix a type conversion in one and the other keeps the old behaviour, forever, silently. Reference creates a query whose entire body is <code>= WorkOrdersSource</code>, pointing at the <em>output</em> of the first query. A fix in the source query lands in every referencing query on the next refresh.</p>
+
+  <p>The staging pattern follows from that. Build one query per physical source that does connection, promotion of headers, typing and the cleaning that everything downstream needs. Turn Enable Load off on it, so it exists in the query editor but produces no table in the model. Then reference it once per model table you need to build from it.</p>
+
+  <ol class="steps">
+    <li>Create <code>WorkOrdersSource</code>: connect, promote headers, trim keys, set types. Enable Load off.</li>
+    <li>Reference it as <code>FactWorkOrder</code>: map the blank station on WO-1005 to UNASSIGNED, keep the eight fact columns, load.</li>
+    <li>Reference it again for the station list that feeds <span class="derived-tag">Built</span> <code>DimStation</code>: select <code>StationCode</code>, distinct. Enable Load off, because it is one of three inputs to the append.</li>
+    <li>Reference it a third time for the distinct tail list that feeds <code>DimAircraft</code>.</li>
+  </ol>
+
+  <p>Now the part that surprises people, and it is the planner's three reads. Reference does not cache. A referenced query is a definition that gets evaluated again, so when three queries reference <code>WorkOrdersSource</code> the mashup engine is free to run that definition once per consumer. Against a file, the file is opened more than once. Against a database, the query is sent more than once. That is why a colleague swears the staging query hits the source twice and the trace log agrees with them. Power Query does have persistent caching for some connectors and some evaluation paths, so this will not happen on every refresh. What is guaranteed is that you cannot rely on it not happening.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p><code>Table.Buffer</code> is the usual suggestion at this point, and it does less than people think it does. It materialises a table for the length of one evaluation, so it helps when a single query would otherwise walk the same step twice. Its effect ends with that evaluation. Each referencing query runs its own evaluation of the staging query, buffer step included, so three references can still mean three reads of the source. What buffering does do reliably is end query folding at that point, so every step after it runs in the mashup engine instead of at the source. On the Meridian volumes that is free and pointless. On a folded SQL source it can turn a two second refresh into a two minute one. If the repeated read is the real cost, the fix is upstream: a view, a dataflow, or a staged table that the model reads once.</p>
+  </aside>
+
+  <h4>Why this one has no DAX version at all</h4>
+
+  <p>The other transformations in this chapter have a DAX equivalent that is worse. This one has no DAX equivalent. There is no way to write a calculated table that means "the output of that other query, without the loading", because both halves of that sentence are things DAX does not have.</p>
+
+  <p>The two closest analogues are both the wrong half of the choice you just made. Copying an expression into a second calculated table is Duplicate, with exactly the drift described above. Correct a filter in one and the other quietly goes on being wrong. Building a calculated table on top of another calculated table is Reference, and it is worse than the M version, because it chains process recalc dependencies. The engine has to finish the first table before it can begin the second, on every refresh and on every model change. The chain is invisible unless you go looking for it.</p>
+
+  <p>The piece that is simply absent is Enable Load. Every calculated table is in the model: stored, refreshed, and visible in the field list unless somebody remembers to hide it. The staging pattern above depends on the opposite of that. <code>WorkOrdersSource</code> exists so that three other queries can reference it, and it produces no table. The three inputs to the <code>DimStation</code> append exist so the append has something to stack, and 8 plus 6 plus 7 raw rows never reach the model. DAX cannot express any of that, because in DAX a table is the only unit there is and every unit is loaded.</p>
+
+  <p>The recommendation is short because there is nothing to weigh. Stage in Power Query, reference rather than duplicate, and turn Enable Load off on every query whose only job is to feed another query. If a staging query being evaluated more than once turns out to cost real refresh time, fix it upstream with a view or a dataflow that the model reads once. That is what the planner needs. A calculated table downstream reads the same source and then keeps a copy of it, which adds a second problem to the first.</p>
+
+  <h3>Splitting Certifications into a bridge</h3>
+
+  <p><code>Technicians[Certifications]</code> holds multiple values in one cell, delimited by a semicolon and a space. Split Column by Delimiter, with <em>rows</em> chosen as the output, is the step that turns it into a bridge table. A bridge table is a two column table that records which technicians hold which certifications, one pair per row, so a relationship can be built on each side of it. Choosing columns instead would give you Cert1, Cert2, Cert3 and reproduce the unpivot problem you just solved.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">BridgeTechCert, 10 rows out of 6</span></div>
+<pre><code><span class="k">let</span>
+    Kept <span class="op">=</span> <span class="k">Table.SelectColumns</span>(<span class="t">Technicians</span>,
+        {<span class="s">"TechnicianID"</span>, <span class="s">"Certifications"</span>}),
+    ToList <span class="op">=</span> <span class="k">Table.TransformColumns</span>(Kept, {
+        {<span class="s">"Certifications"</span>,
+         <span class="k">Splitter.SplitTextByDelimiter</span>(<span class="s">"; "</span>,
+             <span class="k">QuoteStyle.Csv</span>),
+         <span class="k">type</span> {<span class="k">text</span>}}}),
+    Split <span class="op">=</span> <span class="k">Table.ExpandListColumn</span>(ToList,
+        <span class="s">"Certifications"</span>),
+    Renamed <span class="op">=</span> <span class="k">Table.RenameColumns</span>(Split, {
+        {<span class="s">"Certifications"</span>, <span class="s">"CertCode"</span>}}),
+    Typed <span class="op">=</span> <span class="k">Table.TransformColumnTypes</span>(Renamed, {
+        {<span class="s">"CertCode"</span>, <span class="k">type text</span>}})
+<span class="k">in</span>
+    Typed</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 4 to 8</div><div class="linex-v">The splitter turns each text value into a list. The ribbon writes a longer type ascription with metadata attached; it does the same work, and the shorter form above is easier to read in a review.</div></div>
+    <div class="linex-row"><div class="linex-k">Line 9</div><div class="linex-v"><code>Table.ExpandListColumn</code> is the step that multiplies rows. Six technicians become ten, and this is the one place in the whole load where multiplying rows is exactly what you want.</div></div>
+    <div class="linex-row"><div class="linex-k">Delimiter</div><div class="linex-v">Split on "; " and not on ";", otherwise every second value arrives with a leading space and NDT will not equal " NDT" when you join it to <code>DimCertification</code>.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 05.7</span> All 10 rows of <span class="bridge-tag">Bridge</span> BridgeTechCert.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">TechnicianID</th><th scope="col">CertCode</th></tr></thead>
+        <tbody>
+          <tr><td class="key">TECH-01</td><td>A&amp;P</td></tr>
+          <tr><td class="key">TECH-01</td><td>NDT</td></tr>
+          <tr><td class="key">TECH-02</td><td>A&amp;P</td></tr>
+          <tr><td class="key">TECH-03</td><td>Avionics</td></tr>
+          <tr><td class="key">TECH-03</td><td>NDT</td></tr>
+          <tr><td class="key">TECH-04</td><td>A&amp;P</td></tr>
+          <tr><td class="key">TECH-04</td><td>Avionics</td></tr>
+          <tr><td class="key">TECH-04</td><td>Engine Run</td></tr>
+          <tr><td class="key">TECH-05</td><td>Engine Run</td></tr>
+          <tr><td class="key">TECH-06</td><td>Avionics</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Drop <code>Certifications</code> from <code>DimTechnician</code> once the bridge exists. Leaving both means two ways to answer the same question, and the delimited version will keep appearing in report visuals because it is easier to find in the field list.</p>
+
+  <h3>Types, locale and column names</h3>
+
+  <p>Set types early, in the staging query, right after headers are promoted. Two reasons, and the second one matters more. First, an untyped column is stored as a variant, and every downstream comparison has to work out what it is holding. Second, type conversion is where bad data announces itself. You want that announcement in a query whose only job is loading. Step 14 of a query that also does business logic is a miserable place to discover it.</p>
+
+  <p>The typing step names every column, which is what makes it brittle. The Changed Type step Power Query adds automatically on first connection lists all eight <code>WorkOrders</code> columns. Rename <code>QuotedAmount</code> to <code>QuoteValue</code> at the source and the refresh fails with a column not found error. That failure is loud, so it is the good case. Keep the automatic Changed Type step narrow: type the columns you depend on, and let the rest arrive as they are.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">Typing with an explicit culture</span></div>
+<pre><code>    Typed <span class="op">=</span> <span class="k">Table.TransformColumnTypes</span>(<span class="t">WorkOrders</span>, {
+        {<span class="s">"OpenedDate"</span>, <span class="k">type date</span>},
+        {<span class="s">"PromisedDate"</span>, <span class="k">type date</span>},
+        {<span class="s">"ClosedDate"</span>, <span class="k">type date</span>},
+        {<span class="s">"QuotedAmount"</span>, <span class="k">Int64.Type</span>}}, <span class="s">"en-US"</span>)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Line 5</div><div class="linex-v">The third argument is the culture used to parse text into dates and numbers. Without it, the parse uses the locale of whoever opened the file, which means the same query can produce different dates on your desktop and on the gateway.</div></div>
+    <div class="linex-row"><div class="linex-k">Why it matters here</div><div class="linex-v">Meridian dates arrive as 2025-03-06, which is unambiguous, so this file is safe. The moment the shop floor export changes to 03/06/2025 it stops being safe, and nothing in Power Query will tell you the meaning changed.</div></div>
+  </div>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Take WO-1007: opened 2025-03-03, closed 2025-03-06, a turn time of 3 days. If the export switches to 03/06/2025 and the gateway parses under en-GB, that closed date becomes 3 June 2025 and the turn time becomes 92 days. The average turn time across the six closed work orders moves from 72 divided by 6, which is 12.0 days, to 161 divided by 6, which is 26.8 days. Every row still looks like a valid date. The fix is to state the culture in the step and to ask the source system for ISO dates, in that order.</p>
+  </aside>
+
+  <h4>Trim, Clean, and the space that survives both</h4>
+
+  <p>L-505 carries <code>"TECH-04 "</code> with a trailing space. In any table visual it is indistinguishable from TECH-04, it will not match on the relationship, and 4.5 hours end up in the blank technician row while TECH-04 shows 6.0 instead of 10.5. <code>Text.Trim</code> removes leading and trailing whitespace and fixes this particular row. <code>Text.Clean</code> does a different job: it removes non-printable control characters, the ones below code point 32, which is what strips an embedded tab or line feed out of a value pasted from a PDF. Use both, because the two failures look identical in a visual and only one of them is a space.</p>
+
+  <p>Here is the inconvenient part. A non-breaking space is code point 160, which is above the control character boundary, so <code>Text.Clean</code> does not touch it, and it is not treated as ordinary whitespace by <code>Text.Trim</code> either. Values copied out of a web page or an HTML mail routinely contain them. Trim plus Clean is the usual advice and it will not fix that case, so add an explicit replace.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">Key cleaning that actually holds</span></div>
+<pre><code><span class="k">let</span>
+    Cleaned <span class="op">=</span> <span class="k">Table.TransformColumns</span>(<span class="t">LaborEntries</span>, {
+        {<span class="s">"TechnicianID"</span>, <span class="k">each</span> <span class="k">Text.Trim</span>(
+            <span class="k">Text.Clean</span>(<span class="k">Text.Replace</span>(<span class="op">_</span>,
+                <span class="k">Character.FromNumber</span>(<span class="n">160</span>), <span class="s">" "</span>))),
+         <span class="k">type text</span>}}),
+    Codes <span class="op">=</span> <span class="k">Table.AddColumn</span>(<span class="t">LaborEntries</span>, <span class="s">"CharCodes"</span>,
+        <span class="k">each</span> <span class="k">Text.Combine</span>(<span class="k">List.Transform</span>(
+            <span class="k">Text.ToList</span>(<span class="col">[TechnicianID]</span>),
+            <span class="k">each</span> <span class="k">Text.From</span>(<span class="k">Character.ToNumber</span>(<span class="op">_</span>))),
+            <span class="s">" "</span>), <span class="k">type text</span>)
+<span class="k">in</span>
+    Cleaned</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 3 to 5</div><div class="linex-v">Replace runs first, turning any code point 160 into an ordinary space, so that Trim can then remove it from the ends. Order matters: trimming before replacing leaves the non-breaking space exactly where it was.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 7 to 11</div><div class="linex-v">The diagnostic column. It prints the code point of every character in the key. For L-505 it returns 84 69 67 72 45 48 52 32, and that final 32 is the trailing ordinary space. If it came back 160 you would know instantly why Trim was not working. Add this column when a join fails for no visible reason, then delete it.</div></div>
+  </div>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 05.8</span> TechnicianID before and after cleaning, with character length as the proof.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th scope="col">LaborID</th><th scope="col">As loaded</th><th scope="col" class="num">Length</th><th scope="col">After clean</th><th scope="col" class="num">Length</th><th scope="col" class="num">Hours</th></tr></thead>
+        <tbody>
+          <tr><td class="key">L-502</td><td class="key">TECH-04</td><td class="num">7</td><td class="key">TECH-04</td><td class="num">7</td><td class="num">6.0</td></tr>
+          <tr class="row-bad"><td class="key">L-505</td><td class="key cell-bad">TECH-04 </td><td class="num cell-bad">8</td><td class="key cell-good">TECH-04</td><td class="num">7</td><td class="num">4.5</td></tr>
+          <tr class="row-good"><td>TECH-04 total after the fix</td><td class="muted">two rows now match</td><td class="num muted"></td><td class="key">TECH-04</td><td class="num muted"></td><td class="num">10.5</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h4>Surviving a column that changes name</h4>
+
+  <p>Remove Other Columns generates <code>Table.SelectColumns</code> with a list of names and no third argument, so a missing column raises an error and the refresh stops. Write the function yourself and you get a third option.</p>
+
+  <div class="code" data-lang="M">
+    <div class="code-head"><span class="code-lang">M</span><span class="code-name">Column selection that tolerates a source change</span></div>
+<pre><code>    Kept <span class="op">=</span> <span class="k">Table.SelectColumns</span>(<span class="t">WorkOrders</span>,
+        {<span class="s">"WorkOrderID"</span>, <span class="s">"ACREG"</span>, <span class="s">"StationCode"</span>,
+         <span class="s">"WOType"</span>, <span class="s">"OpenedDate"</span>, <span class="s">"PromisedDate"</span>,
+         <span class="s">"ClosedDate"</span>, <span class="s">"QuotedAmount"</span>},
+        <span class="k">MissingField.Ignore</span>)</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">MissingField.Ignore</div><div class="linex-v">A name that is not present is skipped. The query refreshes. The column is gone from the model and every measure built on it returns blank.</div></div>
+    <div class="linex-row"><div class="linex-k">MissingField.UseNull</div><div class="linex-v">The column is created and filled with nulls, so downstream steps that reference it by name still run. Usually the better choice, because a column of nulls is visible in a table visual whereas a missing column just vanishes from the field list.</div></div>
+    <div class="linex-row"><div class="linex-k">Default, error</div><div class="linex-v">Refresh fails with the column name in the message. Loud, immediate, and correct for the eight columns of <code>FactWorkOrder</code> that the model cannot function without.</div></div>
+  </div>
+
+  <p>Be honest about the trade. <code>MissingField.Ignore</code> does not make your query resilient, it makes it quiet. A model that silently loses <code>QuotedAmount</code> reports zero variance against quote for every work order, and somebody makes a pricing decision on it. Reserve the Ignore option for genuinely optional columns. Use UseNull where a downstream step needs the name to exist. Let the mandatory keys fail loudly. Picking which failure you would rather have is the whole of the job here.</p>
+
+  <h3>All of it in one place, and what I would actually do</h3>
+
+  <p>Every transformation in this chapter has now been argued against its DAX alternative one at a time. Here they are together, with the Meridian counts that make each case, because the argument is easier to hold as a list than as six separate discussions.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 05.9</span> Each transformation, its nearest DAX equivalent, and the verdict with the numbers behind it.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th scope="col">Transformation</th><th scope="col">Nearest DAX equivalent</th><th scope="col">Meridian numbers</th><th scope="col">Verdict</th></tr>
+        </thead>
+        <tbody>
+          <tr class="row-good"><th scope="row">Unpivot</th><td><code>UNION</code> of four <code>SELECTCOLUMNS</code> blocks, with the trade list written four times</td><td>7 rows to 28 either way, 176 planned hours either way</td><td>Power Query. Nothing is close</td></tr>
+          <tr class="row-good"><th scope="row">Append</th><td><code>UNION</code>, then <code>DISTINCT</code>, then a second <code>UNION</code> with <code>ROW</code></td><td>21 stacked, 5 distinct, 4 without the blank, 5 with UNASSIGNED, in both tools</td><td>Power Query. The DAX version forces all three raw sources into the model</td></tr>
+          <tr><th scope="row">Merge</th><td><code>NATURALINNERJOIN</code> and <code>NATURALLEFTOUTERJOIN</code>, two of the six kinds</td><td>7 and 8 rows. The left anti that DAX lacks is the 1 row you want, WO-1006</td><td>Power Query for the model. DAX only for a throwaway check in a query window</td></tr>
+          <tr><th scope="row">Group by</th><td><code>SUMMARIZE</code>, or <code>ADDCOLUMNS</code> over the header table</td><td>6 rows and 62.0 either way. <code>ADDCOLUMNS</code> over the 8 headers is the cleaner way to keep WO-1005 and WO-1008</td><td>A measure if you only need the number. Power Query if you need a column</td></tr>
+          <tr class="row-good"><th scope="row">Split to rows</th><td>Text parsing, which cannot produce rows at all</td><td>6 technicians to the 10 row bridge. DAX leaves you with delimited strings no relationship can use</td><td>Power Query. There is no working alternative</td></tr>
+          <tr class="row-good"><th scope="row">Reference versus duplicate</th><td>Nothing. DAX has no staging query and no Enable Load</td><td>Three inputs of 8, 6 and 7 rows that never become tables</td><td>Power Query. The choice does not exist downstream</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Read down the verdict column and the pattern is narrower than Power Query simply being the better tool. All six of these transformations change the shape of a table. Shape is what the model is built on, so it has to be settled before the model exists. DAX earns its keep when the answer depends on what somebody just clicked. Not one of these six does. Nobody clicks a slicer and expects <code>FactCapacity</code> to stop having 28 rows.</p>
+
+  <p>That gives the rule to carry out of the chapter. If the operation changes the row count, the column count or the grain, do it in Power Query. If it changes a number in response to a selection, write a measure. The genuinely contested middle is small: a row level calculation that both tools handle correctly. It is worked through in full in <a class="xref" href="#ch-04">Chapter 4</a>. The answer there is to store it when the inputs are fixed history, and to compute it in a measure the moment a slicer could ever touch one of them.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>Almost every transformation in this chapter can be described by what it does to the row count: unpivot multiplies by the number of value columns, append adds, merge with expand multiplies by average match count, group divides, split to rows multiplies by average token count. If you can state the expected row count before you click and then check it after, you will catch the majority of load bugs at the moment you create them. The Meridian numbers to hold in your head are 7 to 28 on the capacity unpivot, 21 to 5 on the station append, 8 to 10 on the labor expand, and 6 to 10 on the certification split.</p>
+  </aside>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>Anchor an unpivot on the key columns and let the value columns flow through. Read the formula bar: <code>Table.UnpivotOtherColumns</code> survives a new trade appearing, while <code>Table.Unpivot</code> hard codes the list, leaves the new column sitting wide and outside the totals, and says nothing.</li>
+      <li>ShopCapacity goes from 7 wide rows to 28 long rows, and the 176 total planned hours must be identical on both sides of the step.</li>
+      <li>Append matches columns by name only. The DimStation build is 8 plus 6 plus 7 equals 21, distinct to 5 including the blank, 4 after removing the blank, 5 again once UNASSIGNED is added.</li>
+      <li>Left anti join is the fastest orphan diagnostic in Power Query. WorkOrders to AircraftRegistry returns exactly one row, WO-1006. Right anti returns N120CE and N553KD.</li>
+      <li>Expanding a merge multiplies rows and duplicates header values. Expanding WorkOrders to its labor lines turns 8 rows into 10 and inflates quoted amount from 38,100 to 53,600.</li>
+      <li>Group By returns only groups that have rows, so WO-1005 and WO-1008 disappear. Merge the grouped result back onto the full header list if you need all eight.</li>
+      <li>Duplicate copies steps and drifts. Reference points at the output and propagates fixes, but it does not cache, so a staging query can be evaluated more than once per refresh.</li>
+      <li>Trim fixes the trailing space on L-505 and recovers TECH-04 to 10.5 hours. Neither Trim nor Clean removes a non-breaking space, so replace code point 160 explicitly.</li>
+      <li>State the culture in every date conversion. A locale flip on one work order moves average turn time from 12.0 days to 26.8 days with no error anywhere.</li>
+      <li>Every one of these transformations has a DAX imitation that returns the same numbers and costs more: <code>UNION</code> for unpivot and append, two of the six join kinds for merge, <code>SUMMARIZE</code> for group by, and nothing at all for reference versus duplicate. The matching numbers are the trap. They make the choice look optional.</li>
+      <li>The reason to shape data upstream is that a calculated table has to load every source it reads, is rebuilt every refresh, never folds, and cannot be referenced by any later query step. Power Query staging keeps the 8, 6 and 7 raw rows behind DimStation out of the model entirely.</li>
+      <li>The rule in one line: if the operation changes the row count, the column count or the grain, do it in Power Query. If the answer changes when somebody clicks, write a measure.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="04.html"><span class="pn-dir">Previous</span><span class="pn-t">Power Query or DAX: deciding where work belongs</span></a><a class="pn" href="06.html"><span class="pn-dir">Next</span><span class="pn-t">Relationship mechanics: cardinality, direction, active and inactive</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>

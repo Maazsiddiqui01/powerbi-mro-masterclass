@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B5A68">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Data Modelling">
+
+<link rel="stylesheet" href="../assets/app.css">
+<title>Why the star schema is the right shape</title>
+</head>
+<body data-ch="02">
+<div id="progress"></div>
+<header class="topbar">
+  <a class="tb-home" href="../index.html" aria-label="Contents">Contents</a>
+  <div class="tb-mid"><span class="tb-num">02</span><span class="tb-title">Why the star schema is the right shape</span></div>
+  <div class="tb-right"><span class="tb-pct" id="tbPct">0%</span></div>
+</header>
+<div id="resumeChip" class="resume-chip" hidden>
+  <span>Jumped to where you stopped.</span><button id="resumeTop">Start from the top</button>
+</div>
+<main class="main main-single">
+<section class="chapter" id="ch-02">
+  <div class="chapter-head">
+    <div class="chapter-kicker">Part 1 . Reading the data</div>
+    <h2 class="chapter-title"><span class="chapter-num">02</span>Why the star schema is the right shape</h2>
+    <p class="chapter-lede">After this chapter you will be able to say, in storage terms, what a wide flat table costs Meridian. You will also be able to decide, for any dimension, whether to flatten it or split it out.</p>
+  </div>
+
+  <p class="lead">The finance manager wants one number before the quarter closes. What did Meridian quote? Your report says 46,600. Her ledger says 38,100. Nothing on the page is broken and no measure has an error in it, and the answer is still 8,500 dollars wrong. The cause is the shape of the tables underneath. This chapter shows you how to price that shape in storage terms, so you can judge the trade yourself and stop quoting a convention at people.</p>
+
+  <p>Most people meet the star schema as a convention. Facts in the middle, dimensions around the edge, someone senior said so. A star schema is one table of measurements, called the fact table, surrounded by the tables that describe those measurements, called dimension tables. As a convention it stops helping the moment it looks like it is costing you something, because a convention gives you no way to price the trade. Storage gives you one, so build the argument up from there.</p>
+
+  <h3>How the engine actually stores a column</h3>
+
+  <p>Power BI holds imported data in memory using an engine called VertiPaq. VertiPaq is a column store, which means it keeps each column as its own separate object. So the eight rows of <span class="fact-tag">Fact</span> <code>FactLabor</code> you met in <a class="xref" href="#ch-01">Chapter 1</a> live in memory as six columns. Each one is compressed on its own, in its own region of memory. The engine reassembles rows at query time, and only for the columns the query actually touched. A measure is a calculation the model performs on demand, and a measure that reads <code>FactLabor[Hours]</code> never pays for <code>FactLabor[HourlyRate]</code> sitting next to it.</p>
+
+  <p>Each column gets one of two encodings. Value encoding applies to integers. The engine looks for a linear transform, usually subtracting a base, that holds every value in fewer bits. <code>FactLabor[HourlyRate]</code> contains 88, 95, 102, 110 and 120. Subtract 88 and the range becomes 0 to 32, which fits in six bits per row. A plain integer column wants thirty-two. No dictionary is needed here, because the original value is recoverable by arithmetic.</p>
+
+  <p>Dictionary encoding handles everything else: text, dates, decimals, and integers where the value trick does not pay. The engine lists the distinct values, gives each an integer id, and stores the column as a list of ids. Table 2.1 does that by hand for <code>FactWorkOrder[StationCode]</code>, after the blank on WO-1005 has been mapped to <code>UNASSIGNED</code>.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 2.1</span> Dictionary encoding of FactWorkOrder[StationCode]. The column becomes four dictionary entries plus eight small integers.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Work order</th>
+            <th scope="col">StationCode value</th>
+            <th scope="col" class="num">Dictionary id</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">WO-1001</td><td>MSP</td><td class="num">0</td></tr>
+          <tr><td class="key">WO-1002</td><td>MSP</td><td class="num">0</td></tr>
+          <tr><td class="key">WO-1003</td><td>TUS</td><td class="num">1</td></tr>
+          <tr><td class="key">WO-1004</td><td>TUS</td><td class="num">1</td></tr>
+          <tr><td class="key">WO-1005</td><td>UNASSIGNED</td><td class="num">2</td></tr>
+          <tr><td class="key">WO-1006</td><td>MSP</td><td class="num">0</td></tr>
+          <tr><td class="key">WO-1007</td><td>LAS</td><td class="num">3</td></tr>
+          <tr><td class="key">WO-1008</td><td>MSP</td><td class="num">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Four distinct values need two bits to identify. Eight rows times two bits is sixteen bits, two bytes for the whole column, plus one dictionary of four short strings. "MSP" is stored once, not four times. I assigned the ids in order of first appearance for readability; the real assignment is the engine's business, but the count of entries is exactly what you control.</p>
+
+  <p>On top of that sits run length encoding. The engine works in segments, and a segment is a block of roughly a million rows in an import model. Inside each segment it reorders the rows so identical values line up, then stores each run as one value and one count. A station column reading MSP two hundred thousand times becomes a single pair. There is a tension in that, and it is worth knowing about. One row order has to serve every column in the segment. An order that gives long runs for <code>StationCode</code> may give short runs for <code>ACREG</code>, and the engine picks its compromise by heuristic. You cannot direct it.</p>
+
+  <p>Now the consequence, which is the whole chapter in one line. The cost of a column is set by its distinct count, not by its row count. The number of distinct values in a column is called its cardinality, and that word will come back in every section below. Four distinct values across a hundred million rows is nearly free: four dictionary entries, two bits per row, enormous runs. A hundred million distinct values across a hundred million rows is close to worst case: a dictionary as large as the table, twenty-seven bits per id, no runs anywhere. Every modelling decision below is a decision about cardinality.</p>
+
+  <h3>The flat table, and the two bills it sends you</h3>
+
+  <p>Go back to the finance manager and her 46,600. That number came out of the obvious approach, and the obvious approach is genuinely tempting, so build it here and watch it break. Meridian has six source tables. You want hours by aircraft type, by technician and by station, so you join everything in Power Query down to one table and load that. Down to what, though? Grain is the sentence that says what one row of a table means, and the grain you pick here is one row per labor line. Eight rows in, eight rows out, no relationships to explain to anyone. Table 2.2 is that table.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 2.2</span> Everything joined to labor line grain. Keys are already cleaned, so L-505 matches TECH-04 and TECH-07 resolves to its unknown member. The table is still wrong.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">LaborID</th>
+            <th scope="col">TechnicianName</th>
+            <th scope="col">AircraftType</th>
+            <th scope="col">Operator</th>
+            <th scope="col">Station</th>
+            <th scope="col" class="num">Hours</th>
+            <th scope="col" class="num">QuotedAmount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">L-501</td><td>M. Halvorsen</td><td>A320-200</td><td>Cascade Air</td><td>MSP</td><td class="num">7.5</td><td class="num">3,000</td></tr>
+          <tr class="row-bad"><td class="key">L-502</td><td>D. Sandoval</td><td>A320-200</td><td>Cascade Air</td><td>MSP</td><td class="num">6.0</td><td class="num cell-bad">3,000</td></tr>
+          <tr><td class="key">L-503</td><td>M. Halvorsen</td><td>B737-800</td><td>Cascade Air</td><td>MSP</td><td class="num">9.0</td><td class="num">3,200</td></tr>
+          <tr><td class="key">L-504</td><td>K. Ibrahim</td><td>E175</td><td>Northwind Regional</td><td>TUS</td><td class="num">8.0</td><td class="num">12,500</td></tr>
+          <tr class="row-bad"><td class="key">L-505</td><td>D. Sandoval</td><td>E175</td><td>Northwind Regional</td><td>TUS</td><td class="num">4.5</td><td class="num cell-bad">12,500</td></tr>
+          <tr><td class="key">L-506</td><td class="muted">Unknown technician</td><td>A320-200</td><td>Cascade Air</td><td>TUS</td><td class="num">10.0</td><td class="num">4,000</td></tr>
+          <tr><td class="key">L-507</td><td>R. Okafor</td><td class="muted">Unknown type</td><td class="muted">Unknown operator</td><td>MSP</td><td class="num">12.0</td><td class="num">7,500</td></tr>
+          <tr><td class="key">L-508</td><td>K. Ibrahim</td><td>E175</td><td>Northwind Regional</td><td>LAS</td><td class="num">5.0</td><td class="num">900</td></tr>
+          <tr class="row-total"><td>Sum</td><td></td><td></td><td></td><td></td><td class="num">62.0</td><td class="num cell-bad">46,600</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 340" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><text x="40.0" y="26.0" class="d-t" fill="#AE4419">One flat table at labor line grain</text><rect x="40" y="44" width="792" height="162" rx="5" fill="#FFFFFF" stroke="#AE4419" stroke-width="1.6"/><rect x="41" y="45" width="790" height="26" fill="#FBEEE7"/><text x="50.0" y="62.0" class="d-m" fill="#AE4419" font-weight="600">WorkOrderID</text><text x="182.0" y="62.0" class="d-m" fill="#AE4419" font-weight="600">QuotedAmount</text><text x="314.0" y="62.0" class="d-m" fill="#AE4419" font-weight="600">ACREG</text><text x="446.0" y="62.0" class="d-m" fill="#AE4419" font-weight="600">AircraftType</text><text x="578.0" y="62.0" class="d-m" fill="#AE4419" font-weight="600">TechnicianID</text><text x="710.0" y="62.0" class="d-m" fill="#AE4419" font-weight="600">Hours</text><line x1="40" y1="71" x2="832" y2="71" stroke="#AE4419" stroke-width="1"/><text x="50.0" y="89.0" class="d-m" fill="#17160F">WO-1001</text><rect x="174" y="73" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="182.0" y="89.0" class="d-m" fill="#98281E">3000</text><rect x="306" y="73" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="314.0" y="89.0" class="d-m" fill="#98281E">N771QR</text><rect x="438" y="73" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="446.0" y="89.0" class="d-m" fill="#98281E">A320-200</text><text x="578.0" y="89.0" class="d-m" fill="#17160F">TECH-02</text><text x="710.0" y="89.0" class="d-m" fill="#17160F">7.5</text><line x1="40" y1="98" x2="832" y2="98" stroke="#EDE9DF" stroke-width=".7"/><text x="50.0" y="116.0" class="d-m" fill="#17160F">WO-1001</text><rect x="174" y="100" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="182.0" y="116.0" class="d-m" fill="#98281E">3000</text><rect x="306" y="100" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="314.0" y="116.0" class="d-m" fill="#98281E">N771QR</text><rect x="438" y="100" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="446.0" y="116.0" class="d-m" fill="#98281E">A320-200</text><text x="578.0" y="116.0" class="d-m" fill="#17160F">TECH-04</text><text x="710.0" y="116.0" class="d-m" fill="#17160F">6.0</text><line x1="40" y1="125" x2="832" y2="125" stroke="#EDE9DF" stroke-width=".7"/><text x="50.0" y="143.0" class="d-m" fill="#17160F">WO-1002</text><text x="182.0" y="143.0" class="d-m" fill="#17160F">3200</text><text x="314.0" y="143.0" class="d-m" fill="#17160F">N448LM</text><text x="446.0" y="143.0" class="d-m" fill="#17160F">B737-800</text><text x="578.0" y="143.0" class="d-m" fill="#17160F">TECH-02</text><text x="710.0" y="143.0" class="d-m" fill="#17160F">9.0</text><line x1="40" y1="152" x2="832" y2="152" stroke="#EDE9DF" stroke-width=".7"/><text x="50.0" y="170.0" class="d-m" fill="#17160F">WO-1003</text><rect x="174" y="154" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="182.0" y="170.0" class="d-m" fill="#98281E">12500</text><rect x="306" y="154" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="314.0" y="170.0" class="d-m" fill="#98281E">N902TT</text><rect x="438" y="154" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="446.0" y="170.0" class="d-m" fill="#98281E">E175</text><text x="578.0" y="170.0" class="d-m" fill="#17160F">TECH-05</text><text x="710.0" y="170.0" class="d-m" fill="#17160F">8.0</text><line x1="40" y1="179" x2="832" y2="179" stroke="#EDE9DF" stroke-width=".7"/><text x="50.0" y="197.0" class="d-m" fill="#17160F">WO-1003</text><rect x="174" y="181" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="182.0" y="197.0" class="d-m" fill="#98281E">12500</text><rect x="306" y="181" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="314.0" y="197.0" class="d-m" fill="#98281E">N902TT</text><rect x="438" y="181" width="128" height="23" rx="2" fill="#F6D6CE" stroke="#D98B78" stroke-width=".8"/><text x="446.0" y="197.0" class="d-m" fill="#98281E">E175</text><text x="578.0" y="197.0" class="d-m" fill="#17160F">TECH-04</text><text x="710.0" y="197.0" class="d-m" fill="#17160F">4.5</text><rect x="40.0" y="240.0" width="380.0" height="74.0" rx="5" fill="#FBEDEA" stroke="#98281E" stroke-width="1.4"/><text x="54.0" y="262.0" class="d-t" fill="#98281E">SUM of QuotedAmount = 34,200</text><text x="54.0" y="280.0" class="d-s">3000 and 12500 are each counted twice because</text><text x="54.0" y="294.0" class="d-s">their work order has two labor lines. True total is 38,100,</text><text x="54.0" y="308.0" class="d-s">and this extract is only part of the table.</text><rect x="444.0" y="240.0" width="380.0" height="74.0" rx="5" fill="#F6F4EE" stroke="#9B978C" stroke-width="1.4"/><text x="458.0" y="262.0" class="d-t" fill="#77746B">AircraftType repeats on every row</text><text x="458.0" y="280.0" class="d-s">At eight rows this costs nothing. At eighty million it</text><text x="458.0" y="294.0" class="d-s">costs a dictionary entry per distinct value and destroys</text><text x="458.0" y="308.0" class="d-s">the run length encoding the engine relies on.</text></svg></div><figcaption><span class="fig-num">Figure 2.1</span>One flat table at labor line grain, and the two separate things it breaks.</figcaption></figure>
+
+  <p>The figure takes the first five of those rows and tints every cell that is a repeat. That tinting separates the harmless repetition from the fatal kind. <code>ACREG</code> and <code>AircraftType</code> repeat because WO-1001 and WO-1003 each carry two labor lines, and neither repeat costs you an answer. The same is true across the wider Table 2.2, where Cascade Air appears four times and D. Sandoval twice. <code>QuotedAmount</code> repeats for exactly the same reason, and there it is fatal. A number that belongs to a work order has been copied onto every labor line that work order happens to have. Sum that column down the five rows drawn and you get 34,200, with 3,000 and 12,500 each counted twice. Sum it down all eight rows of Table 2.2 and you get 46,600, against a true total of 38,100.</p>
+
+  <p>The first bill is storage, and here I am going to argue against the version of this you have probably read. Repeating a low-cardinality text value is cheap. That is the exact case dictionary encoding and run length encoding were built for. AircraftType has four distinct values here, and it would still have four across a hundred million rows. The real storage penalty is narrower than the folklore. It comes from high-cardinality header attributes dragged down to line grain, and from the segment sort compromise, because twenty columns force one row order that cannot suit all of them. At eight rows, flattening costs zero bytes. Say so out loud. A reader who has been told the flat table is slow, and then measures it, will stop believing you about anything else.</p>
+
+  <p>The second bill is correctness, and that one you have to pay in full. <code>QuotedAmount</code> is an attribute of the work order header, which means it has one value per work order. In Table 2.2 it has one value per labor line instead. WO-1001's 3,000 appears twice and WO-1003's 12,500 appears twice. Meanwhile WO-1005 and WO-1008 have vanished from the table entirely, because neither has a labor row to hang on.</p>
+
+  <div class="ba">
+    <div class="ba-col ba-wrong">
+      <div class="ba-head">The wrong way</div>
+      <p>Sum the header amount from the flattened table, because it is right there as a column.</p>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Quoted Total, flat</span></div>
+        <pre><code><span class="c">// FlatLabor is one row per labor line</span>
+Quoted Total <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FlatLabor</span><span class="col">[QuotedAmount]</span> )</code></pre>
+      </div>
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>SUM</code> reads one physical column and adds every value it finds. It cannot know that two of those values are copies, because nothing in the model says so. Returns 46,600.</div></div>
+      </div>
+      <p>The usual repair is to deduplicate inside the measure.</p>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Quoted Total, patched</span></div>
+        <pre><code>Quoted Total <span class="op">=</span>
+    <span class="k">SUMX</span> (
+        <span class="k">SUMMARIZE</span> (
+            <span class="t">FlatLabor</span>,
+            <span class="t">FlatLabor</span><span class="col">[WorkOrderID]</span>,
+            <span class="t">FlatLabor</span><span class="col">[QuotedAmount]</span>
+        ),
+        <span class="t">FlatLabor</span><span class="col">[QuotedAmount]</span>
+    )</code></pre>
+      </div>
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>SUMX</code> and not <code>SUM</code>, because <code>SUM</code> can only read a column that physically exists. You are adding the rows of a table built at query time, which needs an iterator.</div></div>
+        <div class="linex-row"><div class="linex-k">Line 3</div><div class="linex-v"><code>SUMMARIZE</code> and not <code>VALUES</code>, because you need the work order key paired with its amount. <code>VALUES</code> returns one column, which would collapse two work orders that share an amount.</div></div>
+        <div class="linex-row"><div class="linex-k">Cost</div><div class="linex-v">It removes the duplicates and still cannot invent WO-1005 and WO-1008. It also runs this grouping on every visual, every slicer click, forever.</div></div>
+      </div>
+    </div>
+    <div class="ba-col ba-right">
+      <div class="ba-head">The fix</div>
+      <p>Keep the header amount at header grain, in its own table, and sum it there.</p>
+      <div class="code" data-lang="DAX">
+        <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Quoted Total, star</span></div>
+        <pre><code>Quoted Total <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactWorkOrder</span><span class="col">[QuotedAmount]</span> )</code></pre>
+      </div>
+      <div class="linex">
+        <div class="linex-row"><div class="linex-k">Line 2</div><div class="linex-v"><code>SUM</code> is right here precisely because the grain is right: eight rows, eight amounts, one per work order. No deduplication needed, so no iterator needed.</div></div>
+        <div class="linex-row"><div class="linex-k">Result</div><div class="linex-v">38,100, which matches what finance quotes. WO-1005 and WO-1008 are included, because they exist whether or not anyone booked time to them.</div></div>
+      </div>
+      <p>The measure got shorter. That is the tell. When the shape matches the grain, measures stop containing corrections.</p>
+    </div>
+  </div>
+
+  <div class="symptom">
+    <div class="symptom-label">What you see in the report</div>
+    <p>A card labelled Total Quoted reads 46,600. Nobody questions it. It is roughly the right size, and it sits beside a labor hours card reading 62.0, which is correct. Three weeks later the finance manager says the quarter was 38,100 and asks why you are 8,500 high. You will not find that by staring at the visual, because the visual is doing exactly what you asked it to do.</p>
+  </div>
+
+  <details class="expand" open>
+    <summary>Trace the 8,500 by hand</summary>
+    <div class="expand-body">
+      <p>Flat sum, straight down the last column of Table 2.2: 3,000 plus 3,000 plus 3,200 plus 12,500 plus 12,500 plus 4,000 plus 7,500 plus 900 equals 46,600.</p>
+      <p>Reconcile that against the true total of 38,100. Remove WO-1005 at 2,000 and WO-1008 at 5,000, because neither has a labor row to carry it into the flat table. That leaves 31,100. Now add the copies back. WO-1001 sits on two labor lines, so its 3,000 counts twice, and WO-1003 sits on two lines, so its 12,500 counts twice. 31,100 plus 3,000 plus 12,500 equals 46,600. The overstatement is 8,500, which is the figure the finance manager put to you.</p>
+      <p>A left outer join from work orders to labor does not save you. WO-1005 and WO-1008 come back with blank hours, giving ten rows, and the quoted sum becomes 46,600 plus 2,000 plus 5,000, which is 53,600. You added the missing work orders back and the number got worse. That is the signature of a grain problem rather than a data problem.</p>
+    </div>
+  </details>
+
+  <aside class="callout mistake">
+    <div class="callout-label">Common mistake</div>
+    <p>Treating the deduplicating measure as the fix. It is a tax, and you pay it on every measure that touches a header column: quoted amount, promised date, turn time, on time percentage. Each has to be written defensively by someone who remembers why. The next person to open the file will write <code>SUM</code>, get 46,600, and ship it.</p>
+  </aside>
+
+  <h3>The star</h3>
+
+  <p>So the finance manager gets her 38,100 as soon as the quoted amount goes back to the grain it belongs at, one row per work order. That table is the one in the middle of the picture that follows.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 430" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="360.0" y="168.0" width="186.0" height="146.0" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="371.0" y="185.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="360.0" y1="194.0" x2="546.0" y2="194.0" stroke="#AE4419" stroke-width="1"/><text x="371.0" y="206.0" class="d-m" font-weight="600" fill="#AE4419">WorkOrderID</text><text x="371.0" y="221.5" class="d-m">ACREG</text><text x="371.0" y="237.0" class="d-m">StationCode</text><text x="371.0" y="252.5" class="d-m">WOType</text><text x="371.0" y="268.0" class="d-m">OpenedDate</text><text x="371.0" y="283.5" class="d-m">QuotedAmount</text><text x="371.0" y="300.0" class="d-s" font-style="italic">8 rows, one per work order</text><rect x="378.0" y="18.0" width="150.0" height="86.5" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="389.0" y="35.0" class="d-t" fill="#1B5A68">DimDate</text><line x1="378.0" y1="44.0" x2="528.0" y2="44.0" stroke="#1B5A68" stroke-width="1"/><text x="389.0" y="56.0" class="d-m" font-weight="600" fill="#1B5A68">Date</text><text x="389.0" y="71.5" class="d-m">MonthName</text><text x="389.0" y="87.0" class="d-m">Quarter</text><rect x="72.0" y="176.0" width="176.0" height="86.5" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="83.0" y="193.0" class="d-t" fill="#1B5A68">DimAircraft</text><line x1="72.0" y1="202.0" x2="248.0" y2="202.0" stroke="#1B5A68" stroke-width="1"/><text x="83.0" y="214.0" class="d-m" font-weight="600" fill="#1B5A68">ACREG</text><text x="83.0" y="229.5" class="d-m">AircraftType</text><text x="83.0" y="245.0" class="d-m">Operator</text><rect x="658.0" y="176.0" width="170.0" height="86.5" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="669.0" y="193.0" class="d-t" fill="#1B5A68">DimStation</text><line x1="658.0" y1="202.0" x2="828.0" y2="202.0" stroke="#1B5A68" stroke-width="1"/><text x="669.0" y="214.0" class="d-m" font-weight="600" fill="#1B5A68">StationCode</text><text x="669.0" y="229.5" class="d-m">StationName</text><text x="669.0" y="245.0" class="d-m">Role</text><rect x="378.0" y="336.0" width="150.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6" stroke-dasharray="5 3.5"/><text x="389.0" y="353.0" class="d-t" fill="#1B5A68">DimWOType</text><line x1="378.0" y1="362.0" x2="528.0" y2="362.0" stroke="#1B5A68" stroke-width="1"/><text x="389.0" y="374.0" class="d-m" font-weight="600" fill="#1B5A68">WOType</text><text x="389.0" y="389.5" class="d-m">Planned</text><line x1="453.0" y1="104.5" x2="453.0" y2="168.0" class="d-line"/><text x="444.0" y="123.0" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="444.0" y="156.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="248.0" y1="205.0" x2="360.0" y2="205.0" class="d-line"/><text x="263.0" y="217.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="345.0" y="217.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="658.0" y1="205.0" x2="546.0" y2="205.0" class="d-line"/><text x="643.0" y="199.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="561.0" y="199.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="453.0" y1="336.0" x2="453.0" y2="314.0" class="d-line"/><text x="462.0" y="324.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="462.0" y="332.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="72.0" y="405.0" class="d-s" fill="#77746B">Dashed edge means the table was built, it does not exist in the source.</text><text x="72.0" y="420.0" class="d-s" fill="#77746B">Every dimension is exactly one hop from the fact. That is the whole idea.</text></svg></div><figcaption><span class="fig-num">Figure 2.2</span>The Meridian star. FactWorkOrder at the centre, every dimension exactly one hop away.</figcaption></figure>
+
+  <p>One <span class="fact-tag">Fact</span> table sits in the centre in terracotta, <code>FactWorkOrder</code> at eight rows, one per work order. The four <span class="dim-tag">Dimension</span> tables that describe it sit around it in teal: <code>DimDate</code> above, <code>DimAircraft</code> to the left, <code>DimStation</code> to the right, <code>DimWOType</code> below. Follow any line and count the hops. Each line carries a 1 at the dimension end and a star at the fact end, and every one of them is a single hop. That is the whole idea. A slicer is the filter control a report user clicks, and everything a slicer touches sits one relationship away from the numbers it filters. A dashed border means somebody built the table. Not one of these four arrives from a source system as a table you can simply load.</p>
+
+  <p>The full model runs wider than that one star. The facts are <code>FactWorkOrder</code> at eight rows, <code>FactLabor</code> at eight, <code>FactParts</code> at seven and <code>FactCapacity</code> at twenty-eight after the unpivot. Only <code>FactWorkOrder</code> is drawn above. Five dimensions have to be <span class="derived-tag">Built</span>, because no source system hands them to you. <code>DimAircraft</code> is the registry appended with the tails found in the work orders, which gives N338WA a home instead of a blank row. <code>DimStation</code> is the union of three sources plus an <code>UNASSIGNED</code> member. <code>DimTechnician</code> gains a row for the orphan TECH-07. <code>DimPart</code> is derived from the fact itself, since no part master exists. <code>DimDate</code> is generated from a start date and an end date.</p>
+
+  <div class="kv">
+    <div class="kv-item"><div class="kv-k">Fact tables</div><div class="kv-v">4</div></div>
+    <div class="kv-item"><div class="kv-k">Dimension tables</div><div class="kv-v">7</div></div>
+    <div class="kv-item"><div class="kv-k">Bridge tables</div><div class="kv-v">1</div></div>
+    <div class="kv-item"><div class="kv-k">Deepest active path</div><div class="kv-v">Two hops</div></div>
+  </div>
+
+  <p>Here is what happens when the production controller clicks A320-200 in that slicer. The engine restricts <code>DimAircraft</code> to the two matching rows, N771QR and N615RB. It reads their <code>ACREG</code> values as a set of dictionary ids and pushes that set onto <code>FactWorkOrder[ACREG]</code>. Then it scans that one column once and keeps the row positions that match: WO-1001, WO-1004 and WO-1008 on N771QR, plus WO-1005 on N615RB. The surviving set propagates on to <code>FactLabor</code> the same way. Hours comes back as 23.5, which is WO-1001 at 13.5 plus WO-1004 at 10.0. WO-1005 and WO-1008 contribute nothing, because neither has a labor row. Nothing was widened and nothing was duplicated. The work is proportional to the number of distinct keys, not to the size of the fact.</p>
+
+  <p>Now the inconvenient part, and you should say it out loud in a design review. Meridian's model is a star with one extra layer in it. <code>FactWorkOrder</code> plays two roles at once. It is a fact, because <code>QuotedAmount</code> lives on it and gets summed. It is also the header dimension for <code>FactLabor</code> and <code>FactParts</code>, neither of which is drawn in the star above. That puts <code>DimAircraft</code> two hops from <code>FactLabor</code> instead of one. The chain is what makes hours by aircraft type reachable at all, since neither line table carries an aircraft registration. Two hops is the price of keeping the header amount at header grain, and it is worth paying.</p>
+
+  <h3>What a relationship costs at query time</h3>
+
+  <p>The planner has been told that every relationship you add makes the report slower, and he wants to know how many the model can carry. It is a fair question and it has a specific answer, so work out what one relationship actually costs the engine.</p>
+
+  <p>A relationship in a tabular model is not a SQL join, and the engine does not evaluate it like one. At load time, for each many-to-one relationship, the engine builds a structure that maps every value on the many side to the position of the matching row on the one side. Following the relationship afterwards is a lookup. There is no matching phase, no hashing of one side against the other, no loop over rows. Many-to-one is the direction almost every relationship in this model runs: many fact rows point at one dimension row.</p>
+
+  <p>Be precise about what is certain here. The internal representation is an implementation detail. Microsoft has changed it across versions and does not publish it as a contract. What is stable, and what you design against, is the cost profile. A many-to-one hop costs roughly in proportion to the distinct values involved, and it stays cheap into the millions of rows. So the planner's answer is that relationships of this shape are close to free, and you should add the ones the questions need.</p>
+
+  <p>Many-to-many is a different animal. There is no single row on the one side to point at, so that prepared structure cannot exist. The engine expands the filter through a distinct list of the shared key at query time and holds an intermediate result. That work happens per query and per filter combination, and it cannot be prepared at load. It also gives up the property that made the star worth building, because filters that travel both ways can take more than one route.</p>
+
+  <aside class="callout rule">
+    <div class="callout-label">Rule of thumb</div>
+    <p>Every relationship should be many-to-one, single direction, from the one side outward. When you want a many-to-many, first check whether you are missing a dimension. Meridian's certification case is genuinely many-to-many, so <code>BridgeTechCert</code> exists for it: ten rows joining the six certified technicians to four certifications, producing hours by certification that add to 85.0 against a true total of 62.0. That gap is real, and it gets its own chapter.</p>
+  </aside>
+
+  <h3>Snowflaking, and when it is worth it</h3>
+
+  <p>A colleague reviews your model and says the aircraft dimension repeats the operator name seven times, so it should be split out. The instinct behind that is a good one, and here it is wrong. Work through what the split buys and what it costs, because you will have this argument again.</p>
+
+<figure class="fig"><div class="fig-frame"><svg viewBox="0 0 900 330" xmlns="http://www.w3.org/2000/svg" role="img" preserveAspectRatio="xMidYMid meet"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#AE4419"/></marker><marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#9B978C"/></marker><marker id="aht" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#1B5A68"/></marker><marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.6 L9,5 L0,9.4 z" fill="#98281E"/></marker></defs><rect x="600.0" y="100.0" width="186.0" height="86.5" rx="5" fill="#FBEEE7" stroke="#AE4419" stroke-width="1.6"/><text x="611.0" y="117.0" class="d-t" fill="#AE4419">FactWorkOrder</text><line x1="600.0" y1="126.0" x2="786.0" y2="126.0" stroke="#AE4419" stroke-width="1"/><text x="611.0" y="138.0" class="d-m" font-weight="600" fill="#AE4419">WorkOrderID</text><text x="611.0" y="153.5" class="d-m">ACREG</text><text x="611.0" y="169.0" class="d-m">QuotedAmount</text><rect x="350.0" y="96.0" width="176.0" height="102.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="361.0" y="113.0" class="d-t" fill="#1B5A68">DimAircraft</text><line x1="350.0" y1="122.0" x2="526.0" y2="122.0" stroke="#1B5A68" stroke-width="1"/><text x="361.0" y="134.0" class="d-m" font-weight="600" fill="#1B5A68">ACREG</text><text x="361.0" y="149.5" class="d-m">AircraftType</text><text x="361.0" y="165.0" class="d-m">OperatorID</text><text x="361.0" y="180.5" class="d-m">EngineID</text><rect x="60.0" y="24.0" width="176.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="71.0" y="41.0" class="d-t" fill="#1B5A68">DimOperator</text><line x1="60.0" y1="50.0" x2="236.0" y2="50.0" stroke="#1B5A68" stroke-width="1"/><text x="71.0" y="62.0" class="d-m" font-weight="600" fill="#1B5A68">OperatorID</text><text x="71.0" y="77.5" class="d-m">OperatorName</text><rect x="60.0" y="158.0" width="176.0" height="71.0" rx="5" fill="#E6F0F2" stroke="#1B5A68" stroke-width="1.6"/><text x="71.0" y="175.0" class="d-t" fill="#1B5A68">DimEngineType</text><line x1="60.0" y1="184.0" x2="236.0" y2="184.0" stroke="#1B5A68" stroke-width="1"/><text x="71.0" y="196.0" class="d-m" font-weight="600" fill="#1B5A68">EngineID</text><text x="71.0" y="211.5" class="d-m">EngineType</text><line x1="526.0" y1="140.0" x2="600.0" y2="140.0" class="d-line"/><text x="541.0" y="152.5" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="585.0" y="152.5" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="236.0" y1="56.0" x2="350.0" y2="130.0" class="d-line"/><text x="243.7" y="75.2" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="332.5" y="132.9" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><line x1="236.0" y1="190.0" x2="350.0" y2="160.0" class="d-line"/><text x="252.8" y="198.4" class="d-lbl" text-anchor="middle" fill="#77746B">1</text><text x="337.8" y="176.0" class="d-lbl" text-anchor="middle" fill="#77746B">*</text><text x="60.0" y="258.0" class="d-s" fill="#77746B">Two extra hops to reach an operator name from a work order.</text><text x="60.0" y="274.0" class="d-s" fill="#77746B">The engine resolves them, but the field list now hides Operator inside</text><text x="60.0" y="290.0" class="d-s" fill="#77746B">a table nobody thinks to open. Worth it only when the outer table is</text><text x="60.0" y="306.0" class="d-s" fill="#77746B">large or genuinely shared by several dimensions. In Meridian it is neither.</text></svg></div><figcaption><span class="fig-num">Figure 2.3</span>The same aircraft dimension, snowflaked into operator and engine type.</figcaption></figure>
+
+  <p>Read this one from the left. <code>DimOperator</code> and <code>DimEngineType</code> both feed <code>DimAircraft</code>, and only <code>DimAircraft</code> touches <code>FactWorkOrder</code>. That is four boxes and three lines, each line labelled 1 at the outer end and a star at the inner end. Count the hops from a filter on Operator to the fact and you get two, where the star figure had one. The selection resolves to operator keys, then to aircraft registrations in <code>DimAircraft</code>, then to fact rows. The picture is tidier. The query has more to do.</p>
+
+  <p>Snowflaking means normalising a dimension, which is to say lifting the repeated attributes out into their own table. Here <code>DimAircraft</code> splits three ways. <code>DimAircraft</code> keeps the aircraft registration, the aircraft type and two outer keys, <code>OperatorID</code> and <code>EngineID</code>. <code>DimOperator</code> holds the three real operators plus an unknown member. <code>DimEngineType</code> holds the three engine families plus its own unknown member. The benefit is real. If the customer service desk renames Northwind Regional, there is one row to change and it cannot be changed inconsistently.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 2.3</span> What snowflaking DimAircraft actually buys and costs in the Meridian model.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Design</th>
+            <th scope="col" class="num">Tables</th>
+            <th scope="col" class="num">Rows held</th>
+            <th scope="col" class="num">Hops to fact</th>
+            <th scope="col">Operator stored as</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row-good"><th scope="row">Flat DimAircraft</th><td class="num">1</td><td class="num">7</td><td class="num">1</td><td>7 dictionary ids, 4 strings</td></tr>
+          <tr><th scope="row">Snowflaked</th><td class="num">3</td><td class="num">15</td><td class="num">2</td><td>7 dictionary ids, 4 strings, one table further away</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Read the last column twice, because it is the argument your colleague needs to hear. Snowflaking is sold as a way to remove duplication. Dictionary encoding has already removed it. "Northwind Regional" is stored once either way. The flat dimension holds seven small ids inside one table. The snowflake holds those same seven ids, plus a four-row operator table, plus a four-row engine type table, plus two more relationships in the model. Rows held goes up: 7 becomes 7 plus 4 plus 4, which is 15. The saving you were promised has already been taken by the compression.</p>
+
+  <p>So take a position. Flatten by default. Snowflake in two situations only. First, when the outer table is large enough that duplicating its attributes genuinely costs something, such as a five million row product dimension carrying a two hundred character description, where the dictionary itself becomes the expensive object. Second, when the outer table is truly shared, meaning two or more dimensions need the same attributes and the same maintenance.</p>
+
+  <p>Neither situation holds at Meridian, so tell your colleague the split stays out. <code>DimAircraft</code> has seven rows and <code>DimOperator</code> would have four. You would add a table, a relationship and a hop to every operator filter, all to avoid repeating an integer id seven times. There is a second cost you cannot measure in bytes. Report authors open the field list, find aircraft attributes sitting in three places, and start guessing which one to use.</p>
+
+  <h3>Several facts, one set of dimensions</h3>
+
+  <p>The production controller wants one line on a page: how busy was MSP in January. Busy against what, though. He means the hours the shop actually worked, set against the hours it planned to have available. Those two numbers live in two different fact tables, and nothing so far in this chapter lets you put them in the same row.</p>
+
+  <p>A model with more than one fact sharing the same dimensions is called a galaxy, or a fact constellation. The name matters less than the mechanism. <code>DimStation</code> has a single-direction relationship to <code>FactWorkOrder[StationCode]</code>, and a second one to <code>FactCapacity[StationCode]</code>. A dimension used this way is conformed, which means one member list and one meaning serving both facts.</p>
+
+  <p>Put <code>DimStation[StationCode]</code> on the rows of a matrix and the engine takes each station in turn, pushing that filter down both relationships independently. Labor hours resolves through the work orders. Planned hours resolves through the capacity rows. Both answers land in the same matrix row, and that is the whole mechanism behind utilisation.</p>
+
+  <div class="code" data-lang="DAX">
+    <div class="code-head"><span class="code-lang">DAX</span><span class="code-name">Utilisation</span></div>
+    <pre><code>Labor Hours <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactLabor</span><span class="col">[Hours]</span> )
+
+Planned Hours <span class="op">=</span>
+    <span class="k">SUM</span> ( <span class="t">FactCapacity</span><span class="col">[PlannedHours]</span> )
+
+Utilisation <span class="op">=</span>
+    <span class="k">DIVIDE</span> ( <span class="col">[Labor Hours]</span>, <span class="col">[Planned Hours]</span> )</code></pre>
+  </div>
+
+  <div class="linex">
+    <div class="linex-row"><div class="linex-k">Lines 1 to 2</div><div class="linex-v">One physical column of one fact. Under a station filter this gives MSP 34.5, TUS 22.5 and LAS 5.0, adding to 62.0.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 4 to 5</div><div class="linex-v">A different fact through the same dimension. MSP 90, TUS 50, LAS 20, PHX 16, adding to 176. PHX has planned hours and no work booked against them. That is a fact about the business, and the report should show it.</div></div>
+    <div class="linex-row"><div class="linex-k">Lines 7 to 8</div><div class="linex-v">Divides the two. By station and month: MSP January 22.5 over 30 is 75.0%, TUS January 12.5 over 25 is 50.0%, LAS March 5.0 over 20 is 25.0%, PHX March 0 over 16 is 0%, and 62.0 over 176 is 35.2% for everything.</div></div>
+  </div>
+
+  <div class="why">
+    <div class="why-label">Why this and not that</div>
+    <p><code>DIVIDE</code> rather than the <code>/</code> operator, because the denominator goes blank in a way you will actually hit. The relationship into <code>FactCapacity</code> is at month grain, so a report filtered to 7 January returns 7.5 labor hours and a blank planned hours. In DAX a non-blank number divided by blank returns infinity, and your card shows a symbol nobody wants to explain. <code>DIVIDE</code> returns blank, which is the honest answer to a day-level question asked of month-level capacity.</p>
+    <p><code>SUM</code> and not <code>SUMX</code> in the two base measures, because both columns physically exist and need no per-row arithmetic. <code>SUMX</code> would build an iteration where a single column scan does the job. It earns its place only when the value has to be computed row by row, such as hours times rate.</p>
+  </div>
+
+  <p>So the production controller gets his line. MSP in January is 22.5 hours worked against 30 planned, which is 75.0%. Take <code>DimStation</code> away and that measure has nowhere to stand. The two totals would sit in unrelated tables with no shared filter, and the only way to line them up would be a Power Query merge at a grain that fits neither. The conformed dimension is what makes the comparison expressible at all.</p>
+
+  <h3>Cardinality as a design input</h3>
+
+  <p>The shift supervisor asks for something reasonable. Every labor line has a note where the technician types what they did, and he wants it in the report so he can read the story behind a long job. Loading one more column sounds like a two minute job. Before you agree, count what that column would contain.</p>
+
+  <p>Cardinality is the distinct count of a column, and once distinct count drives cost, cardinality becomes something you check before you load anything. Table 2.4 is the census for the columns already in the model. The bit width is the smallest number of bits that can address that many distinct values. Treat it as a lower bound on the id width, not a promise about final size.</p>
+
+  <figure class="tbl">
+    <figcaption><span class="tbl-num">Table 2.4</span> Distinct counts for the columns that matter in the Meridian model, with the id width each implies.</figcaption>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">Column</th>
+            <th scope="col" class="num">Rows</th>
+            <th scope="col" class="num">Distinct</th>
+            <th scope="col" class="num">Bits per id</th>
+            <th scope="col">Comment</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="key">FactWorkOrder[WOType]</td><td class="num">8</td><td class="num">3</td><td class="num">2</td><td>Scheduled, AOG, Mod</td></tr>
+          <tr><td class="key">FactWorkOrder[StationCode]</td><td class="num">8</td><td class="num">4</td><td class="num">2</td><td>MSP, TUS, LAS, UNASSIGNED</td></tr>
+          <tr><td class="key">FactWorkOrder[ACREG]</td><td class="num">8</td><td class="num">5</td><td class="num">3</td><td>A join key, and a cheap one</td></tr>
+          <tr><td class="key">FactWorkOrder[QuotedAmount]</td><td class="num">8</td><td class="num">8</td><td class="num">3</td><td>Distinct per row, but it is the measure</td></tr>
+          <tr><td class="key">FactLabor[TechnicianID]</td><td class="num">8</td><td class="num">5</td><td class="num">3</td><td>After the trim on L-505</td></tr>
+          <tr><td class="key">FactLabor[HourlyRate]</td><td class="num">8</td><td class="num">5</td><td class="num">3</td><td>88, 95, 102, 110, 120</td></tr>
+          <tr><td class="key">FactLabor[WorkDate]</td><td class="num">8</td><td class="num">7</td><td class="num">3</td><td>9 January appears twice</td></tr>
+          <tr class="row-bad"><td class="key">FactLabor[LaborID]</td><td class="num">8</td><td class="num">8</td><td class="num">3</td><td>One per row, and nothing groups by it</td></tr>
+          <tr><td class="key">FactParts[PartNumber]</td><td class="num">7</td><td class="num">4</td><td class="num">2</td><td>BRK, HYD, ENG, AVI</td></tr>
+          <tr><td class="key">FactCapacity[Trade]</td><td class="num">28</td><td class="num">4</td><td class="num">2</td><td>Created by the unpivot</td></tr>
+          <tr><td class="key">FactCapacity[PlannedHours]</td><td class="num">28</td><td class="num">10</td><td class="num">4</td><td>1, 2, 3, 4, 5, 6, 8, 10, 14, 16</td></tr>
+          <tr><td class="key">DimDate[Date]</td><td class="num">90</td><td class="num">90</td><td class="num">7</td><td>Highest cardinality column in the model</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>So make the judgement column by column. <code>FactWorkOrder[ACREG]</code> has five distinct values across eight rows. It would still have five across five million rows, because Meridian works the same small fleet. Three bits per row, a dictionary of five short strings, and it is the key that reaches <code>DimAircraft</code> at all. Keep it without thinking twice. Low-cardinality keys on a fact are the cheapest thing in the model.</p>
+
+  <p>Now price the supervisor's column. Call it <code>WorkDescription</code>, one free-text note per labor line. Every value in it would be distinct, because no two people write the same sentence. The dictionary would hold one entry per row, so it would be as large as the table it describes. The ids would need as many bits as there are rows. Run length encoding would find nothing at all to compress. On eight rows that costs nothing. On eight million rows, that one column would outweigh the rest of the model put together.</p>
+
+  <p>Cardinality is only half the argument, though. Ask what the column is for. Nobody groups a chart by free text, and nobody filters on it, because it cannot be selected usefully in a slicer. It exists to be read one row at a time, at the level of a single labor line. So the answer to the shift supervisor is that the note stays where it is. He reads it in the shop floor system, one job at a time, which is how he reads it today, and the model carries the hours he wants to group and compare. If he ever needs the note inside Power BI, that is a decision to take again against a real row count and a measured refresh, and to write down. The same logic condemns <code>FactLabor[LaborID]</code>. It is distinct per row, and no visual will ever group by it, so once the relationships are built it is dead weight.</p>
+
+  <aside class="callout perf">
+    <div class="callout-label">Performance note</div>
+    <p>Two numbers decide what a column costs you. The first is its distinct count, which sets the width of every id and the length of every run. That is why a five value rate column is free and a per row identifier is expensive. The second is whether anything in the report actually needs the column, which decides whether you should be paying at all. Hiding a column leaves it exactly where it was. A hidden column is still loaded, still encoded, still refreshed, and it still gives the segment sort heuristic one more column to compromise over. Hiding takes it out of the field list and stops there, which makes it a usability choice. If a column has no measure, no relationship and no visual behind it, remove it in Power Query, or stop selecting it in the source query so it never crosses the wire. Two things to check first in any inherited model: the surrogate row id on every fact, and any free-text note field.</p>
+  </aside>
+
+  <h3>The reason that actually matters</h3>
+
+  <p>The shift supervisor at MSP comes back with a printed page. Your report says his station did 34.5 hours in the quarter. His whiteboard says 28.5, and he has been running that whiteboard for nine years. One of you is wrong, and this section is about the possibility that neither of you is.</p>
+
+  <p>First deal with cost, because at Meridian's size every cost in this chapter is zero. Eight work orders, eight labor rows, seven parts rows and twenty-eight capacity rows will not stress anything. If performance were the only argument for the star, the honest answer for this model would be to flatten it and move on.</p>
+
+  <p>The real argument is ambiguity, and the supervisor's whiteboard is where it shows up. Look at what the relationship list deliberately leaves out. There is no relationship from <code>DimStation[StationCode]</code> to <code>DimTechnician[HomeStation]</code>, even though the columns match and Power BI would happily create it. Draw that line and there are two routes from <code>DimStation</code> to <code>FactLabor</code>. One goes through <code>FactWorkOrder</code> and answers hours performed at this station. The other goes through <code>DimTechnician</code> and answers hours worked by technicians based at this station. Both are legitimate questions. They are different questions.</p>
+
+  <p>Work it out from the rows. Through the work order, MSP is 34.5, TUS is 22.5, LAS is 5.0. Through home station it comes out differently. TECH-01 at 12.0 and TECH-02 at 16.5 are both MSP, giving 28.5. TECH-04 at 10.5 is TUS. TECH-05 at 13.0 is LAS. TECH-07 at 10.0 has no home station at all. So the second route reads MSP 28.5, TUS 10.5, LAS 13.0 and unassigned 10.0. Both columns total 62.0. Every single row differs. LAS more than doubles, TUS halves, and nothing on the visual tells you which path the engine took.</p>
+
+  <p>So the supervisor is right and so are you. He counts the people who report to him. Your report counts the aircraft that came into his hangar, including the 10.0 hours TECH-07 booked there. Because the model holds one path and only one, you can tell him which of the two his 34.5 is, and build the other number as its own measure if he wants both. In a model carrying both paths at once you could not have answered him, because you would not know which one the visual used.</p>
+
+  <aside class="callout insight">
+    <div class="callout-label">Interview-level insight</div>
+    <p>The star schema earns its place on one property above every other. It gives each measure exactly one path from every dimension to every fact, so a number means the same thing in every visual on every page. Performance is the secondary benefit. Ambiguity is what makes a measure behave differently in two visuals that look identical, and it is close to undebuggable from the report surface, because the report shows you a number and never shows you the route it took. Keep one path and the argument about which answer is right never starts.</p>
+  </aside>
+
+  <div class="takeaway">
+    <div class="takeaway-label">What to remember</div>
+    <ul class="list">
+      <li>VertiPaq compresses each column separately, so a column costs what its distinct count costs, not what its row count costs.</li>
+      <li>Flattening to line grain repeats header attributes. The storage penalty is smaller than folklore claims; the correctness penalty is fatal. Summing <code>QuotedAmount</code> over the flat labor table gives 46,600 instead of 38,100.</li>
+      <li>Meridian's star is four facts, seven dimensions and one bridge, with one extra layer in the middle: <code>FactWorkOrder</code> is also the header for <code>FactLabor</code> and <code>FactParts</code>, which is what makes hours by aircraft type reachable.</li>
+      <li>A many-to-one hop is a prepared lookup, so it is cheap. Many-to-many expands a distinct list per query and gives up the single-path guarantee.</li>
+      <li>Flatten dimensions by default. Snowflake only when the outer table is large enough for its attributes to cost something, or when two dimensions genuinely share it. Seven aircraft rows against four operator rows means the Meridian snowflake buys nothing and costs a hop.</li>
+      <li>Conformed dimensions make cross-fact measures possible. <code>DimStation</code> feeding both <code>FactWorkOrder</code> and <code>FactCapacity</code> is the only reason 62.0 over 176 equals 35.2% can be written.</li>
+      <li>Remove unused columns. Hiding one changes nothing in memory: it is still loaded, still encoded and still refreshed.</li>
+      <li>The payoff is one unambiguous filter path per measure. Hours at MSP is 34.5 through the work order and 28.5 through home station, and a model containing both paths would let the engine pick.</li>
+    </ul>
+  </div>
+</section>
+<nav class="prevnext"><a class="pn" href="01.html"><span class="pn-dir">Previous</span><span class="pn-t">Facts, dimensions and the grain test</span></a><a class="pn" href="03.html"><span class="pn-dir">Next</span><span class="pn-t">Building the dimensions your source does not contain</span></a></nav>
+</main>
+<script src="../assets/app.js" defer></script>
+</body>
+</html>
